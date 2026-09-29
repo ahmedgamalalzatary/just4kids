@@ -1,0 +1,5 @@
+{
+  "extends": "@just4kids/config/typescript/node",
+  "compilerOptions": { "noEmit": true },
+  "include": ["vitest.config.ts"]
+}

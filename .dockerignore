@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.vitest
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+**/.env
+**/.env.*
+**/.DS_Store
+**/Thumbs.db

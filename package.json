@@ -1,0 +1,34 @@
+{
+  "name": "just4kids",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.1",
+  "engines": { "node": ">=24 <25", "pnpm": ">=12 <13" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint && eslint eslint.config.mjs vitest.config.ts --max-warnings 0",
+    "typecheck": "turbo run typecheck && tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "pnpm --filter @just4kids/db db:generate",
+    "db:migrate": "pnpm --filter @just4kids/db db:migrate",
+    "db:studio": "pnpm --filter @just4kids/db db:studio",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up --detach --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@just4kids/config": "workspace:*",
+    "@types/node": "catalog:",
+    "dotenv": "catalog:",
+    "eslint": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

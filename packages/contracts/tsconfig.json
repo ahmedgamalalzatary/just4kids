@@ -1,0 +1,4 @@
+{
+  "extends": "@just4kids/config/typescript/node",
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

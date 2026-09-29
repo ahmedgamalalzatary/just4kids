@@ -1,0 +1,25 @@
+{
+  "name": "@just4kids/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint": "./eslint/base.mjs",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/node": "./typescript/node.json",
+    "./typescript/next": "./typescript/next.json"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --project config --passWithNoTests",
+    "test:watch": "vitest --config ../../vitest.config.ts --project config --passWithNoTests"
+  },
+  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:" },
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

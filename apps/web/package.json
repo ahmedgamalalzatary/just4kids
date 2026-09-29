@@ -1,0 +1,29 @@
+{
+  "name": "@just4kids/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --project web --passWithNoTests",
+    "test:watch": "vitest --config ../../vitest.config.ts --project web --passWithNoTests"
+  },
+  "dependencies": { "@just4kids/contracts": "workspace:*", "next": "catalog:", "react": "catalog:", "react-dom": "catalog:" },
+  "devDependencies": {
+    "dotenv": "catalog:",
+    "@just4kids/config": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-next": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}

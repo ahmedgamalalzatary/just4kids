@@ -1,0 +1,33 @@
+{
+  "name": "@just4kids/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node dist/index.js",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --project api",
+    "test:watch": "vitest --config ../../vitest.config.ts --project api"
+  },
+  "dependencies": {
+    "@just4kids/contracts": "workspace:*",
+    "@just4kids/db": "workspace:*",
+    "dotenv": "catalog:",
+    "express": "catalog:",
+    "helmet": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@just4kids/config": "workspace:*",
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/supertest": "catalog:",
+    "supertest": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

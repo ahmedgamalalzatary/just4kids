@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["packages/config/typescript/*.json", "packages/config/eslint/*.mjs", ".env"],
+  "globalPassThroughEnv": ["NODE_ENV", "HOST", "PORT", "API_INTERNAL_URL", "DATABASE_URL", "NEXT_OUTPUT_STANDALONE", "NEXT_TELEMETRY_DISABLED"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["API_INTERNAL_URL", "NEXT_OUTPUT_STANDALONE"]
+    },
+    "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
+    "start": { "cache": false, "persistent": true },
+    "lint": {},
+    "typecheck": { "dependsOn": ["^build"], "outputs": [] }
+  }
+}

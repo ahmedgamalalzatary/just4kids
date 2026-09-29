@@ -1,0 +1,22 @@
+FROM node:24-bookworm-slim AS builder
+WORKDIR /repo
+RUN npm install --global pnpm@12.4.1
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/config/package.json ./packages/config/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/db/package.json ./packages/db/package.json
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm exec turbo run build --filter=@just4kids/api
+RUN pnpm --filter @just4kids/api --prod deploy /output/api
+
+FROM node:24-bookworm-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=4000
+COPY --from=builder --chown=node:node /output/api ./
+USER node
+EXPOSE 4000
+CMD ["node", "dist/index.js"]
