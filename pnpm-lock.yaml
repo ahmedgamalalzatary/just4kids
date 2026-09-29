@@ -292,6 +292,9 @@ importers:
       dotenv:
         specifier: 'catalog:'
         version: 18.0.4
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.3(mysql2@3.24.4(@types/node@24.19.0))
       express:
         specifier: 'catalog:'
         version: 5.2.1(supports-color@7.2.0)

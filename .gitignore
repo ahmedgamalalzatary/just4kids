@@ -11,5 +11,6 @@ coverage/
 .env.*
 !.env.example
 !.env.test.example
+!.env.production.example
 .DS_Store
 Thumbs.db

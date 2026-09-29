@@ -18,14 +18,19 @@ Requirements: Node 24 and pnpm 12.4.1. Versions are pinned in `pnpm-workspace.ya
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm db:migrate
 pnpm dev
 ```
 
 Web: `http://localhost:3000`. API: `http://127.0.0.1:4000/health`. The web app proxies `/api/*` to Express, so `/api/health` works through the same web origin.
 
-Use one root `.env` based on `.env.example`. API, web configuration, and Drizzle load it; shell/container environment variables take precedence. Development can start without MySQL; `/health` reports API liveness, not database readiness. `NODE_ENV`, `HOST`, and `PORT` are validated by the API at startup.
+Use one root `.env` based on `.env.example`. API, web configuration, and Drizzle load it; shell/container environment variables take precedence. The API now requires MySQL and the authentication migration before startup so it can create or update the sole administrator. `/health` reports API liveness after startup, not database readiness. The API validates all required authentication and server settings before serving requests.
 
-For production, run `pnpm build`, then `pnpm start` with production environment values. VPS deployment is a later step.
+Set `ADMIN_PHONE` in international format (`+965` followed by eight digits for a Kuwaiti mobile number), `ADMIN_PASSWORD` as plaintext **in the ignored environment file only**, and `AUTH_SECRET` as 32 random bytes encoded as 64 hex characters. The API hashes the password before saving it in MySQL. The local `.env` has the requested editable example phone and `admin1234`; choose a longer unique password before production. Restarting the API after changing the administrator phone/password updates the one administrator and revokes their sessions. Employee credentials will be managed by the administrator in the employee phase. `APP_ORIGIN` must match the browser's web origin exactly, such as `http://localhost:3000` locally.
+
+The browser login flow uses same-origin `/api/auth/csrf` (receive a CSRF token and an HttpOnly pre-login cookie), then `POST /api/auth/login` with `{ "phone": "+96555551234", "password": "..." }` and the token in `X-CSRF-Token`. On success the server sets an HttpOnly, SameSite=Strict session cookie lasting seven days. `GET /api/auth/session` returns the permitted account and a fresh CSRF token; `POST /api/auth/logout` requires that token and revokes the session. The backend returns no bearer token, and the frontend should keep the CSRF token in memory rather than localStorage. The frontend login page is still pending.
+
+For production, set `NODE_ENV=production`, use a root `.env.production` based on `.env.production.example`, and run `pnpm build` then `pnpm start`. The API reads `.env.production` in production unless `ENV_FILE` selects another root environment filename. Configure HTTPS `APP_ORIGIN`, a unique administrator password of at least 12 characters, and a random `AUTH_SECRET`. VPS deployment is a later step.
 
 ## Checks
 
@@ -44,7 +49,7 @@ Individual app type checks/builds need compiled shared dependencies on a fresh c
 
 Tests live in each workspace's `tests/` directory. Root Vitest projects are named `api`, `web`, `contracts`, `db`, and `config`; `pnpm test --project api` also selects just the API. API, contract, and real database connection smoke tests are present. The empty web/config test folders permit no-tests runs until behavior is implemented; they do not claim feature coverage.
 
-Vitest always loads the root `.env.test`, overriding inherited development connection settings. Use `.env.test.example` for setup. Tests require `DATABASE_URL` to select `just4kids_test`; the database smoke test needs the running MySQL instance. Both `.env` and `.env.test` are ignored by Git and Docker builds.
+Vitest always loads the root `.env.test`, overriding inherited development connection settings. Use `.env.test.example` for setup. Test commands apply migrations to `just4kids_test` first and require its running MySQL instance. The dedicated test migration config refuses any other database. Both `.env` and `.env.test` are ignored by Git and Docker builds.
 
 ## Database
 
@@ -55,10 +60,11 @@ Development database: `just4kids`. Test database: `just4kids_test`, selected by 
 ```sh
 pnpm db:generate
 pnpm db:migrate
+pnpm db:migrate:test
 pnpm db:studio
 ```
 
-The schema starts empty; no business tables or migrations are invented during scaffolding. Generate migrations after adding tables; migration/studio commands require the configured database. Never add `.env` credentials to Git.
+The first migration creates accounts, sessions, and login-attempt limits. The account table enforces one administrator and unique phone numbers, and sessions store only hashes of random cookie tokens. Generate new migrations after adding later feature tables; migration/studio commands require the configured database. Never add `.env` credentials to Git.
 
 ## Docker
 
@@ -69,6 +75,6 @@ pnpm docker:up
 pnpm docker:down
 ```
 
-Compose runs web and API and uses your existing host MySQL; it does not create another MySQL container. The API stays on the private container network. Web is published on `127.0.0.1:3000` for a host reverse proxy; set `WEB_BIND_ADDRESS`/`WEB_PORT` if needed. The host MySQL listener and account must allow connections from containers.
+Compose runs web and API and uses your existing host MySQL; it does not create another MySQL container. The API stays on the private container network. Web is published on `127.0.0.1:3000` for a host reverse proxy; set `WEB_BIND_ADDRESS`/`WEB_PORT` if needed. The host MySQL listener and account must allow connections from containers. Compose reads `.env` by default; for `.env.production`, set `API_ENV_FILE=.env.production` in that file and run `docker compose --env-file .env.production up --detach --build`. Set `DOCKER_DATABASE_URL` there and migrate the database before starting the API. Docker packaging has not been verified on this computer.
 
 The internal API address is a web build argument, so rebuild web when changing it. Docker is required for image builds and Compose execution.

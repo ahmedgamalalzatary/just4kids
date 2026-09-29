@@ -1,26 +1,29 @@
 import { config } from "dotenv";
 import { fileURLToPath } from "node:url";
-import { createApp } from "./app.js";
-import { apiEnvSchema } from "./env.js";
+import { apiEnvSchema } from "./configs/env.js";
+import { startApi } from "./server.js";
 
-config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)), quiet: true });
+const root = new URL("../../../", import.meta.url);
+const envFile = process.env.ENV_FILE ?? (process.env.NODE_ENV === "production" ? ".env.production" : ".env");
+config({ path: fileURLToPath(new URL(envFile, root)), quiet: true });
 const env = apiEnvSchema.parse(process.env);
-const server = createApp().listen(env.PORT, env.HOST, () => {
-  console.log(`API listening at http://${env.HOST}:${env.PORT}`);
-});
+const { server, pool } = await startApi(env);
+console.log(`API listening at http://${env.HOST}:${env.PORT}`);
 
-server.on("error", (error) => {
+server.on("error", async (error) => {
   console.error(error);
   process.exitCode = 1;
+  await pool.end();
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    server.close((error) => {
+    server.close(async (error) => {
       if (error) {
         console.error(error);
         process.exitCode = 1;
       }
+      await pool.end();
     });
   });
 }

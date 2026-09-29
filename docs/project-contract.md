@@ -22,6 +22,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Employees cannot reschedule or reassign bookings.
 - Only the administrator can correct or undo payment records.
 - Backend authorization must enforce ownership even when a record is requested directly.
+- Confirmed authentication policy: seven-day server-side MySQL sessions via HttpOnly cookies, with `Secure` in production and CSRF protection on login and logout. The sole administrator's phone/password come from the private server environment and are applied on API restart; changing either revokes existing administrator sessions. Phone numbers use international format. The administrator manages employee password resets. Employee phone/profile editing remains a later decision.
 
 ## Branches and employees
 
@@ -134,9 +135,9 @@ The following are implementation proposals or unresolved policies, not additiona
 - Use Kuwait business time; adjacent windows sharing an endpoint do not overlap.
 - Client self-service changes apply to future booked reservations, with no extra lead-time cutoff. Terminal-state corrections are administrator-only. Exact state-transition policy is pending.
 - Cancelled/no-show records release availability; completion does not shorten the original window.
-- Bootstrap the sole administrator during setup; administrator handles credential resets. Exact self-editable profile fields and phone-change policy are pending.
+- Exact employee self-editable profile fields and employee phone-change policy are pending.
 - Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
-- WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, authentication/session design, production deployment/backup tooling, and any required tax/invoice fields remain to be selected.
+- WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, production deployment/backup tooling, and any required tax/invoice fields remain to be selected.
 
 ## Scope boundaries and completion
 

@@ -1,0 +1,7 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": { "passThroughEnv": ["DATABASE_URL", "ADMIN_PHONE", "ADMIN_PASSWORD", "AUTH_SECRET", "APP_ORIGIN", "ENV_FILE"] },
+    "start": { "passThroughEnv": ["DATABASE_URL", "ADMIN_PHONE", "ADMIN_PASSWORD", "AUTH_SECRET", "APP_ORIGIN", "ENV_FILE"] }
+  }
+}

@@ -1,2 +1,1 @@
-// Add domain tables when their features are implemented.
-export {};
+export * from "./auth.js";

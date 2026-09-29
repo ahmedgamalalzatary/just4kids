@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: docker.api
-    env_file: .env
+    env_file: ${API_ENV_FILE:-.env}
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0

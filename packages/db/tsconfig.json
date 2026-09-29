@@ -1,4 +1,4 @@
 {
   "extends": "@just4kids/config/typescript/node",
-  "include": ["src/**/*.ts", "tests/**/*.ts", "drizzle.config.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "drizzle.config.ts", "drizzle.test.config.ts"]
 }

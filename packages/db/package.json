@@ -13,10 +13,11 @@
     "build": "tsc --project tsconfig.build.json",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --project db",
-    "test:watch": "vitest --config ../../vitest.config.ts --project db",
+    "test": "pnpm db:migrate:test && vitest run --config ../../vitest.config.ts --project db",
+    "test:watch": "pnpm db:migrate:test && vitest --config ../../vitest.config.ts --project db",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:test": "drizzle-kit migrate --config drizzle.test.config.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": { "drizzle-orm": "catalog:", "mysql2": "catalog:" },

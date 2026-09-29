@@ -10,13 +10,14 @@
     "start": "node dist/index.js",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --project api",
-    "test:watch": "vitest --config ../../vitest.config.ts --project api"
+    "test": "pnpm --filter @just4kids/db db:migrate:test && vitest run --config ../../vitest.config.ts --project api",
+    "test:watch": "pnpm --filter @just4kids/db db:migrate:test && vitest --config ../../vitest.config.ts --project api"
   },
   "dependencies": {
     "@just4kids/contracts": "workspace:*",
     "@just4kids/db": "workspace:*",
     "dotenv": "catalog:",
+    "drizzle-orm": "catalog:",
     "express": "catalog:",
     "helmet": "catalog:",
     "zod": "catalog:"
