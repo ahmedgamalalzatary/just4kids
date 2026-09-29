@@ -123,14 +123,17 @@ describe("administrator authentication", () => {
     const oldCookie = sessionCookie(first).cookie;
     const changed = apiEnvSchema.parse({ ...env, ADMIN_PHONE: "+96555550002", ADMIN_PASSWORD: "different-password" });
     const restarted = createAuth(connection, changed);
-    await restarted.initialize();
-    app = createApp({ auth: restarted });
-    expect((await request(app).get("/auth/session").set("Cookie", oldCookie)).status).toBe(401);
-    expect((await login(phone)).status).toBe(401);
-    expect((await login("+96555550002", "different-password")).status).toBe(200);
-    expect((await connection.db.select().from(accounts)).filter(row => row.role === "admin")).toHaveLength(1);
-    await auth.initialize();
-    app = createApp({ auth });
+    try {
+      await restarted.initialize();
+      app = createApp({ auth: restarted });
+      expect((await request(app).get("/auth/session").set("Cookie", oldCookie)).status).toBe(401);
+      expect((await login(phone)).status).toBe(401);
+      expect((await login("+96555550002", "different-password")).status).toBe(200);
+      expect((await connection.db.select().from(accounts)).filter(row => row.role === "admin")).toHaveLength(1);
+    } finally {
+      await auth.initialize();
+      app = createApp({ auth });
+    }
   });
 
   it("keeps an existing session when the administrator environment is unchanged", async () => {
