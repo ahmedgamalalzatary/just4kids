@@ -15,6 +15,13 @@
       "when": 1790703991921,
       "tag": "0001_dazzling_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790705157377,
+      "tag": "0002_sour_oracle",
+      "breakpoints": true
     }
   ]
 }

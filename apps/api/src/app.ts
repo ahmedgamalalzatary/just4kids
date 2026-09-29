@@ -8,6 +8,7 @@ import type { createDatabase } from "@just4kids/db";
 import type { ApiEnv } from "./configs/env.js";
 import { createBranches } from "./modules/branches/index.js";
 import { createEmployees } from "./modules/employees/index.js";
+import { createSchedules } from "./modules/schedules/index.js";
 
 export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv }) {
   const app = express();
@@ -21,6 +22,11 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     app.use("/auth", options.auth.router);
     if (options.connection) app.use("/branches", createBranches(options.connection, options.auth));
     if (options.connection && options.env) app.use("/employees", createEmployees(options.connection, options.auth, options.env));
+    if (options.connection) {
+      const schedules = createSchedules(options.connection, options.auth);
+      app.use("/schedules", schedules.router);
+      app.use("/availability", schedules.eligibleRouter);
+    }
   }
 
   app.get("/health", (_request, response) => {

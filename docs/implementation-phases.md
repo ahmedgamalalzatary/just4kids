@@ -25,14 +25,14 @@ As inspected on 2026-09-29:
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express, Helmet, JSON parsing/errors, environment validation, `/health`, shutdown handling; Phase 1 auth endpoints and guards now implemented |
-| Contracts | Zod health and account/login/session contracts |
-| Database | Drizzle/mysql2 connection factory; auth accounts/sessions/login-attempt tables in migration 0000; later business tables pending |
-| Tests | API infrastructure/auth/environment, shared contracts, real isolated MySQL auth and connection checks |
+| API | Express, Helmet, JSON parsing/errors, environment validation, `/health`, shutdown; authentication, branches, employees, and schedules implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, and eligibility contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), and schedule (0002) tables; bookings and later business tables pending |
+| Tests | API auth/organization/schedule behavior, shared contracts, and real isolated MySQL checks |
 | Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Phase 1 backend authentication implemented; employee management, branches, schedules, clients, reservations, invoices, cash, reports, WhatsApp, and all frontend journeys pending |
+| Business features | Phases 1–3 backend implemented; clients, reservations, invoices, cash, reports, WhatsApp, and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -116,18 +116,18 @@ Backend evidence: migration `0001_dazzling_power_pack.sql` applied to developmen
 
 ## Phase 3 — Working schedules and eligible barbers
 
-Depends on: phase 2. Decision gate: Kuwait business time, endpoint adjacency, blocking/released visit states, and schedule-edit behavior when bookings already exist.
+Depends on: phase 2. Confirmed: `Asia/Kuwait` local date/time, same-day shifts/windows, adjacent windows allowed, booked/arrived/completed block the original window, cancelled/no-show release it, and schedule edits that would exclude an existing booking are refused. Weekly hours have dated exceptions.
 
 Outcome: administrator controls working availability; a requested window returns eligible barbers and their branches.
 
 Backend checklist:
 
-- [ ] Add working-day/hour/available-time contracts, persistence, migrations, and administrator schedule operations.
-- [ ] Implement one shared availability service for manual booking, AI booking, rescheduling, and reassignment.
-- [ ] Validate the entire requested window against working availability and blocking reservations under the confirmed overlap/state policy.
-- [ ] Enforce inclusive 20-minute to 4-hour bounds independently of counts and descriptive haircut durations.
-- [ ] Return eligible barbers with their branch; do not calculate travel time or add buffers outside the selected window.
-- [ ] Test schedule boundaries, overlap/adjacency, timezone handling, invalid windows, and ownership; pass targeted checks.
+- [x] Add weekly and dated-exception contracts, persistence, migration, and administrator schedule operations; allow employee own-schedule reads only.
+- [x] Implement a shared availability decision for manual booking, AI booking, rescheduling, and reassignment; wire reservation reads when phase 5 creates reservations.
+- [x] Validate the entire requested window against working shifts/date exceptions and the confirmed blocking/released visit-state policy in the shared decision.
+- [x] Enforce inclusive 20-minute to 4-hour bounds independently of counts and descriptive haircut durations.
+- [x] Return enabled eligible barbers with their branch; do not calculate travel time or add buffers outside the selected window.
+- [x] Test schedule boundaries, overlap/adjacency, Kuwait calendar dates, invalid windows, and ownership; pass targeted checks.
 
 Frontend checklist:
 
@@ -137,6 +137,8 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Working-hour changes and requested windows produce the same eligibility results used by later booking actions.
+
+Backend evidence: migration `0002_sour_oracle.sql` applied to development and isolated test MySQL; a subsequent `pnpm db:generate` found no schema drift. Authenticated schedule read/write and eligible-barber API tests, exact-window contract tests, shared visit-state overlap tests, and real database schema tests pass. Targeted backend lint/typecheck/tests/build passed (contracts 23, database 9, API 44 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (76 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`. The HTTP eligibility result currently has no reservations to check; phase 5 must load blocking reservations inside the booking transaction and reject schedule edits that would exclude existing bookings. Frontend and whole-slice acceptance remain pending.
 
 ## Phase 4 — Clients and usable service addresses
 
@@ -173,6 +175,7 @@ Backend checklist:
 - [ ] Add booking/invoice contracts, tables, migrations, readable booking references, source attribution, and authorized list/detail operations.
 - [ ] Validate integer non-negative adult/child counts with at least one haircut, one barber, one address, and one shared window.
 - [ ] Recheck availability inside the booking transaction and serialize conflicting writes for the same barber.
+- [ ] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude a future blocking booking while holding the same employee lock.
 - [ ] Atomically save reservation and invoice; roll back both on failure.
 - [ ] Snapshot address, employee/branch attribution, counts, and agreed unit prices; compute exact totals from branch prices.
 - [ ] Expose booking/invoice detail and print-ready data, separate visit/invoice/payment states, and employee-own record reads.

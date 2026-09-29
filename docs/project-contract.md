@@ -34,6 +34,9 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Clients choose a barber, not a branch. Display each barber's branch to help clients estimate travel.
 - Administrator can create manual bookings and hand a booking to another available barber.
 - Availability is enforced for AI actions, manual bookings, rescheduling, and reassignment.
+- Working hours repeat weekly and may contain separate shifts on a day. An administrator can replace one day's hours or close it using a dated exception. Shifts and booking windows stay within one Kuwait calendar day.
+- Schedule dates and local `HH:mm` times use `Asia/Kuwait`; weekday numbers are Sunday `0` through Saturday `6`. Windows that only touch at an endpoint do not overlap.
+- Booked, arrived, and completed visits block the full original reserved window. Cancelled and no-show visits release it. A schedule edit that would exclude an existing blocking booking must be refused until that booking is moved or cancelled.
 
 ## Clients and addresses
 
@@ -135,9 +138,7 @@ docs/project-contract.md
 
 The following are implementation proposals or unresolved policies, not additional confirmed scope:
 
-- Use Kuwait business time; adjacent windows sharing an endpoint do not overlap.
 - Client self-service changes apply to future booked reservations, with no extra lead-time cutoff. Terminal-state corrections are administrator-only. Exact state-transition policy is pending.
-- Cancelled/no-show records release availability; completion does not shorten the original window.
 - Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
 - WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, production deployment/backup tooling, and any required tax/invoice fields remain to be selected.
 
