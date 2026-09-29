@@ -147,6 +147,24 @@ describe("administrator authentication", () => {
     expect(blocked.headers["retry-after"]).toBeDefined();
   });
 
+  it("does not spend the IP failure budget on a successful login", async () => {
+    expect((await login("+96555550001", "incorrect-password")).status).toBe(401);
+    expect((await login("+96555550002", "incorrect-password")).status).toBe(401);
+    const [ipCounter] = await connection.db.select().from(loginAttempts).where(eq(loginAttempts.attempts, 2));
+    expect(ipCounter).toBeDefined();
+    await connection.db.update(loginAttempts).set({ attempts: 29 }).where(eq(loginAttempts.keyHash, ipCounter!.keyHash));
+    expect((await login()).status).toBe(200);
+    expect((await login(phone, "incorrect-password")).status).toBe(401);
+    expect((await login(phone, "incorrect-password")).status).toBe(429);
+  });
+
+  it("clears the phone failure budget after a successful login", async () => {
+    for (let attempt = 0; attempt < 4; attempt++) expect((await login(phone, "incorrect-password")).status).toBe(401);
+    expect((await login()).status).toBe(200);
+    for (let attempt = 0; attempt < 5; attempt++) expect((await login(phone, "incorrect-password")).status).toBe(401);
+    expect((await login(phone, "incorrect-password")).status).toBe(429);
+  });
+
   it("allows employee sign-in but denies administrator and other-employee access", async () => {
     const firstId = randomUUID();
     const secondId = randomUUID();

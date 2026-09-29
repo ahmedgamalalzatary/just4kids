@@ -3,7 +3,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, loginAttempts, sessions } from "@just4kids/db/schema";
 import { sha256 } from "../../lib/security.js";
-import { hashPassword, verifyPassword } from "../../lib/password.js";
+import { dummyPasswordHash, hashPassword, verifyPassword } from "../../lib/password.js";
 
 type Connection = ReturnType<typeof createDatabase>;
 const attemptWindowMs = 15 * 60 * 1000;
@@ -28,11 +28,6 @@ export function createAuthRepository(connection: Connection) {
       });
     },
 
-    async findAccountByPhone(phone: string) {
-      const [account] = await db.select().from(accounts).where(eq(accounts.phone, phone));
-      return account;
-    },
-
     async findSession(token: string) {
       const [row] = await db.select({ account: accounts, expiresAt: sessions.expiresAt }).from(sessions)
         .innerJoin(accounts, eq(sessions.accountId, accounts.id))
@@ -54,21 +49,30 @@ export function createAuthRepository(connection: Connection) {
       await db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
     },
 
-    async recordAttempt(phone: string, ip: string): Promise<number | undefined> {
+    async verifyCredentials(phone: string, password: string, ip: string) {
       const now = new Date();
       const nextExpiry = new Date(now.getTime() + attemptWindowMs);
       return db.transaction(async transaction => {
+        const counters: { keyHash: string; attempts: number; expiresAt: Date }[] = [];
         for (const [key, limit] of [[`ip:${ip}`, 30], [`phone-ip:${phone}:${ip}`, 5]] as const) {
           const keyHash = sha256(key);
           await transaction.insert(loginAttempts).values({ keyHash, attempts: 0, expiresAt: nextExpiry }).onDuplicateKeyUpdate({ set: { keyHash: sql`${loginAttempts.keyHash}` } });
           const [entry] = await transaction.select().from(loginAttempts).where(eq(loginAttempts.keyHash, keyHash)).for("update");
           if (!entry) throw new Error("Login attempt counter unavailable");
           const expired = entry.expiresAt <= now;
-          const previous = expired ? 0 : entry.attempts;
-          await transaction.update(loginAttempts).set({ attempts: previous + 1, expiresAt: expired ? nextExpiry : entry.expiresAt }).where(eq(loginAttempts.keyHash, keyHash));
-          if (previous >= limit) return Math.max(1, Math.ceil((entry.expiresAt.getTime() - now.getTime()) / 1000));
+          const attempts = expired ? 0 : entry.attempts;
+          if (attempts >= limit) return { kind: "limited" as const, retryAfter: Math.max(1, Math.ceil((entry.expiresAt.getTime() - now.getTime()) / 1000)) };
+          counters.push({ keyHash, attempts, expiresAt: expired ? nextExpiry : entry.expiresAt });
         }
-        return undefined;
+        const [account] = await transaction.select().from(accounts).where(eq(accounts.phone, phone));
+        if (!await verifyPassword(password, account?.passwordHash ?? dummyPasswordHash) || !account?.enabled) {
+          for (const counter of counters) {
+            await transaction.update(loginAttempts).set({ attempts: counter.attempts + 1, expiresAt: counter.expiresAt }).where(eq(loginAttempts.keyHash, counter.keyHash));
+          }
+          return { kind: "invalid" as const };
+        }
+        await transaction.delete(loginAttempts).where(eq(loginAttempts.keyHash, sha256(`phone-ip:${phone}:${ip}`)));
+        return { kind: "valid" as const, account };
       });
     },
   };

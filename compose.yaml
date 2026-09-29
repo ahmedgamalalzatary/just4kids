@@ -5,12 +5,12 @@ services:
     build:
       context: .
       dockerfile: docker.api
-    env_file: ${API_ENV_FILE:-.env}
+    env_file: ${API_ENV_FILE:?Set API_ENV_FILE to a production env file such as .env.production}
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 4000
-      DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL in .env}
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL in the production env file}
     extra_hosts:
       - host.docker.internal:host-gateway
     expose:

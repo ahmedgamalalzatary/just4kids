@@ -4,7 +4,6 @@ import type { Account } from "@just4kids/contracts";
 import type { ApiEnv } from "../../configs/env.js";
 import { equalHex } from "../../lib/security.js";
 import { ForbiddenError } from "../../lib/http-error.js";
-import { dummyPasswordHash, verifyPassword } from "../../lib/password.js";
 import type { AuthRepository } from "./auth.repository.js";
 
 export type Authenticated = { account: Account; token: string; expiresAt: Date };
@@ -37,10 +36,9 @@ export function createAuthService(repository: AuthRepository, env: ApiEnv) {
     },
 
     async authenticate(phone: string, password: string, ip: string, oldToken?: string): Promise<{ kind: "success"; session: Authenticated } | { kind: "invalid" } | { kind: "limited"; retryAfter: number }> {
-      const retryAfter = await repository.recordAttempt(phone, ip);
-      if (retryAfter !== undefined) return { kind: "limited", retryAfter };
-      const account = await repository.findAccountByPhone(phone);
-      if (!await verifyPassword(password, account?.passwordHash ?? dummyPasswordHash) || !account?.enabled) return { kind: "invalid" };
+      const verified = await repository.verifyCredentials(phone, password, ip);
+      if (verified.kind !== "valid") return verified;
+      const { account } = verified;
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + sessionLengthMs);
       const created = await repository.createSession(account.id, account.passwordHash, token, expiresAt, oldToken);

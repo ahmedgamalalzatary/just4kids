@@ -30,7 +30,7 @@ Set `ADMIN_PHONE` in international format (`+965` followed by eight digits for a
 
 The browser login flow uses same-origin `/api/auth/csrf` (receive a CSRF token and an HttpOnly pre-login cookie), then `POST /api/auth/login` with `{ "phone": "+96555551234", "password": "..." }` and the token in `X-CSRF-Token`. On success the server sets an HttpOnly, SameSite=Strict session cookie lasting seven days. `GET /api/auth/session` returns the permitted account and a fresh CSRF token; `POST /api/auth/logout` requires that token and revokes the session. The backend returns no bearer token, and the frontend should keep the CSRF token in memory rather than localStorage. The frontend login page is still pending.
 
-For production, set `NODE_ENV=production`, use a root `.env.production` based on `.env.production.example`, and run `pnpm build` then `pnpm start`. The API reads `.env.production` in production unless `ENV_FILE` selects another root environment filename. Configure HTTPS `APP_ORIGIN`, a unique administrator password of at least 12 characters, and a random `AUTH_SECRET`. VPS deployment is a later step.
+For production, set `NODE_ENV=production`, use a root `.env.production` based on `.env.production.example`, and run `pnpm build` then `pnpm start`. The API reads `.env.production` in production unless `ENV_FILE` selects another root environment filename. The example binds a directly run API to `127.0.0.1`; Docker Compose overrides `HOST` to `0.0.0.0` inside the private container network. Configure HTTPS `APP_ORIGIN`, a unique administrator password of at least 12 characters, and a random `AUTH_SECRET`. VPS deployment is a later step.
 
 ## Checks
 
@@ -81,6 +81,6 @@ pnpm docker:up
 pnpm docker:down
 ```
 
-Compose runs web and API and uses your existing host MySQL; it does not create another MySQL container. The API stays on the private container network. Web is published on `127.0.0.1:3000` for a host reverse proxy; set `WEB_BIND_ADDRESS`/`WEB_PORT` if needed. The host MySQL listener and account must allow connections from containers. Compose reads `.env` by default; for `.env.production`, set `API_ENV_FILE=.env.production` in that file and run `docker compose --env-file .env.production up --detach --build`. Set `DOCKER_DATABASE_URL` there and migrate the database before starting the API. Docker packaging has not been verified on this computer.
+Compose runs web and API and uses your existing host MySQL; it does not create another MySQL container. The API stays on the private container network. Web is published on `127.0.0.1:3000` for a host reverse proxy; set `WEB_BIND_ADDRESS`/`WEB_PORT` if needed. The host MySQL listener and account must allow connections from containers. Compose requires `API_ENV_FILE` to name the API's production environment file. Set `API_ENV_FILE=.env.production` and `DOCKER_DATABASE_URL` in that file, then run `docker compose --env-file .env.production up --detach --build` after migrating the database. Docker packaging has not been verified on this computer.
 
 The internal API address is a web build argument, so rebuild web when changing it. Docker is required for image builds and Compose execution.
