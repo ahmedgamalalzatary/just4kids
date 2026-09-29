@@ -41,7 +41,9 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 ## Clients and addresses
 
 - Store the main client's name, phone number, and usable service address.
+- One client record owns each international-format phone number; that exact phone is the primary-contact identity for later WhatsApp lookup.
 - Address fields: street, house number, block, floor, apartment, building, and additional instructions where applicable. Floor/apartment need not apply to every property.
+- A saved service address requires area/neighborhood, block, street, and at least one of house number or building name. Clients may have multiple saved addresses. Floor, apartment, instructions, Google Maps link, and WhatsApp pin coordinates are optional.
 - Accept a WhatsApp location or Google Maps link alongside visit details.
 - Reservations record adult/child counts. Separate child names, ages, and saved child profiles are not required.
 - Preserve the reservation's address and historical branch/pricing details when current client/employee information changes.
@@ -132,7 +134,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Infrastructure scaffolding does not implement booking, authentication, WhatsApp, or reporting features yet.
+- Booking, WhatsApp, and reporting features are pending; backend authentication, branches/employees, schedules, and clients/addresses have their own implemented slices.
 
 ## Proposed defaults and pending decisions
 

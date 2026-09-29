@@ -25,14 +25,14 @@ As inspected on 2026-09-29:
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express, Helmet, JSON parsing/errors, environment validation, `/health`, shutdown; authentication, branches, employees, and schedules implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, and eligibility contracts |
-| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), and schedule (0002) tables; bookings and later business tables pending |
-| Tests | API auth/organization/schedule behavior, shared contracts, and real isolated MySQL checks |
+| API | Express, Helmet, JSON parsing/errors, environment validation, `/health`, shutdown; authentication, branches, employees, schedules, and clients/addresses implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client, and address contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), and client/address (0003) tables; bookings and later business tables pending |
+| Tests | API auth/organization/schedule/client behavior, shared contracts, and real isolated MySQL checks |
 | Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Phases 1–3 backend implemented; clients, reservations, invoices, cash, reports, WhatsApp, and all frontend journeys pending |
+| Business features | Phases 1–4 backend implemented; reservations, invoices, cash, reports, WhatsApp, and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -142,18 +142,18 @@ Backend evidence: migration `0002_sour_oracle.sql` applied to development and is
 
 ## Phase 4 — Clients and usable service addresses
 
-Depends on: phase 1. Can proceed independently of phases 2–3 after authentication. Decision gate: phone normalization/identity and the minimum fields that make each supported address type usable.
+Depends on: phase 1. Confirmed: one client per international-format phone; each address requires area, block, street, and house number or building name. Optional location data may be a Google Maps link or paired WhatsApp coordinates.
 
 Outcome: administrator maintains the primary contact and reusable visit addresses.
 
 Backend checklist:
 
-- [ ] Add client/address contracts, tables, migrations, and administrator search/list/detail/create/update operations.
-- [ ] Support street, house number, block, floor, apartment, building, and additional instructions where applicable.
-- [ ] Accept WhatsApp coordinates/location or a Google Maps link alongside usable visit details; do not require floor/apartment for every property.
-- [ ] Support primary-contact phone lookup/reuse for the later WhatsApp journey without permitting arbitrary client access.
-- [ ] Keep reservation address snapshots independent of future client/address edits; do not add child profiles.
-- [ ] Test contact/address validation, lookup, role boundaries, and snapshot-ready data; pass targeted checks.
+- [x] Add client/address contracts, tables, migration, and administrator search/list/detail/create/update operations.
+- [x] Support area, block, street, house number or building name, optional floor/apartment, and additional instructions.
+- [x] Accept paired WhatsApp coordinates or a Google Maps link alongside usable visit details; floor/apartment are optional.
+- [x] Support unique primary-contact phone lookup/reuse for the later WhatsApp journey behind administrator authorization and an internal service.
+- [x] Expose complete address records for phase 5 to snapshot; do not add child profiles. Actual booking snapshots are required in phase 5 when reservations exist.
+- [x] Test contact/address validation, lookup, role boundaries, and snapshot-ready data; pass targeted checks.
 
 Frontend checklist:
 
@@ -163,6 +163,8 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Administrator can find and update a client with a usable home-visit address without losing historical visit details.
+
+Backend evidence: migration `0003_easy_lucky_pierre.sql` applied to development and isolated test MySQL; `pnpm db:generate` found no schema drift. Administrator client/address API operations, strict contracts, exact phone lookup, duplicate-phone rollback, literal search terms, address ownership, and real database schema tests pass. Targeted backend lint/typecheck/tests/build passed (contracts 27, database 11, API 48 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (86 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`. Actual historical visit snapshots remain a phase 5 requirement. Frontend and whole-slice acceptance remain pending.
 
 ## Phase 5 — Manual reservation and its initial invoice
 
@@ -178,6 +180,7 @@ Backend checklist:
 - [ ] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude a future blocking booking while holding the same employee lock.
 - [ ] Atomically save reservation and invoice; roll back both on failure.
 - [ ] Snapshot address, employee/branch attribution, counts, and agreed unit prices; compute exact totals from branch prices.
+- [ ] Copy the selected client's address into the reservation transaction so later client/address edits do not change past visit details.
 - [ ] Expose booking/invoice detail and print-ready data, separate visit/invoice/payment states, and employee-own record reads.
 - [ ] Keep the creation service reusable by AI with actor/client authorization enforced outside model control.
 - [ ] Test simultaneous conflicting bookings, rollback, endpoint boundaries, snapshots, one invoice, and direct-record ownership.
