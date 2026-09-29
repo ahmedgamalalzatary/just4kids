@@ -18,9 +18,9 @@
     "db:migrate": "pnpm --filter @just4kids/db db:migrate",
     "db:migrate:test": "pnpm --filter @just4kids/db db:migrate:test",
     "db:studio": "pnpm --filter @just4kids/db db:studio",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up --detach --build",
-    "docker:down": "docker compose down"
+    "docker:build": "docker compose --env-file .env.production build",
+    "docker:up": "docker compose --env-file .env.production up --detach --build",
+    "docker:down": "docker compose --env-file .env.production down"
   },
   "devDependencies": {
     "@just4kids/config": "workspace:*",

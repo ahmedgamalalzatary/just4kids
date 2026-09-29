@@ -32,12 +32,25 @@ export function createScheduleService(repository: ScheduleRepository) {
     async eligible(queryInput: unknown) {
       const query = eligibilityQuerySchema.parse(queryInput);
       const rows = await repository.eligibilityRows(query.date);
+      const workByEmployee = new Map<string, Map<number, WorkInterval[]>>();
+      for (const interval of rows.work) {
+        const byDay = workByEmployee.get(interval.employeeId) ?? new Map<number, WorkInterval[]>();
+        const intervals = byDay.get(interval.dayOfWeek) ?? [];
+        intervals.push({ startTime: interval.startTime, endTime: interval.endTime });
+        byDay.set(interval.dayOfWeek, intervals);
+        workByEmployee.set(interval.employeeId, byDay);
+      }
+      const exceptionsByEmployee = new Map<string, WorkInterval[]>();
+      for (const exception of rows.exceptions) {
+        const intervals = exceptionsByEmployee.get(exception.employeeId) ?? [];
+        if (exception.interval) intervals.push({ startTime: exception.interval.startTime, endTime: exception.interval.endTime });
+        exceptionsByEmployee.set(exception.employeeId, intervals);
+      }
       const barbers = rows.barbers.filter(barber => {
-        const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, intervals: rows.work.filter(interval => interval.employeeId === barber.id && interval.dayOfWeek === dayOfWeek)
-          .map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) })).filter(day => day.intervals.length > 0);
-        const ownExceptions = rows.exceptions.filter(exception => exception.employeeId === barber.id);
-        const exception: WorkInterval[] | undefined = ownExceptions.length ? ownExceptions.flatMap(row => row.interval ? [{ startTime: row.interval.startTime, endTime: row.interval.endTime }] : []) : undefined;
-        return isWindowAvailable(query, days, exception, []);
+        const days = [...(workByEmployee.get(barber.id) ?? new Map<number, WorkInterval[]>())]
+          .sort(([firstDay], [secondDay]) => firstDay - secondDay)
+          .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals }));
+        return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), []);
       }).map(barber => ({ id: barber.id, displayName: barber.displayName, branch: { id: barber.branchId, name: barber.branchName, location: barber.branchLocation } }));
       return eligibilityResponseSchema.parse({ date: query.date, startTime: query.startTime, endTime: query.endTime, timeZone: "Asia/Kuwait", barbers });
     },
