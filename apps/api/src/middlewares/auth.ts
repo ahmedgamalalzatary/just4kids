@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import type { ApiEnv } from "../configs/env.js";
-import { deny, readCookie } from "../lib/security.js";
+import { deny, equalHex, readCookie } from "../lib/security.js";
 import type { AuthService, Authenticated } from "../modules/auth/auth.service.js";
 
 export function createAuthMiddlewares(service: AuthService, env: ApiEnv, sessionCookieName: string) {
@@ -24,5 +24,13 @@ export function createAuthMiddlewares(service: AuthService, env: ApiEnv, session
     deny(response, 403, "INVALID_ORIGIN", "مصدر الطلب غير مسموح");
   };
 
-  return { requireAuth, requireAdmin, guardOrigin };
+  const requireCsrf: RequestHandler = (request, response, next) => {
+    const authenticated = response.locals.auth as Authenticated | undefined;
+    if (!authenticated || !equalHex(request.get("X-CSRF-Token") ?? "", service.csrf(authenticated.token))) {
+      deny(response, 403, "INVALID_CSRF", "رمز حماية الطلب غير صالح"); return;
+    }
+    next();
+  };
+
+  return { requireAuth, requireAdmin, guardOrigin, requireCsrf };
 }

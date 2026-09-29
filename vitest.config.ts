@@ -25,7 +25,7 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     projects: [
-      { test: { name: "api", include: ["apps/api/tests/**/*.test.ts"] } },
+      { test: { name: "api", fileParallelism: false, include: ["apps/api/tests/**/*.test.ts"] } },
       { test: { name: "web", include: ["apps/web/tests/**/*.test.ts", "apps/web/tests/**/*.test.tsx"] } },
       { test: { name: "contracts", include: ["packages/contracts/tests/**/*.test.ts"] } },
       { test: { name: "db", include: ["packages/db/tests/**/*.test.ts"] } },

@@ -90,18 +90,18 @@ Backend evidence: migration `0000_massive_white_tiger.sql` applied to developmen
 
 ## Phase 2 — Branches, prices, and employee accounts
 
-Depends on: phase 1. Decision gate: employee self-editable fields, phone changes, credential resets, and any branch settings not defined in the contract.
+Depends on: phase 1. Decisions confirmed: employee self-edits display name only; administrator changes phone/branch/active status and resets passwords; branches use name, location/address, adult/child KWD prices, and descriptive haircut durations. No other branch settings are required in this phase.
 
 Outcome: administrator creates branches and barbers; each barber signs in and can edit only permitted profile details.
 
 Backend checklist:
 
-- [ ] Add branch/employee contracts, tables, migrations, and authorized list/detail/create/update operations.
-- [ ] Store branch adult/child prices exactly and descriptive haircut durations; prohibit floating-point money totals.
-- [ ] Link each employee to a branch and provide administrator-managed credentials/reset operations under the agreed policy.
-- [ ] Enforce exactly the administrator and employee roles; restrict employee reads/edits to permitted own-profile fields.
-- [ ] Ensure subsequent employee transfers or price edits can preserve historical booking attribution and prices.
-- [ ] Test branch pricing validation, account creation/reset, profile restrictions, cross-employee denial, and transfers; pass targeted checks.
+- [x] Add branch/employee contracts, tables, migrations, and authorized list/detail/create/update operations.
+- [x] Store branch adult/child prices exactly and descriptive haircut durations; prohibit floating-point money totals.
+- [x] Link each employee to a branch and provide administrator-managed credentials/reset operations under the agreed policy.
+- [x] Enforce exactly the administrator and employee roles; restrict employee reads/edits to permitted own-profile fields.
+- [x] Keep stable branch/account IDs on employee transfer and branch price changes. Booking/invoice snapshots preserving historical attribution and prices are explicitly required in phase 5, when bookings exist.
+- [x] Test branch pricing validation, account creation/reset, profile restrictions, cross-employee denial, and transfers; pass targeted checks.
 
 Frontend checklist:
 
@@ -111,6 +111,8 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Administrator manages a branch and barber; that barber signs in and cannot edit another employee or branch prices.
+
+Backend evidence: migration `0001_dazzling_power_pack.sql` applied to development and isolated test MySQL. Live authenticated branch and employee list requests passed against the development database. Admin create/update/reset, employee login/own display-name update, CSRF, ownership, duplicate-phone rollback, transfer, and session-revocation tests pass. Backend targeted lint/typecheck/tests/build and whole-repository lint/typecheck/tests/build passed (62 tests). No branch or employee business records were invented in the development database, no frontend source was changed, and frontend/whole-slice items remain pending.
 
 ## Phase 3 — Working schedules and eligible barbers
 

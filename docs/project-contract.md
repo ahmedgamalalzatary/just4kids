@@ -18,16 +18,18 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator creates employee credentials. No public registration or client dashboard login.
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
+- Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, and password; employees do not change their own password.
 - Assigned employees can cancel, mark arrived, mark completed, mark no-show, and record cash payment.
 - Employees cannot reschedule or reassign bookings.
 - Only the administrator can correct or undo payment records.
 - Backend authorization must enforce ownership even when a record is requested directly.
-- Confirmed authentication policy: seven-day server-side MySQL sessions via HttpOnly cookies, with `Secure` in production and CSRF protection on login and logout. The sole administrator's phone/password come from the private server environment and are applied on API restart; changing either revokes existing administrator sessions. Phone numbers use international format. The administrator manages employee password resets. Employee phone/profile editing remains a later decision.
+- Confirmed authentication policy: seven-day server-side MySQL sessions via HttpOnly cookies, with `Secure` in production and CSRF protection on browser changes. The sole administrator's phone/password come from the private server environment and are applied on API restart; changing either revokes existing administrator sessions. Phone numbers use international format. Only the administrator changes employee phones and resets employee passwords; employees edit their display name only.
 
 ## Branches and employees
 
 - A branch is the business location an employee works for.
 - Each branch owns its employees, adult/child prices, haircut durations, and settings.
+- For the first branch-management slice, branch details are name and location/address, with adult/child prices and descriptive haircut durations. No additional branch settings are required in this slice.
 - Administrator controls employee working days, working hours, and available times.
 - Clients choose a barber, not a branch. Display each barber's branch to help clients estimate travel.
 - Administrator can create manual bookings and hand a booking to another available barber.
@@ -76,6 +78,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 ## Prices, invoices, and cash
 
 - Adult/child prices and descriptive durations are editable per branch by administrator.
+- Initial KWD prices are exact to three decimal places (1 dinar = 1,000 fils), following the [Central Bank of Kuwait's currency description](https://www.cbk.gov.kw/en/banknotes-and-coins/banknotes/introduction).
 - New booking total: `adult count × adult price + child count × child price`, using the assigned barber's branch.
 - Generate one combined invoice when booked, including manual bookings.
 - Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.
@@ -135,7 +138,6 @@ The following are implementation proposals or unresolved policies, not additiona
 - Use Kuwait business time; adjacent windows sharing an endpoint do not overlap.
 - Client self-service changes apply to future booked reservations, with no extra lead-time cutoff. Terminal-state corrections are administrator-only. Exact state-transition policy is pending.
 - Cancelled/no-show records release availability; completion does not shorten the original window.
-- Exact employee self-editable profile fields and employee phone-change policy are pending.
 - Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
 - WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, production deployment/backup tooling, and any required tax/invoice fields remain to be selected.
 

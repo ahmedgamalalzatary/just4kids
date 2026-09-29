@@ -13,6 +13,7 @@ export type AuthModule = {
   initialize(): Promise<void>;
   requireAuth: RequestHandler;
   requireAdmin: RequestHandler;
+  requireCsrf: RequestHandler;
   assertCanAccessAccount(actor: Pick<Account, "id" | "role">, accountId: string): void;
   guardOrigin: RequestHandler;
 };
@@ -23,5 +24,5 @@ export function createAuth(connection: ReturnType<typeof createDatabase>, env: A
   const controller = createAuthController(service, env);
   const middlewares = createAuthMiddlewares(service, env, controller.sessionCookieName);
   const router = createAuthRouter(controller, middlewares.requireAuth);
-  return { router, initialize: service.initialize, requireAuth: middlewares.requireAuth, requireAdmin: middlewares.requireAdmin, assertCanAccessAccount: service.assertCanAccessAccount, guardOrigin: middlewares.guardOrigin };
+  return { router, initialize: service.initialize, requireAuth: middlewares.requireAuth, requireAdmin: middlewares.requireAdmin, requireCsrf: middlewares.requireCsrf, assertCanAccessAccount: service.assertCanAccessAccount, guardOrigin: middlewares.guardOrigin };
 }

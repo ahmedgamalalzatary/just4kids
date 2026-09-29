@@ -8,6 +8,13 @@
       "when": 1790700713385,
       "tag": "0000_massive_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1790703991921,
+      "tag": "0001_dazzling_power_pack",
+      "breakpoints": true
     }
   ]
 }

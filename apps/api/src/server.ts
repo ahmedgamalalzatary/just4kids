@@ -8,7 +8,7 @@ export async function startApi(env: ApiEnv) {
   try {
     const auth = createAuth(connection, env);
     await auth.initialize();
-    const server = createApp({ auth }).listen(env.PORT, env.HOST);
+    const server = createApp({ auth, connection, env }).listen(env.PORT, env.HOST);
     await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
     return { server, pool: connection.pool };
   } catch (error) {
