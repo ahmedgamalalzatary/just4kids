@@ -62,7 +62,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Bookings must fit the employee's working availability and cannot overlap another blocking booking.
 - Recheck availability at commit time and protect against simultaneous bookings of the same employee.
 - Failed rescheduling preserves the original booking/window.
-- Confirmed reservation edits (2026-10-02): administrator-only edits may change address, adult/child counts, window, and assigned barber only while the visit is booked and its original start is strictly in the future in Kuwait. A changed window must also start strictly in the future, without an extra cutoff. Edits retain the reservation/reference and invoice identity, actor/time/reason when supplied, and complete previous/new values. Paid reservations remain blocked until phase 8 payment reconciliation is implemented. Client rescheduling policy remains pending.
+- Confirmed reservation edits (2026-10-02): administrator-only edits may change address, adult/child counts, window, and assigned barber only while the visit is booked and its original start is strictly in the future in Kuwait. A changed window must also start strictly in the future, without an extra cutoff. Edits retain the reservation/reference and invoice identity, actor/time/reason when supplied, and complete previous/new values. Paid amount changes require the explicit cash reconciliation below; edits preserving the paid total require no cash adjustment. Client rescheduling policy remains pending.
 - Keep cancelled/no-show records for history. Arrival means the barber reached the client's address.
 - Visit states: booked, arrived, completed, cancelled, no-show. Payment and invoice states are separate.
 - Confirmed visit workflow (2026-10-02): booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion actions are allowed at or after the reserved start; no-show is allowed at or after the reserved end. Cancellation is allowed from booked or arrived, without an additional timing cutoff. Completed/cancelled/no-show states are final for employees.
@@ -100,9 +100,12 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
 - Client pays cash at the home visit; assigned employee records one full payment.
+- Confirmed cash workflow (2026-10-02): full cash recording is allowed only for arrived or completed visits, by the assigned employee or administrator. The server uses the complete current invoice amount; callers cannot supply partial amounts or another payment method. Cash recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained.
+- Administrator may undo a mistaken payment entry with a required reason, retaining its original values, actor/time history, and any adjustment history. This marks the receipt voided and the invoice unpaid; it does not record a cash refund or change the visit/invoice amount. A replacement full receipt is permitted under the same cash-recording state rules. Employees cannot undo receipts or record reconciliation adjustments.
 - No partial/split payments, deposits, payment links, or online payments.
 - Administrator corrections retain actor, time, reason, and previous values. No duplicate active payment.
 - A paid-invoice amount change must be explicitly reconciled; cancellation does not automatically refund cash.
+- Confirmed paid-edit reconciliation (2026-10-02): an administrator changing a paid total must explicitly record the exact extra cash received or exact difference returned, with a required reason, in the same transaction as the invoice revision. Increasing 8 to 10 KWD records 2 KWD extra cash; decreasing 8 to 6 KWD records 2 KWD refunded. Preserve the original full receipt, original amount, historical barber/branch attribution, and before/after adjustment history; keep one active receipt whose adjusted amount matches the paid invoice. These corrections are amendments to a full payment, not partial/split payments. Cancellation itself creates no refund entry.
 - Print invoices and reports using the browser's normal print/Save as PDF function. No custom PDF generator or CSV/Excel exports.
 
 ## Reports
@@ -142,14 +145,14 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, initial reservations/invoices, visit actions/history, and unpaid future-booked reservation edits/revisions have implemented slices. Paid-edit reconciliation, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 
 The following are implementation proposals or unresolved policies, not additional confirmed scope:
 
 - Client rescheduling policy remains to be confirmed; the proposed default is future booked reservations with no extra lead-time cutoff. Client cancellation, normal visit transitions/timing, and administrator-only corrections are confirmed above.
-- Same-branch and different-branch pricing rules are confirmed above. Paid-edit reconciliation and cash-refund policies still need confirmation before phase 8 implementation.
+- Same-branch/different-branch pricing, cash-recording timing, mistaken-entry undo, and exact extra-cash/refund reconciliation during paid edits are confirmed above.
 - WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, and production deployment/backup tooling remain to be selected. Initial invoice fields and no-tax behavior are confirmed above.
 
 ## Scope boundaries and completion

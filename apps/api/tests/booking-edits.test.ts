@@ -137,7 +137,7 @@ describe("reservation edits and invoice revisions", () => {
     expect((await edit({ date: "2000-01-01" })).status).toBe(400);
     expect((await revisions()).body.revisions).toEqual([]);
   });
-  it("rejects all paid edits pending reconciliation and preserves cash/invoice data", async () => {
+  it("rejects paid edits when the corresponding cash record is missing", async () => {
     await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);
     const before = (await detail()).body;
     for (const patch of [{ adultCount: 2 }, { addressId: secondAddressId }, { startTime: "10:00", endTime: "10:20" }]) expect((await edit(patch)).status).toBe(409);

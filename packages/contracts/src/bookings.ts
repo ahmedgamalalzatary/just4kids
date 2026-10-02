@@ -3,6 +3,7 @@ import { eligibilityQuerySchema } from "./availability.js";
 import { addressResponseSchema } from "./clients.js";
 import { phoneSchema } from "./auth.js";
 import { kwdPriceSchema } from "./organization.js";
+import { cashReconciliationSchema } from "./cash.js";
 
 const haircutCount = z.number().int().min(0).max(2147483647);
 export const visitStatusSchema = z.enum(["booked", "arrived", "completed", "cancelled", "no_show"]);
@@ -53,8 +54,9 @@ export const bookingEditSchema = z.strictObject({
   expectedVersion: version, reason: reason.optional(), addressId: z.uuid().optional(), employeeId: z.uuid().optional(),
   date: eligibilityQuerySchema.shape.date.optional(), startTime: eligibilityQuerySchema.shape.startTime.optional(), endTime: eligibilityQuerySchema.shape.endTime.optional(),
   adultCount: haircutCount.optional(), childCount: haircutCount.optional(),
+  reconciliation: cashReconciliationSchema.optional(),
 }).superRefine((value, context) => {
-  if (!Object.entries(value).some(([key, field]) => key !== "expectedVersion" && key !== "reason" && field !== undefined)) context.addIssue({ code: "custom", message: "At least one edit is required" });
+  if (!Object.entries(value).some(([key, field]) => !["expectedVersion", "reason", "reconciliation"].includes(key) && field !== undefined)) context.addIssue({ code: "custom", message: "At least one edit is required" });
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
 });
 export const bookingRevisionResponseSchema = z.strictObject({
