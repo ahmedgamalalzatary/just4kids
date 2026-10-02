@@ -5,6 +5,19 @@ import { phoneSchema } from "./auth.js";
 import { kwdPriceSchema } from "./organization.js";
 
 const haircutCount = z.number().int().min(0).max(2147483647);
+export const visitStatusSchema = z.enum(["booked", "arrived", "completed", "cancelled", "no_show"]);
+const version = z.number().int().min(0).max(2147483647);
+const reason = z.string().trim().min(1).max(1000);
+export const visitTransitionSchema = z.strictObject({ status: z.enum(["arrived", "completed", "cancelled", "no_show"]), expectedVersion: version, reason: reason.optional() });
+export const visitCorrectionSchema = z.strictObject({ status: visitStatusSchema, expectedVersion: version, reason });
+export const visitEventResponseSchema = z.strictObject({
+  id: z.uuid(), bookingId: z.uuid(), version, fromStatus: visitStatusSchema.nullable(), toStatus: visitStatusSchema,
+  actorType: z.enum(["admin", "employee", "client", "system"]), actorAccountId: z.uuid().nullable(), actorClientId: z.uuid().nullable(),
+  reason: reason.nullable(), correction: z.boolean(), previousInvoiceStatus: z.enum(["issued", "cancelled"]).nullable(), invoiceStatus: z.enum(["issued", "cancelled"]), occurredAt: z.iso.datetime(),
+});
+export type VisitStatus = z.infer<typeof visitStatusSchema>;
+export type VisitTransition = z.infer<typeof visitTransitionSchema>;
+export type VisitCorrection = z.infer<typeof visitCorrectionSchema>;
 export const bookingCreateSchema = z.strictObject({
   clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
@@ -28,7 +41,7 @@ export const bookingResponseSchema = z.strictObject({
   id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount,
-  source: z.enum(["manual", "ai"]), visitStatus: z.enum(["booked", "arrived", "completed", "cancelled", "no_show"]), createdAt: z.iso.datetime(),
+  source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceResponseSchema,
 });
 export const bookingListQuerySchema = z.strictObject({

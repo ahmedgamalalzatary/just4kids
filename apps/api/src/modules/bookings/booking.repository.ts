@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, branches, clients, clientAddresses, bookings, invoices } from "@just4kids/db/schema";
+import { accounts, branches, clients, clientAddresses, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
 import type { Account, BookingCreate, BookingListQuery } from "@just4kids/contracts";
 import { bookingAddressSnapshotSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
@@ -51,7 +51,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
         const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
         const booking = {
-          id, reference, ...input, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const,
+          id, reference, ...input, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
           clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
           employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName, branchId: branch.id, branchName: branch.name, branchLocation: branch.location }, createdAt: now,
         };
@@ -59,6 +59,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const invoice = { id: randomUUID(), bookingId: id, adultUnitPrice: branch.adultPrice, childUnitPrice: branch.childPrice, adultAmount: money(adultAmount), childAmount: money(childAmount), total: money(adultAmount + childAmount), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
         await transaction.insert(bookings).values(booking);
         await transaction.insert(invoices).values(invoice);
+        await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: now });
         return { booking, invoice };
       });
     },

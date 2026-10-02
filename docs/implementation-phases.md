@@ -4,7 +4,7 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–5 are now implemented. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection. All frontend and whole-slice acceptance items remain pending.
+The initial task covered documentation and setup verification. Backend phases 1–6 are now implemented. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. All frontend and whole-slice acceptance items remain pending.
 
 Future implementation by this agent is **backend only**: `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend implementation is assigned separately. Do not change `apps/web` or frontend dependencies as part of backend work.
 
@@ -25,14 +25,14 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations, and initial invoices implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking, and invoice contracts |
-| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), and booking/invoice (0004) tables; payment/revision/history tables remain later work |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, and visit actions/corrections/history implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation, and history contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), and visit history/version (0005); payment/invoice-revision tables remain later work |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–5 implemented, including the phase 2 race fix and phase 3 booking integration; phases 6–14 and all frontend journeys pending |
+| Business features | Backend phases 1–6 implemented, including the phase 2 race fix and phase 3 booking integration; phases 7–14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -204,7 +204,7 @@ Acceptance:
 
 - [ ] One manual submission produces one reservation and invoice; simultaneous overlapping submissions cannot both succeed.
 
-Backend handoff: administrator `POST /api/bookings` accepts `{ clientId, addressId, employeeId, date, startTime, endTime, adultCount, childCount }` and returns 201 with a committed booking, `J4K-` reference, saved snapshots, and nested invoice. `GET /api/bookings?limit=20&offset=0` returns `{ bookings, total, limit, offset }`; `GET /api/bookings/:id` and `GET /api/bookings/:id/invoice` enforce assigned-employee ownership, while administrator reads span all records. All browser writes require the session CSRF token and matching origin. Input/source/price injection is rejected; non-future starts return `BOOKING_START_NOT_FUTURE` (400), conflicts/disabled barbers return `BARBER_UNAVAILABLE` (409), and missing client/address/employee/branch records return their corresponding 404 codes. Invoice data includes all confirmed fields and exact KWD line amounts/total. Initial states are visit `booked`, invoice `issued`, and payment `unpaid`; transition/payment/edit endpoints remain later slices. The internal AI context requires a trusted sender client ID and administrator service account and assigns source itself; WhatsApp onboarding/webhooks/idempotency remain phase 12.
+Backend handoff: administrator `POST /api/bookings` accepts `{ clientId, addressId, employeeId, date, startTime, endTime, adultCount, childCount }` and returns 201 with a committed booking, `J4K-` reference, saved snapshots, and nested invoice. `GET /api/bookings?limit=20&offset=0` returns `{ bookings, total, limit, offset }`; `GET /api/bookings/:id` and `GET /api/bookings/:id/invoice` enforce assigned-employee ownership, while administrator reads span all records. All browser writes require the session CSRF token and matching origin. Input/source/price injection is rejected; non-future starts return `BOOKING_START_NOT_FUTURE` (400), conflicts/disabled barbers return `BARBER_UNAVAILABLE` (409), and missing client/address/employee/branch records return their corresponding 404 codes. Invoice data includes all confirmed fields and exact KWD line amounts/total. Initial states are visit `booked`, invoice `issued`, and payment `unpaid`; phase 6 now provides visit/history endpoints, while payment/edit endpoints remain later slices. The internal AI context requires a trusted sender client ID and administrator service account and assigns source itself; WhatsApp onboarding/webhooks/idempotency remain phase 12.
 
 Backend evidence (2026-10-02): migration `0004_brown_the_fallen.sql` creates booking/invoice tables, restrictive history foreign keys, a unique booking reference, one-invoice-per-booking uniqueness, counts/window constraints, and exact decimal amounts. Real-MySQL booking tests verify one invoice, concurrent overlap rejection, adjacent windows, 20-minute/four-hour bounds, counts independent of duration, transactional rollback on invoice failure, employee ownership, schedule conflicts/races, trusted AI source/client scope, large exact totals, and snapshots after client/address/branch/employee edits and transfer. No new dependency or environment setting is required. Frontend and whole-slice acceptance remain unchecked.
 
@@ -223,18 +223,18 @@ Verification cleanup: the initial missing-table red test left its temporary fixt
 
 ## Phase 6 — Employee visit workflow and cancellation history
 
-Depends on: phase 5. Decision gate: exact visit state transitions, client cancellation eligibility, and terminal corrections. Blocking/released states and preservation of the completed visit's original reserved window are already confirmed by the contract.
+Depends on: phase 5. Decisions confirmed on 2026-10-02: booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion require the reserved start to have been reached; no-show requires the end to have been reached. Employees cannot change terminal states. Administrator corrections can change any state with a required reason and availability recheck when restoring a blocking state; reopening restores the existing invoice and preserves cash/payment history. Clients may cancel only their own strictly future booked visits, with no additional cutoff. Actual WhatsApp action wiring remains phase 13. Blocking/released states and preservation of the completed visit's original reserved window are confirmed by the contract.
 
 Outcome: the assigned barber records arrival, completion, cancellation, or no-show; history remains visible.
 
 Backend checklist:
 
-- [ ] Implement confirmed visit transitions with actor/time history and administrator-only terminal corrections where agreed.
-- [ ] Permit the assigned employee's allowed actions; deny employee rescheduling/reassignment and access to other barbers' records.
-- [ ] Apply confirmed availability release rules and preserve the original reserved window on completion.
-- [ ] Cancel the existing invoice when a booking is cancelled while retaining invoice/payment history; do not automatically refund cash.
-- [ ] Keep visit status independent of payment status and do not create or reprice invoices when marking completed/paid.
-- [ ] Test transitions, forbidden actions, retained history, invoice cancellation, and concurrency; pass targeted checks.
+- [x] Implement confirmed visit transitions with actor/time history and administrator-only terminal corrections where agreed.
+- [x] Permit the assigned employee's allowed actions; deny employee rescheduling/reassignment and access to other barbers' records.
+- [x] Apply confirmed availability release rules and preserve the original reserved window on completion.
+- [x] Cancel the existing invoice when a booking is cancelled while retaining invoice/payment history; do not automatically refund cash.
+- [x] Keep visit status independent of payment status and do not create or reprice invoices when marking completed/paid.
+- [x] Test transitions, forbidden actions, retained history, invoice cancellation, and concurrency; pass targeted checks.
 
 Frontend checklist:
 
@@ -244,6 +244,25 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Assigned barber records a permitted transition; other employees are denied and cancelled/no-show history remains available.
+
+Backend handoff: `POST /api/bookings/:id/visit` accepts `{ status, expectedVersion, reason? }` for normal actions by the administrator or assigned employee. `POST /api/bookings/:id/visit/correction` is administrator-only and requires `{ status, expectedVersion, reason }`. Successful writes return the updated booking/invoice with incremented `visitVersion`; clients must read the current version and reload after a stale-write error. `GET /api/bookings/:id/history` returns `{ events }` in version order and uses the same administrator/assigned-employee ownership checks. Browser changes require matching origin and session CSRF protection. No employee reschedule/reassign endpoint is exposed.
+
+Error contracts: invalid payloads/blank correction reasons return `INVALID_INPUT` (400); ownership/role denial returns 403; missing records return 404. `VISIT_CONFLICT`, `INVALID_VISIT_TRANSITION`, `VISIT_TOO_EARLY`, `CLIENT_CANCELLATION_NOT_ALLOWED`, and restore conflicts (`BARBER_UNAVAILABLE`) return 409. Visit, invoice-status, and history writes share the employee/account locks used by booking and schedules and commit atomically; a failed action leaves all three unchanged. Cancellation sets the existing invoice to cancelled, no-show leaves it issued, and corrections away from cancelled restore it to issued. Amounts, unit prices, invoice identity, payment status, and original reserved window are preserved. Cash recording and detailed payment history remain phase 8; this slice never changes or deletes payment data.
+
+The internal `cancelForClient` service accepts a server-verified sender client ID and a current visit version, validates own future booked scope, and uses the same transactional cancellation path. No public client login/action endpoint, WhatsApp provider, or webhook was added. New manual/AI reservations receive an initial event in their creation transaction. Migration `0005_old_dragon_man.sql` adds history and `visit_version`; old reservations receive a system baseline preserving the current visit/invoice state and explicitly noting that earlier transition details are unavailable, rather than inventing historical actors or times. History foreign keys restrict deletion and `(booking_id, version)` is unique. No dependency/environment changes are required.
+
+Backend evidence (2026-10-02): the new action test failed with 404 before implementation; contract validation failed before its schemas existed. Targeted tests now cover normal transitions/timing, actor/time order, employee ownership/CSRF/correction denial, terminal restrictions, unpaid completion, cancelled paid status, no-show invoice behavior, administrator corrections/reopening, stale competing writes, availability and schedule restore failures, reopening versus new-booking races, atomic rollback on history failure, client scope/state/timing, and legacy migration baselines. Frontend and whole-slice acceptance remain unchecked.
+
+Final verification (2026-10-02):
+
+| Check | Result |
+| --- | --- |
+| Baseline | Backend lint/typecheck/build passed (11 forced tasks), and the existing 14 booking API tests passed before phase 6 implementation |
+| Targeted checks | Backend lint/typecheck/build passed (11 forced tasks); booking/visit API and booking contract tests passed (3 files, 41 tests, including 16 visit tests) |
+| Full repository | `pnpm lint`, `pnpm typecheck`, `pnpm test` (22 files, 130 tests), and `pnpm build` passed |
+| Migration/schema | `pnpm db:migrate:test` and `pnpm db:migrate` succeeded for test/development; `pnpm db:generate` reported no schema drift |
+| Upgrade/atomicity | Exact migration baseline SQL preserved a legacy completed/paid fixture without invented actors; injected history failure rolled back visit/invoice changes; concurrent transitions/corrections/reopening tests passed against real MySQL |
+| Scope/commit | Phase 5 and the earlier gap fix committed as `273180b`; phase 6 is included in the accompanying implementation commit. No frontend source, dependency, or environment changes |
 
 ## Phase 7 — Reservation edits, rescheduling, and reassignment
 
@@ -496,4 +515,4 @@ Verified on 2026-09-29:
 
 Setup repair: existing generated dependency metadata referred to `D:\Documents\work\just4kids`, whereas this workspace is `D:\Documents\work\capella\just4kids`. The initial installation failed removing broken Windows package links. Generated dependency directories were preserved in ignored `.turbo/setup-backup-20260929/`, then a clean frozen-lockfile installation restored the workspace dependencies. This also restored shared dependencies needed by the frontend without changing its source, configuration, or package versions. The local production package check is under ignored `.turbo/api-deploy-check/`.
 
-At the end of the original setup-only task on 2026-09-29, Docker was unavailable, Docker image builds and Compose execution were unchecked, and frontend validation was outside that task. That task performed no business-feature implementation, schema migration, integration onboarding, production deployment, or Git commit. Backend phases 1–5 and migrations were implemented afterward, as recorded above; this paragraph is historical setup evidence, not the current feature status.
+At the end of the original setup-only task on 2026-09-29, Docker was unavailable, Docker image builds and Compose execution were unchecked, and frontend validation was outside that task. That task performed no business-feature implementation, schema migration, integration onboarding, production deployment, or Git commit. Backend phases 1–6 and migrations were implemented afterward, as recorded above; this paragraph is historical setup evidence, not the current feature status.

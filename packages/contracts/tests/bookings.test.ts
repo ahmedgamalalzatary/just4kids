@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bookingCreateSchema } from "../src/index.js";
+import { bookingCreateSchema, visitTransitionSchema, visitCorrectionSchema } from "../src/index.js";
 
 const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0 };
 describe("booking contracts", () => {
+  it("requires a version for visit writes and a nonempty reason for corrections", () => {
+    expect(visitTransitionSchema).toBeDefined();
+    expect(visitTransitionSchema.safeParse({ status: "arrived", expectedVersion: 0 }).success).toBe(true);
+    expect(visitTransitionSchema.safeParse({ status: "arrived" }).success).toBe(false);
+    expect(visitTransitionSchema.safeParse({ status: "booked", expectedVersion: 0 }).success).toBe(false);
+    expect(visitCorrectionSchema.safeParse({ status: "booked", expectedVersion: 1, reason: " " }).success).toBe(false);
+    expect(visitCorrectionSchema.safeParse({ status: "booked", expectedVersion: 1, reason: "تصحيح" }).success).toBe(true);
+    expect(visitTransitionSchema.safeParse({ status: "cancelled", expectedVersion: 0, actorAccountId: input.employeeId }).success).toBe(false);
+  });
   it("accepts three haircuts in one 20-minute window independently of durations", () => {
     expect(bookingCreateSchema.parse(input)).toEqual(input);
   });

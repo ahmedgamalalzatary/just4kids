@@ -64,6 +64,9 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Failed rescheduling preserves the original booking/window.
 - Keep cancelled/no-show records for history. Arrival means the barber reached the client's address.
 - Visit states: booked, arrived, completed, cancelled, no-show. Payment and invoice states are separate.
+- Confirmed visit workflow (2026-10-02): booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion actions are allowed at or after the reserved start; no-show is allowed at or after the reserved end. Cancellation is allowed from booked or arrived, without an additional timing cutoff. Completed/cancelled/no-show states are final for employees.
+- Administrator corrections may change any visit state with a required reason and retained actor/time history. Restoring a blocking state rechecks enabled status, working hours/exceptions, and overlapping bookings. Reopening a cancelled visit restores its existing invoice; invoice identity, agreed amount, payment status, and recorded cash remain unchanged. Correcting a state does not create an invoice or automatically refund cash.
+- Visit mutations must reject stale concurrent changes and atomically retain the previous/new visit and invoice statuses with actor, time, and any reason. The original reserved window remains intact when completed.
 
 ## WhatsApp journey
 
@@ -76,6 +79,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 - AI also reads the client's bookings, reschedules, cancels, and handles related booking conversation.
 - Identify the correct reservation before changing it. Sender identity determines client access.
+- Confirmed client cancellation policy (2026-10-02): only the authenticated sender's own future booked reservation may be cancelled, with no extra lead-time cutoff. At the start time, after arrival, or in a terminal state, client cancellation is denied. Backend cancellation rules are shared with the dashboard; actual WhatsApp lookup/action wiring remains a later slice.
 - AI tools use the same backend validation as the dashboard; no direct database/admin access.
 - Duplicate webhooks and retries must not create duplicate operations.
 - AI may offer alternatives when a barber/window is unavailable and must not report success before the backend succeeds.
@@ -136,13 +140,13 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, and initial reservations/invoices have implemented slices. Visit actions, reservation edits, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, initial reservations/invoices, and visit actions/history have implemented slices. Reservation edits, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 
 The following are implementation proposals or unresolved policies, not additional confirmed scope:
 
-- Client self-service changes apply to future booked reservations, with no extra lead-time cutoff. Terminal-state corrections are administrator-only. Exact state-transition policy is pending.
+- Client rescheduling policy remains to be confirmed; the proposed default is future booked reservations with no extra lead-time cutoff. Client cancellation, normal visit transitions/timing, and administrator-only corrections are confirmed above.
 - Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
 - WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, and production deployment/backup tooling remain to be selected. Initial invoice fields and no-tax behavior are confirmed above.
 

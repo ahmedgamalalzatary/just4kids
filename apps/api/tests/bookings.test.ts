@@ -56,6 +56,8 @@ afterAll(async () => {
   // Invoice history prevents accidental production deletes; cleanup is isolated test SQL only.
   const [tables] = await connection.pool.query("SHOW TABLES LIKE 'bookings'");
   if ((tables as unknown[]).length) {
+    const [historyTables] = await connection.pool.query("SHOW TABLES LIKE 'booking_visit_events'");
+    if ((historyTables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
     await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
     await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   }

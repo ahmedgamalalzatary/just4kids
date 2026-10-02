@@ -18,6 +18,7 @@ export const bookings = mysqlTable("bookings", {
   date: date("date", { mode: "string" }).notNull(), startTime: varchar("start_time", { length: 5 }).notNull(), endTime: varchar("end_time", { length: 5 }).notNull(),
   adultCount: int("adult_count").notNull(), childCount: int("child_count").notNull(),
   source: mysqlEnum("source", ["manual", "ai"]).notNull(), visitStatus: mysqlEnum("visit_status", ["booked", "arrived", "completed", "cancelled", "no_show"]).notNull().default("booked"),
+  visitVersion: int("visit_version").notNull().default(0),
   clientSnapshot: json("client_snapshot").$type<ClientSnapshot>().notNull(), addressSnapshot: json("address_snapshot").$type<AddressSnapshot>().notNull(), employeeSnapshot: json("employee_snapshot").$type<EmployeeSnapshot>().notNull(),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
 }, table => [uniqueIndex("bookings_reference_unique").on(table.reference), index("bookings_employee_date_index").on(table.employeeId, table.date), index("bookings_client_index").on(table.clientId),
