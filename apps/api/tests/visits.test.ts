@@ -60,6 +60,40 @@ afterAll(async () => {
   await connection.db.delete(branches).where(eq(branches.id, branchId)); await connection.pool.end();
 });
 describe("employee visit actions and history", () => {
+  it.each(["booked", "arrived", "completed"])("allows new weekly hours without changing a past %s visit", async status => {
+    at("09:00");
+    if (status !== "booked") expect((await transition("arrived")).status).toBe(200);
+    if (status === "completed") expect((await transition("completed", 1)).status).toBe(200);
+    const previous = await detail(), events = (await history()).body;
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T00:00:00+03:00`) + 24 * 60 * 60 * 1000);
+    const path = `/schedules/${employeeId}/weekly`;
+    const save = (startTime: string) => request(app).put(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
+      .send({ days: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, intervals: [{ startTime, endTime: "23:00" }] })) });
+    try {
+      expect((await save("11:00")).status).toBe(200);
+      expect(await detail()).toEqual(previous);
+      expect((await history()).body).toEqual(events);
+    } finally { expect((await save("08:00")).status).toBe(200); }
+  });
+  it.each(["booked", "arrived", "completed"])("protects a %s window until its exact Kuwait end time", async status => {
+    at("09:00");
+    if (status !== "booked") expect((await transition("arrived")).status).toBe(200);
+    if (status === "completed") expect((await transition("completed", 1)).status).toBe(200);
+    const path = `/schedules/${employeeId}/exceptions/${date}`;
+    const close = () => request(app).put(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ intervals: [] });
+    // Kuwait is already on this date while UTC is still on the previous date.
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T00:00:00+03:00`));
+    expect((await close()).status).toBe(409);
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T09:20:00+03:00`) - 1);
+    expect((await close()).status).toBe(409);
+    at("09:20");
+    try {
+      expect((await close()).status).toBe(200);
+      expect((await detail()).visitStatus).toBe(status);
+    } finally {
+      expect((await request(app).delete(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)).status).toBe(204);
+    }
+  });
   it("records arrival and completion with ordered actor/time history and preserves one unpaid invoice", async () => {
     at("09:00"); expect((await transition("arrived")).status).toBe(200);
     expect((await transition("completed", 1)).status).toBe(200);

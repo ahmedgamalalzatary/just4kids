@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 import type { Database } from "@just4kids/db";
 import { accounts, employees, bookings, employeeWorkIntervals, employeeScheduleExceptions, employeeExceptionIntervals } from "@just4kids/db/schema";
 import { HttpError } from "../../lib/http-error.js";
@@ -22,9 +22,14 @@ export async function readBlockingBookings(transaction: Transaction, employeeId:
   return transaction.select().from(bookings).where(and(eq(bookings.employeeId, employeeId), inArray(bookings.visitStatus, ["booked", "arrived", "completed"]), date ? eq(bookings.date, date) : undefined)).for("update");
 }
 export async function assertSchedulePreservesBookings(transaction: Transaction, employeeId: string) {
-  const existing = await readBlockingBookings(transaction, employeeId);
+  const now = Date.now();
+  const kuwaitToday = new Date(now + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const existing = await transaction.select().from(bookings).where(and(eq(bookings.employeeId, employeeId), inArray(bookings.visitStatus, ["booked", "arrived", "completed"]), gte(bookings.date, kuwaitToday))).for("update");
+  const hoursByDate = new Map<string, Awaited<ReturnType<typeof readWorkingHours>>>();
   for (const booking of existing) {
-    const hours = await readWorkingHours(transaction, employeeId, booking.date);
+    if (Date.parse(`${booking.date}T${booking.endTime}:00+03:00`) <= now) continue;
+    const hours = hoursByDate.get(booking.date) ?? await readWorkingHours(transaction, employeeId, booking.date);
+    hoursByDate.set(booking.date, hours);
     if (!isWindowAvailable({ date: booking.date, startTime: booking.startTime, endTime: booking.endTime }, hours.days, hours.exception, [])) throw new HttpError(409, "SCHEDULE_BOOKING_CONFLICT", "تعديل الجدول يتعارض مع حجز قائم");
   }
 }

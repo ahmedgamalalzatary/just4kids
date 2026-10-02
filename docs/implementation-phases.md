@@ -121,7 +121,7 @@ Race fix evidence (2026-10-02): the regression test verified old-phone credentia
 
 ## Phase 3 — Working schedules and eligible barbers
 
-Depends on: phase 2. Confirmed: `Asia/Kuwait` local date/time, same-day shifts/windows, adjacent windows allowed, booked/arrived/completed block the original window, cancelled/no-show release it, and schedule edits that would exclude an existing booking are refused. Weekly hours have dated exceptions.
+Depends on: phase 2. Confirmed: `Asia/Kuwait` local date/time, same-day shifts/windows, adjacent windows allowed, booked/arrived/completed block the original window, cancelled/no-show release it, and schedule edits that would exclude a blocking booking whose reserved end is still in the future are refused. Weekly hours have dated exceptions.
 
 Outcome: administrator controls working availability; a requested window returns eligible barbers and their branches.
 
@@ -129,7 +129,7 @@ Backend checklist:
 
 - [x] Add weekly and dated-exception contracts, persistence, migration, and administrator schedule operations; allow employee own-schedule reads only.
 - [x] Implement a shared availability decision reusable by manual booking, AI booking, rescheduling, and reassignment.
-- [x] Complete booking-aware integration in phase 5: load blocking reservations for eligibility and transactional booking decisions, and refuse schedule edits that would exclude an existing blocking booking.
+- [x] Complete booking-aware integration in phase 5: load blocking reservations for eligibility and transactional booking decisions, and refuse schedule edits that would exclude an existing blocking booking whose reserved end is still in the future.
 - [x] Validate the entire requested window against working shifts/date exceptions and the confirmed blocking/released visit-state policy in the shared decision.
 - [x] Enforce inclusive 20-minute to 4-hour bounds independently of counts and descriptive haircut durations.
 - [x] Return enabled eligible barbers with their branch; do not calculate travel time or add buffers outside the selected window.
@@ -146,7 +146,9 @@ Acceptance:
 
 Original backend evidence: migration `0002_sour_oracle.sql` applied to development and isolated test MySQL; a subsequent `pnpm db:generate` found no schema drift. Authenticated schedule read/write and eligible-barber API tests, exact-window contract tests, shared visit-state overlap tests, and real database schema tests passed. Targeted backend lint/typecheck/tests/build passed (contracts 23, database 9, API 44 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (76 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`.
 
-Phase 5 integration evidence (2026-10-02): eligibility reads working hours, exceptions, and saved reservations in one database transaction. Booking creation and all schedule mutations share account-then-employee locks. Weekly replacement, exception replacement, and exception deletion recheck every existing blocking booking and roll back with `SCHEDULE_BOOKING_CONFLICT` (409) if the edited hours exclude it. Real-MySQL tests cover blocking/released visit states, refused weekly/dated edits, refused restoration of weekly hours, and booking-versus-closure races. Frontend and whole-slice acceptance remain pending.
+Phase 5 integration evidence (2026-10-02): eligibility reads working hours, exceptions, and saved reservations in one database transaction. Booking creation and all schedule mutations share account-then-employee locks. At that point, weekly replacement, exception replacement, and exception deletion rechecked every existing blocking booking and rolled back with `SCHEDULE_BOOKING_CONFLICT` (409) if the edited hours exclude it. Real-MySQL tests cover blocking/released visit states, refused weekly/dated edits, refused restoration of weekly hours, and booking-versus-closure races. Frontend and whole-slice acceptance remain pending.
+
+CodeRabbit follow-up (2026-10-02): `coderabbit review --committed --base backup-main --agent --fresh` reviewed the three commits through `8e64878` and returned one major finding: historical blocking visits permanently prevented new weekly hours. The owner confirmed that ended reservation windows must not prevent schedule changes. The guard now queries today/future dates in Kuwait, skips windows at or past their end, and reuses working hours per date. Six real-MySQL regression cases failed before the fix and pass afterward, covering past booked/arrived/completed records, unchanged invoice/history, Kuwait midnight, ongoing windows, and the exact end boundary. Targeted booking/visit/schedule tests passed (3 files, 39 tests); forced backend lint/typecheck/build passed (11 tasks). No migration or frontend changes are required.
 
 ## Phase 4 — Clients and usable service addresses
 
@@ -185,7 +187,7 @@ Backend checklist:
 - [x] Add booking/invoice contracts, tables, migrations, readable booking references, source attribution, and authorized list/detail operations.
 - [x] Validate integer non-negative adult/child counts with at least one haircut, one barber, one address, and one shared window.
 - [x] Recheck availability inside the booking transaction and serialize conflicting writes for the same barber.
-- [x] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude an existing blocking booking while holding the same employee lock.
+- [x] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude an existing blocking booking whose reserved end is still in the future while holding the same employee lock.
 - [x] Atomically save reservation and invoice; roll back both on failure.
 - [x] Snapshot address, employee/branch attribution, counts, and agreed unit prices; compute exact totals from branch prices.
 - [x] Copy the selected client's address into the reservation transaction so later client/address edits do not change past visit details.

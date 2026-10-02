@@ -36,7 +36,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Availability is enforced for AI actions, manual bookings, rescheduling, and reassignment.
 - Working hours repeat weekly and may contain separate shifts on a day. An administrator can replace one day's hours or close it using a dated exception. Shifts and booking windows stay within one Kuwait calendar day.
 - Schedule dates and local `HH:mm` times use `Asia/Kuwait`; weekday numbers are Sunday `0` through Saturday `6`. Windows that only touch at an endpoint do not overlap.
-- Booked, arrived, and completed visits block the full original reserved window. Cancelled and no-show visits release it. A schedule edit that would exclude an existing blocking booking must be refused until that booking is moved or cancelled.
+- Booked, arrived, and completed visits block the full original reserved window. Cancelled and no-show visits release it. Confirmed on 2026-10-02: a schedule edit that would exclude an existing blocking booking whose reserved end has not been reached in Kuwait must be refused until that booking is moved, cancelled, or ends. At or after the reserved end, past bookings no longer prevent schedule edits; their visit, invoice, and history records remain unchanged.
 
 ## Clients and addresses
 
