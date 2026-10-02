@@ -3,6 +3,7 @@ export * from "./auth.js";
 export * from "./organization.js";
 export * from "./availability.js";
 export * from "./clients.js";
+export * from "./bookings.js";
 
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),

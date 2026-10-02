@@ -4,7 +4,7 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Phase 1 backend authentication was implemented next; its frontend and whole-slice acceptance remain pending.
+The initial task covered documentation and setup verification. Backend phases 1–5 are now implemented. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection. All frontend and whole-slice acceptance items remain pending.
 
 Future implementation by this agent is **backend only**: `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend implementation is assigned separately. Do not change `apps/web` or frontend dependencies as part of backend work.
 
@@ -20,19 +20,19 @@ Each feature slice describes a usable journey across backend and frontend. Finis
 
 ## Inspected project state
 
-As inspected on 2026-09-29:
+Current backend state reviewed on 2026-10-02; frontend and container entries retain their earlier inspection status:
 
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express, Helmet, JSON parsing/errors, environment validation, `/health`, shutdown; authentication, branches, employees, schedules, and clients/addresses implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client, and address contracts |
-| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), and client/address (0003) tables; bookings and later business tables pending |
-| Tests | API auth/organization/schedule/client behavior, shared contracts, and real isolated MySQL checks |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations, and initial invoices implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking, and invoice contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), and booking/invoice (0004) tables; payment/revision/history tables remain later work |
+| Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Phases 1–4 backend implemented; reservations, invoices, cash, reports, WhatsApp, and all frontend journeys pending |
+| Business features | Backend phases 1–5 implemented, including the phase 2 race fix and phase 3 booking integration; phases 6–14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -88,6 +88,8 @@ Acceptance:
 
 Backend evidence: migration `0000_massive_white_tiger.sql` applied to development and isolated test MySQL; live API login/session against the development administrator passed. API, DB, and contract tests plus lint/typecheck/build passed for the touched workspaces. The local administrator credentials are editable only in ignored `.env`; production requires a separate stronger password and HTTPS `APP_ORIGIN`. No frontend login page or client-side handling was implemented.
 
+Verification follow-up (2026-10-02): the review found a session-creation race with phase 2 employee phone changes. Session creation now rechecks the verified phone, enabled status, and password hash under the account lock; the real-MySQL regression test rejects the old-phone login and verifies that login with the new phone succeeds.
+
 ## Phase 2 — Branches, prices, and employee accounts
 
 Depends on: phase 1. Decisions confirmed: employee self-edits display name only; administrator changes phone/branch/active status and resets passwords; branches use name, location/address, adult/child KWD prices, and descriptive haircut durations. No other branch settings are required in this phase.
@@ -102,6 +104,7 @@ Backend checklist:
 - [x] Enforce exactly the administrator and employee roles; restrict employee reads/edits to permitted own-profile fields.
 - [x] Keep stable branch/account IDs on employee transfer and branch price changes. Booking/invoice snapshots preserving historical attribution and prices are explicitly required in phase 5, when bookings exist.
 - [x] Test branch pricing validation, account creation/reset, profile restrictions, cross-employee denial, and transfers; pass targeted checks.
+- [x] Prevent an in-progress login using an employee's old phone from creating a valid session after an administrator phone change; add regression coverage for this sequence and pass targeted checks.
 
 Frontend checklist:
 
@@ -114,6 +117,8 @@ Acceptance:
 
 Backend evidence: migration `0001_dazzling_power_pack.sql` applied to development and isolated test MySQL. Live authenticated branch and employee list requests passed against the development database. Admin create/update/reset, employee login/own display-name update, CSRF, ownership, duplicate-phone rollback, transfer, and session-revocation tests pass. Backend targeted lint/typecheck/tests/build and whole-repository lint/typecheck/tests/build passed (62 tests). No branch or employee business records were invented in the development database, no frontend source was changed, and frontend/whole-slice items remain pending.
 
+Race fix evidence (2026-10-02): the regression test verified old-phone credentials, changed the phone through the real employee repository, then resumed the real session-creation path against `just4kids_test`. It failed before the fix because login succeeded. `auth.repository.ts` now compares the verified phone as well as enabled status and password hash under the account lock. The regression now passes, old-phone login fails, and new-phone login succeeds. Targeted API lint/typecheck/build and authentication/employee checks passed; the final repository verification is recorded with phase 5 below. Phase 2 backend completion is restored; frontend and whole-slice acceptance remain pending.
+
 ## Phase 3 — Working schedules and eligible barbers
 
 Depends on: phase 2. Confirmed: `Asia/Kuwait` local date/time, same-day shifts/windows, adjacent windows allowed, booked/arrived/completed block the original window, cancelled/no-show release it, and schedule edits that would exclude an existing booking are refused. Weekly hours have dated exceptions.
@@ -123,7 +128,8 @@ Outcome: administrator controls working availability; a requested window returns
 Backend checklist:
 
 - [x] Add weekly and dated-exception contracts, persistence, migration, and administrator schedule operations; allow employee own-schedule reads only.
-- [x] Implement a shared availability decision for manual booking, AI booking, rescheduling, and reassignment; wire reservation reads when phase 5 creates reservations.
+- [x] Implement a shared availability decision reusable by manual booking, AI booking, rescheduling, and reassignment.
+- [x] Complete booking-aware integration in phase 5: load blocking reservations for eligibility and transactional booking decisions, and refuse schedule edits that would exclude an existing blocking booking.
 - [x] Validate the entire requested window against working shifts/date exceptions and the confirmed blocking/released visit-state policy in the shared decision.
 - [x] Enforce inclusive 20-minute to 4-hour bounds independently of counts and descriptive haircut durations.
 - [x] Return enabled eligible barbers with their branch; do not calculate travel time or add buffers outside the selected window.
@@ -138,7 +144,9 @@ Acceptance:
 
 - [ ] Working-hour changes and requested windows produce the same eligibility results used by later booking actions.
 
-Backend evidence: migration `0002_sour_oracle.sql` applied to development and isolated test MySQL; a subsequent `pnpm db:generate` found no schema drift. Authenticated schedule read/write and eligible-barber API tests, exact-window contract tests, shared visit-state overlap tests, and real database schema tests pass. Targeted backend lint/typecheck/tests/build passed (contracts 23, database 9, API 44 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (76 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`. The HTTP eligibility result currently has no reservations to check; phase 5 must load blocking reservations inside the booking transaction and reject schedule edits that would exclude existing bookings. Frontend and whole-slice acceptance remain pending.
+Original backend evidence: migration `0002_sour_oracle.sql` applied to development and isolated test MySQL; a subsequent `pnpm db:generate` found no schema drift. Authenticated schedule read/write and eligible-barber API tests, exact-window contract tests, shared visit-state overlap tests, and real database schema tests passed. Targeted backend lint/typecheck/tests/build passed (contracts 23, database 9, API 44 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (76 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`.
+
+Phase 5 integration evidence (2026-10-02): eligibility reads working hours, exceptions, and saved reservations in one database transaction. Booking creation and all schedule mutations share account-then-employee locks. Weekly replacement, exception replacement, and exception deletion recheck every existing blocking booking and roll back with `SCHEDULE_BOOKING_CONFLICT` (409) if the edited hours exclude it. Real-MySQL tests cover blocking/released visit states, refused weekly/dated edits, refused restoration of weekly hours, and booking-versus-closure races. Frontend and whole-slice acceptance remain pending.
 
 ## Phase 4 — Clients and usable service addresses
 
@@ -152,7 +160,7 @@ Backend checklist:
 - [x] Support area, block, street, house number or building name, optional floor/apartment, and additional instructions.
 - [x] Accept paired WhatsApp coordinates or a Google Maps link alongside usable visit details; floor/apartment are optional.
 - [x] Support unique primary-contact phone lookup/reuse for the later WhatsApp journey behind administrator authorization and an internal service.
-- [x] Expose complete address records for phase 5 to snapshot; do not add child profiles. Actual booking snapshots are required in phase 5 when reservations exist.
+- [x] Expose complete address records for phase 5 to snapshot; do not add child profiles. Phase 5 now saves the selected address in the reservation transaction.
 - [x] Test contact/address validation, lookup, role boundaries, and snapshot-ready data; pass targeted checks.
 
 Frontend checklist:
@@ -164,27 +172,27 @@ Acceptance:
 
 - [ ] Administrator can find and update a client with a usable home-visit address without losing historical visit details.
 
-Backend evidence: migration `0003_easy_lucky_pierre.sql` applied to development and isolated test MySQL; `pnpm db:generate` found no schema drift. Administrator client/address API operations, strict contracts, exact phone lookup, duplicate-phone rollback, literal search terms, address ownership, and real database schema tests pass. Targeted backend lint/typecheck/tests/build passed (contracts 27, database 11, API 48 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (86 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`. Actual historical visit snapshots remain a phase 5 requirement. Frontend and whole-slice acceptance remain pending.
+Original backend evidence: migration `0003_easy_lucky_pierre.sql` applied to development and isolated test MySQL; `pnpm db:generate` found no schema drift. Administrator client/address API operations, strict contracts, exact phone lookup, duplicate-phone rollback, literal search terms, address ownership, and real database schema tests passed. Targeted backend lint/typecheck/tests/build passed (contracts 27, database 11, API 48 tests); full `pnpm lint`, `pnpm typecheck`, `pnpm test` (86 tests), and `pnpm build` passed. The API production dependency package loaded and served `/health`. Phase 5 now verifies saved client/address snapshots remain unchanged after current records are edited. Frontend and whole-slice acceptance remain pending.
 
 ## Phase 5 — Manual reservation and its initial invoice
 
-Depends on: phases 2–4. Decision gate: required invoice/tax fields and remaining availability/date rules.
+Depends on: phases 2–4. Decisions confirmed on 2026-10-02: initial invoices contain booking reference, issue date, saved client/address/barber/branch details, adult/child quantities and unit prices, line amounts, and KWD total, with no tax or extra business/tax fields. New bookings must start strictly in the future in Kuwait, with no extra lead-time cutoff.
 
 Outcome: administrator books one client with one barber/window/address and receives one combined invoice immediately.
 
 Backend checklist:
 
-- [ ] Add booking/invoice contracts, tables, migrations, readable booking references, source attribution, and authorized list/detail operations.
-- [ ] Validate integer non-negative adult/child counts with at least one haircut, one barber, one address, and one shared window.
-- [ ] Recheck availability inside the booking transaction and serialize conflicting writes for the same barber.
-- [ ] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude a future blocking booking while holding the same employee lock.
-- [ ] Atomically save reservation and invoice; roll back both on failure.
-- [ ] Snapshot address, employee/branch attribution, counts, and agreed unit prices; compute exact totals from branch prices.
-- [ ] Copy the selected client's address into the reservation transaction so later client/address edits do not change past visit details.
-- [ ] Expose booking/invoice detail and print-ready data, separate visit/invoice/payment states, and employee-own record reads.
-- [ ] Keep the creation service reusable by AI with actor/client authorization enforced outside model control.
-- [ ] Test simultaneous conflicting bookings, rollback, endpoint boundaries, snapshots, one invoice, and direct-record ownership.
-- [ ] Explicitly test that three 20-minute haircuts can fit an otherwise available 20-minute window under the contract; pass targeted checks.
+- [x] Add booking/invoice contracts, tables, migrations, readable booking references, source attribution, and authorized list/detail operations.
+- [x] Validate integer non-negative adult/child counts with at least one haircut, one barber, one address, and one shared window.
+- [x] Recheck availability inside the booking transaction and serialize conflicting writes for the same barber.
+- [x] Use the phase 3 shared availability decision with blocking reservation rows in eligible-barber reads and booking transactions; reject schedule edits that would exclude an existing blocking booking while holding the same employee lock.
+- [x] Atomically save reservation and invoice; roll back both on failure.
+- [x] Snapshot address, employee/branch attribution, counts, and agreed unit prices; compute exact totals from branch prices.
+- [x] Copy the selected client's address into the reservation transaction so later client/address edits do not change past visit details.
+- [x] Expose booking/invoice detail and print-ready data, separate visit/invoice/payment states, and employee-own record reads.
+- [x] Keep the creation service reusable by AI with actor/client authorization enforced outside model control.
+- [x] Test simultaneous conflicting bookings, rollback, endpoint boundaries, snapshots, one invoice, and direct-record ownership.
+- [x] Explicitly test that three 20-minute haircuts can fit an otherwise available 20-minute window under the contract; pass targeted checks.
 
 Frontend checklist:
 
@@ -196,9 +204,26 @@ Acceptance:
 
 - [ ] One manual submission produces one reservation and invoice; simultaneous overlapping submissions cannot both succeed.
 
+Backend handoff: administrator `POST /api/bookings` accepts `{ clientId, addressId, employeeId, date, startTime, endTime, adultCount, childCount }` and returns 201 with a committed booking, `J4K-` reference, saved snapshots, and nested invoice. `GET /api/bookings?limit=20&offset=0` returns `{ bookings, total, limit, offset }`; `GET /api/bookings/:id` and `GET /api/bookings/:id/invoice` enforce assigned-employee ownership, while administrator reads span all records. All browser writes require the session CSRF token and matching origin. Input/source/price injection is rejected; non-future starts return `BOOKING_START_NOT_FUTURE` (400), conflicts/disabled barbers return `BARBER_UNAVAILABLE` (409), and missing client/address/employee/branch records return their corresponding 404 codes. Invoice data includes all confirmed fields and exact KWD line amounts/total. Initial states are visit `booked`, invoice `issued`, and payment `unpaid`; transition/payment/edit endpoints remain later slices. The internal AI context requires a trusted sender client ID and administrator service account and assigns source itself; WhatsApp onboarding/webhooks/idempotency remain phase 12.
+
+Backend evidence (2026-10-02): migration `0004_brown_the_fallen.sql` creates booking/invoice tables, restrictive history foreign keys, a unique booking reference, one-invoice-per-booking uniqueness, counts/window constraints, and exact decimal amounts. Real-MySQL booking tests verify one invoice, concurrent overlap rejection, adjacent windows, 20-minute/four-hour bounds, counts independent of duration, transactional rollback on invoice failure, employee ownership, schedule conflicts/races, trusted AI source/client scope, large exact totals, and snapshots after client/address/branch/employee edits and transfer. No new dependency or environment setting is required. Frontend and whole-slice acceptance remain unchecked.
+
+Final verification (2026-10-02):
+
+| Check | Result |
+| --- | --- |
+| Targeted backend lint/typecheck/build | `pnpm exec turbo run lint typecheck build --filter='@just4kids/api...' --concurrency=1 --force`: 11/11 tasks passed without cached results |
+| Booking tests | 14 API tests and 10 contract tests passed; the phone-change regression also passed |
+| Full repository checks | `pnpm lint`, `pnpm typecheck`, `pnpm test` (21 files, 113 tests), and `pnpm build` passed |
+| Migrations | `pnpm db:migrate:test` and `pnpm db:migrate` succeeded; booking/invoice migration applied to isolated test and development MySQL |
+| Compiled development API | Temporary local compiled API served administrator login and authenticated booking list with 200; both new tables were present; server closed and test login logged out |
+| Change scope | Backend source/contracts/schema/migration/tests and documentation only; no frontend source, dependency, environment, or Git commit changes |
+
+Verification cleanup: the initial missing-table red test left its temporary fixture when teardown failed. Teardown now checks table availability, the exact leftover fixture was removed from `just4kids_test`, and schedule tests plus the final full suite passed afterward. No development business records were created by the verification.
+
 ## Phase 6 — Employee visit workflow and cancellation history
 
-Depends on: phase 5. Decision gate: exact visit state transitions, client cancellation eligibility, terminal corrections, and released/blocking states.
+Depends on: phase 5. Decision gate: exact visit state transitions, client cancellation eligibility, and terminal corrections. Blocking/released states and preservation of the completed visit's original reserved window are already confirmed by the contract.
 
 Outcome: the assigned barber records arrival, completion, cancellation, or no-show; history remains visible.
 
@@ -206,7 +231,7 @@ Backend checklist:
 
 - [ ] Implement confirmed visit transitions with actor/time history and administrator-only terminal corrections where agreed.
 - [ ] Permit the assigned employee's allowed actions; deny employee rescheduling/reassignment and access to other barbers' records.
-- [ ] Apply confirmed availability release rules; preserve the original reserved window on completion if approved.
+- [ ] Apply confirmed availability release rules and preserve the original reserved window on completion.
 - [ ] Cancel the existing invoice when a booking is cancelled while retaining invoice/payment history; do not automatically refund cash.
 - [ ] Keep visit status independent of payment status and do not create or reprice invoices when marking completed/paid.
 - [ ] Test transitions, forbidden actions, retained history, invoice cancellation, and concurrency; pass targeted checks.
@@ -432,7 +457,24 @@ For each backend slice:
 
 Keep the contract's exclusions: no native app, client dashboard login, second administrator, multiple barbers in one reservation, saved child profiles, extra services, payroll, inventory, commissions, expenses, accounting ledger, route optimization, GPS tracking, service-area enforcement, proactive confirmations/reminders/campaigns, online/partial payments, custom report builder, custom PDF generator, or CSV/Excel exports. WhatsApp conversational replies remain required.
 
-## Setup verification evidence
+## Pre-fix backend verification review — 2026-10-02
+
+Authority: the complete [project contract](project-contract.md). Reviewed the implemented API routes, services, repositories, shared contracts, database schemas, and relevant tests for the claimed completed backend work. This review did not implement fixes or verify frontend, Docker, or production acceptance.
+
+| Check | Command/evidence | Result |
+| --- | --- | --- |
+| Backend lint/typecheck/build | `pnpm exec turbo run lint typecheck build --filter='@just4kids/api...' --concurrency=1 --force` | 11/11 tasks passed; cache bypassed; API, contracts, DB, and config in scope; config has no build task |
+| Isolated migrations | `pnpm db:migrate:test` | Succeeded against `just4kids_test`; this was not a clean-database migration/restore test |
+| Backend tests | `pnpm exec vitest run --project api --project contracts --project db --project config --fileParallelism=false` | 19 test files, 88 tests passed, including real MySQL/API behavior; no config feature coverage claimed |
+| Toolchain | `node --version`; `pnpm --version` | Node `v24.14.0`, pnpm `12.4.1` |
+| Secret files | `git check-ignore .env .env.test` | Both ignored |
+| Employee phone-change race | Compiled authentication service/repositories with a phone update between credential verification and session creation, using isolated MySQL | Confirmed: old-phone login succeeded and created a valid session after the change; temporary employee/branch records removed |
+| Availability integration | `schedule.service.ts` calls `isWindowAvailable(..., [])`; schedule repositories do not check booking rows | Working hours/exceptions implemented; booking conflict integration and schedule-edit protection pending in phase 5 |
+| Docker | `Get-Command docker -ErrorAction SilentlyContinue` | Command unavailable; image/Compose checks remain pending |
+
+Historical result at review time: branch/pricing behavior and client/address management were verified, but the phone-change race prevented full phase 2 completion, and phase 3 booking integration/snapshots remained pending. The subsequent fix and phase 5 implementation above supersede those pending findings. This table preserves the actual pre-fix evidence. Earlier development-database, installation, compiled health, and production-package evidence below was not rerun during that review.
+
+## Original setup verification evidence — 2026-09-29
 
 Verified on 2026-09-29:
 
@@ -454,4 +496,4 @@ Verified on 2026-09-29:
 
 Setup repair: existing generated dependency metadata referred to `D:\Documents\work\just4kids`, whereas this workspace is `D:\Documents\work\capella\just4kids`. The initial installation failed removing broken Windows package links. Generated dependency directories were preserved in ignored `.turbo/setup-backup-20260929/`, then a clean frozen-lockfile installation restored the workspace dependencies. This also restored shared dependencies needed by the frontend without changing its source, configuration, or package versions. The local production package check is under ignored `.turbo/api-deploy-check/`.
 
-Docker is unavailable on this computer, so Docker image builds and Compose execution remain unchecked. Frontend validation was outside this task and remains unchecked. No business-feature implementation, schema migration, integration onboarding, production deployment, or Git commit was performed.
+At the end of the original setup-only task on 2026-09-29, Docker was unavailable, Docker image builds and Compose execution were unchecked, and frontend validation was outside that task. That task performed no business-feature implementation, schema migration, integration onboarding, production deployment, or Git commit. Backend phases 1–5 and migrations were implemented afterward, as recorded above; this paragraph is historical setup evidence, not the current feature status.

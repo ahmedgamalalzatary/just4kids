@@ -54,6 +54,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
 - Client chooses the date and variable start/end window through AI. Administrator can choose/change it manually.
+- Confirmed on 2026-10-02: new reservations must start strictly in the future in Kuwait, with no additional lead-time cutoff. This does not decide later WhatsApp rescheduling/cancellation policy.
 - Minimum window: **20 minutes**. Maximum window: **4 hours**. Both bounds are inclusive.
 - The whole window includes outbound travel, all haircuts, and return travel and blocks the assigned barber.
 - Window bounds apply regardless of haircut counts or configured haircut durations. Three 20-minute haircuts may still be booked in an available 20-minute window under this rule.
@@ -86,6 +87,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Initial KWD prices are exact to three decimal places (1 dinar = 1,000 fils), following the [Central Bank of Kuwait's currency description](https://www.cbk.gov.kw/en/banknotes-and-coins/banknotes/introduction).
 - New booking total: `adult count × adult price + child count × child price`, using the assigned barber's branch.
 - Generate one combined invoice when booked, including manual bookings.
+- Confirmed initial invoice fields (2026-10-02): booking reference, issue date, client and address, barber and branch, adult/child quantities and unit prices, line amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
 - Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.
 - Changing barber/branch or counts updates the existing invoice to match; retain revision history.
 - Changing only the time/address preserves agreed prices.
@@ -134,7 +136,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Booking, WhatsApp, and reporting features are pending; backend authentication, branches/employees, schedules, and clients/addresses have their own implemented slices.
+- Backend authentication, branches/employees, schedules, clients/addresses, and initial reservations/invoices have implemented slices. Visit actions, reservation edits, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 
@@ -142,7 +144,7 @@ The following are implementation proposals or unresolved policies, not additiona
 
 - Client self-service changes apply to future booked reservations, with no extra lead-time cutoff. Terminal-state corrections are administrator-only. Exact state-transition policy is pending.
 - Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
-- WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, production deployment/backup tooling, and any required tax/invoice fields remain to be selected.
+- WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, and production deployment/backup tooling remain to be selected. Initial invoice fields and no-tax behavior are confirmed above.
 
 ## Scope boundaries and completion
 

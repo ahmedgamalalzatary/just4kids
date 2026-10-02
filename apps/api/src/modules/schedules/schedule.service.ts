@@ -50,7 +50,7 @@ export function createScheduleService(repository: ScheduleRepository) {
         const days = [...(workByEmployee.get(barber.id) ?? new Map<number, WorkInterval[]>())]
           .sort(([firstDay], [secondDay]) => firstDay - secondDay)
           .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals }));
-        return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), []);
+        return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), rows.visits.filter(visit => visit.employeeId === barber.id).map(visit => ({ ...visit, status: visit.visitStatus })));
       }).map(barber => ({ id: barber.id, displayName: barber.displayName, branch: { id: barber.branchId, name: barber.branchName, location: barber.branchLocation } }));
       return eligibilityResponseSchema.parse({ date: query.date, startTime: query.startTime, endTime: query.endTime, timeZone: "Asia/Kuwait", barbers });
     },

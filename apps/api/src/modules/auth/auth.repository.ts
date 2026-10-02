@@ -35,10 +35,10 @@ export function createAuthRepository(connection: Connection) {
       return row;
     },
 
-    async createSession(accountId: string, expectedPasswordHash: string, token: string, expiresAt: Date, oldToken?: string): Promise<boolean> {
+    async createSession(accountId: string, expectedPhone: string, expectedPasswordHash: string, token: string, expiresAt: Date, oldToken?: string): Promise<boolean> {
       return db.transaction(async transaction => {
         const [current] = await transaction.select().from(accounts).where(eq(accounts.id, accountId)).for("update");
-        if (!current || !current.enabled || current.passwordHash !== expectedPasswordHash) return false;
+        if (!current || !current.enabled || current.phone !== expectedPhone || current.passwordHash !== expectedPasswordHash) return false;
         await transaction.insert(sessions).values({ tokenHash: sha256(token), accountId, createdAt: new Date(), expiresAt });
         if (oldToken && /^[a-f0-9]{64}$/.test(oldToken)) await transaction.delete(sessions).where(eq(sessions.tokenHash, sha256(oldToken)));
         return true;

@@ -41,7 +41,7 @@ export function createAuthService(repository: AuthRepository, env: ApiEnv) {
       const { account } = verified;
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + sessionLengthMs);
-      const created = await repository.createSession(account.id, account.passwordHash, token, expiresAt, oldToken);
+      const created = await repository.createSession(account.id, account.phone, account.passwordHash, token, expiresAt, oldToken);
       return created ? { kind: "success", session: { account: publicAccount(account), token, expiresAt } } : { kind: "invalid" };
     },
 

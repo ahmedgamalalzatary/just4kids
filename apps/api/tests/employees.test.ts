@@ -8,6 +8,9 @@ import { createApp } from "../src/app.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { verifyPassword } from "../src/lib/password.js";
 import { createAuth } from "../src/modules/auth/index.js";
+import { createAuthRepository } from "../src/modules/auth/auth.repository.js";
+import { createAuthService } from "../src/modules/auth/auth.service.js";
+import { createEmployeeRepository } from "../src/modules/employees/employee.repository.js";
 
 const origin = "http://localhost:3000";
 const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DATABASE_URL, ADMIN_PHONE: "+96555551234", ADMIN_PASSWORD: "admin1234", AUTH_SECRET: "a".repeat(64), APP_ORIGIN: origin });
@@ -58,6 +61,26 @@ afterAll(async () => {
 });
 
 describe("employee management", () => {
+  it("rejects an in-progress old-phone login after an administrator changes the employee phone", async () => {
+    const oldPhone = "+96555550061";
+    const newPhone = "+96555550062";
+    testPhones.push(oldPhone, newPhone);
+    const { created } = await createEmployee(oldPhone);
+    const repository = createAuthRepository(connection);
+    const employeeRepository = createEmployeeRepository(connection);
+    const service = createAuthService({
+      ...repository,
+      async verifyCredentials(...args) {
+        const verified = await repository.verifyCredentials(...args);
+        await employeeRepository.updateByAdministrator(created.body.id as string, { phone: newPhone });
+        return verified;
+      },
+    }, env);
+    expect(await service.authenticate(oldPhone, "employee-password-123", "phone-change-regression")).toEqual({ kind: "invalid" });
+    expect((await signIn(oldPhone, "employee-password-123")).response.status).toBe(401);
+    expect((await signIn(newPhone, "employee-password-123")).response.status).toBe(200);
+  });
+
   it("lets the administrator create an employee who signs in and sees only own records", async () => {
     const { created } = await createEmployee(testPhones[0]!);
     expect(created.body).toMatchObject({ displayName: "سالم", phone: testPhones[0], branchId: branchA, enabled: true });
