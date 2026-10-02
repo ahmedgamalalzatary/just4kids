@@ -43,6 +43,13 @@
       "when": 1790962412762,
       "tag": "0005_old_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1790964494489,
+      "tag": "0006_nice_romulus",
+      "breakpoints": true
     }
   ]
 }

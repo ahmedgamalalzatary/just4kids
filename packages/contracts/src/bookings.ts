@@ -49,6 +49,19 @@ export const bookingListQuerySchema = z.strictObject({
   offset: z.string().regex(/^[0-9]+$/).default("0").transform(Number).pipe(z.number().int().min(0).max(1000000)),
 });
 export type BookingCreate = z.infer<typeof bookingCreateSchema>;
+export const bookingEditSchema = z.strictObject({
+  expectedVersion: version, reason: reason.optional(), addressId: z.uuid().optional(), employeeId: z.uuid().optional(),
+  date: eligibilityQuerySchema.shape.date.optional(), startTime: eligibilityQuerySchema.shape.startTime.optional(), endTime: eligibilityQuerySchema.shape.endTime.optional(),
+  adultCount: haircutCount.optional(), childCount: haircutCount.optional(),
+}).superRefine((value, context) => {
+  if (!Object.entries(value).some(([key, field]) => key !== "expectedVersion" && key !== "reason" && field !== undefined)) context.addIssue({ code: "custom", message: "At least one edit is required" });
+  if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
+});
+export const bookingRevisionResponseSchema = z.strictObject({
+  id: z.uuid(), bookingId: z.uuid(), version, actorAccountId: z.uuid(), reason: reason.nullable(), occurredAt: z.iso.datetime(),
+  before: bookingResponseSchema, after: bookingResponseSchema,
+});
+export type BookingEdit = z.infer<typeof bookingEditSchema>;
 export type BookingResponse = z.infer<typeof bookingResponseSchema>;
 export type BookingListQuery = z.infer<typeof bookingListQuerySchema>;
 export type BookingAddressSnapshot = z.infer<typeof bookingAddressSnapshotSchema>;

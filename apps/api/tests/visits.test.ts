@@ -111,7 +111,7 @@ describe("employee visit actions and history", () => {
     expect((await request(app).post(`/bookings/${booking.id}/visit`).set("Origin", origin).set("Cookie", employee.cookie).send({ status: "cancelled", expectedVersion: 0 })).status).toBe(403);
     expect((await correction("cancelled", 0, "reason", employee)).status).toBe(403);
     expect((await request(app).get(`/bookings/${booking.id}/history`).set("Cookie", other.cookie)).status).toBe(403);
-    expect((await request(app).patch(`/bookings/${booking.id}`).set("Origin", origin).set("Cookie", employee.cookie).set("X-CSRF-Token", employee.csrf).send({ employeeId: otherId })).status).toBe(404);
+    expect((await request(app).patch(`/bookings/${booking.id}`).set("Origin", origin).set("Cookie", employee.cookie).set("X-CSRF-Token", employee.csrf).send({ employeeId: otherId })).status).toBe(403);
   });
   it("rejects early arrival/completion/no-show and completion without arrival", async () => {
     at("08:59"); expect((await transition("arrived")).status).toBe(409); expect((await transition("no_show")).status).toBe(409);

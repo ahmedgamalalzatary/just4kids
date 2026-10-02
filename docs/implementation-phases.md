@@ -4,7 +4,7 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–6 are now implemented. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. All frontend and whole-slice acceptance items remain pending.
+The initial task covered documentation and setup verification. Backend phases 1–6 and phase 7's unpaid reservation edits are now implemented; phase 7's paid-edit reconciliation still depends on phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. All frontend and whole-slice acceptance items remain pending.
 
 Future implementation by this agent is **backend only**: `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend implementation is assigned separately. Do not change `apps/web` or frontend dependencies as part of backend work.
 
@@ -25,14 +25,14 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, and visit actions/corrections/history implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation, and history contracts |
-| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), and visit history/version (0005); payment/invoice-revision tables remain later work |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, and unpaid reservation edits/revisions implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, and reservation edit/revision contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006); payment tables remain later work |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–6 implemented, including the phase 2 race fix and phase 3 booking integration; phases 7–14 and all frontend journeys pending |
+| Business features | Backend phases 1–6 and unpaid phase 7 edits implemented; paid-edit reconciliation, phases 8–14, and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -268,19 +268,20 @@ Final verification (2026-10-02):
 
 ## Phase 7 — Reservation edits, rescheduling, and reassignment
 
-Depends on: phases 5–6. Decision gate: same-branch count pricing, same/different-branch reassignment pricing, and paid-invoice reconciliation policy. Paid edits depend on phase 8 and stay blocked until that integration is complete.
+Depends on: phases 5–6. Confirmed on 2026-10-02: administrator edits only unpaid booked visits before their original start; new windows must also start strictly in the future, with no extra cutoff. Count edits and same-recorded-branch reassignment keep agreed unit prices; different-branch reassignment uses the destination branch's current prices. Paid edits depend on phase 8 and stay blocked until its reconciliation policy and integration are complete. Client rescheduling remains a phase 13 decision.
 
 Outcome: administrator updates a reservation safely, retaining its identity and invoice revision history.
 
 Backend checklist:
 
-- [ ] Add authorized address/count/window/barber edit contracts and shared transactional services; employees cannot reschedule or reassign.
-- [ ] Recheck availability at commit for every window/barber change, including conflicting concurrent edits.
-- [ ] Preserve the original booking/window/invoice if a reschedule or reassignment fails.
-- [ ] Preserve agreed prices for time/address-only edits; revise the existing invoice on count/barber/branch changes under confirmed pricing rules.
-- [ ] Retain revision actor/time, previous values, and historical branch/employee attribution; never create another invoice for the same reservation.
-- [ ] Reject unreconciled paid amount changes; integrate permitted paid edits with phase 8 before marking this item complete.
-- [ ] Test failed-edit rollback, concurrent conflicts, price preservation/revisions, role boundaries, and payment safeguards; pass targeted checks.
+- [x] Add authorized address/count/window/barber edit contracts and shared transactional services; employees cannot reschedule or reassign.
+- [x] Recheck availability at commit for every window/barber change, including conflicting concurrent edits.
+- [x] Preserve the original booking/window/invoice if a reschedule or reassignment fails.
+- [x] Preserve agreed prices for time/address-only edits; revise the existing invoice on count/barber/branch changes under confirmed pricing rules.
+- [x] Retain revision actor/time, previous values, and historical branch/employee attribution; never create another invoice for the same reservation.
+- [x] Reject paid edits while reconciliation remains unavailable, including time/address-only edits.
+- [ ] Integrate permitted paid edits with phase 8 reconciliation before marking phase 7 backend fully complete.
+- [x] Test failed-edit rollback, concurrent conflicts, price preservation/revisions, role boundaries, and payment safeguards; pass targeted checks.
 
 Frontend checklist:
 
@@ -290,6 +291,16 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Administrator moves a visit to an available barber/window; a failed change preserves all original records and successful changes revise one existing invoice.
+
+Backend handoff (2026-10-02): administrator-only `PATCH /api/bookings/:id` accepts `{ expectedVersion, reason?, addressId?, employeeId?, date?, startTime?, endTime?, adultCount?, childCount? }`, with at least one editable field. Partial changes are merged with locked current values and validated together; client identity, prices, source, and statuses cannot be supplied. The address must belong to the existing client. Supplying `addressId` snapshots that saved address's current fields, including when reselecting the same address; omitting it preserves the agreed address snapshot. Time/count/address-only changes preserve historical client/barber/branch details, including after a current barber transfers branches. Actual reassignment records the destination barber/branch and applies the confirmed pricing rules.
+
+The existing `visitVersion` is now the shared reservation mutation version and advances on edits as well as visit actions. All edit and visit callers must send the latest value; a stale visit action after an edit returns `VISIT_CONFLICT`. Visit history and reservation revisions each retain their own ordered events, so versions may have gaps within either list. Both employees are locked in stable ID order before a reassignment; edits share the booking/schedule/visit locks, recheck the original and proposed start before saving, and atomically update one booking/invoice with one revision. Failed availability, validation, stale writes, or revision persistence preserve all original values. No-op edits are refused without adding history.
+
+`GET /api/bookings/:id/revisions` returns `{ revisions }` ordered by version, with actor account ID, UTC time, optional reason, and complete `before`/`after` booking/invoice snapshots. Administrators and the currently assigned employee may read them. Reassignment removes the former employee's booking/invoice/visit-history/revision access and gives it to the new employee; history authorization/read run in one transaction. Edits require the normal origin and session CSRF protection. Invalid payloads return `INVALID_INPUT` (400); a non-future proposed start returns `BOOKING_START_NOT_FUTURE` (400); missing bookings/barbers/addresses return 404. `BOOKING_CONFLICT`, `BOOKING_EDIT_NOT_ALLOWED`, `PAID_BOOKING_EDIT_NOT_ALLOWED`, `BOOKING_UNCHANGED`, and availability conflicts (`BARBER_UNAVAILABLE`) return 409. Employee writes return 403.
+
+Migration `0006_nice_romulus.sql` adds immutable reservation/invoice revision snapshots with restrictive booking/account foreign keys and a unique booking/version pair. Existing records remain unchanged; their current values become the first revision's `before` snapshot when edited. No frontend, dependency, or environment changes are needed. Paid-edit reconciliation and WhatsApp rescheduling/provider wiring remain pending.
+
+Backend verification (2026-10-02): the initial edit test failed with 404 and its contract test failed before the schema existed; all 12 initial API edit cases failed before the endpoint was implemented. Targeted booking/visit/schedule/edit/contract checks passed, including 15 edit API tests and 21 booking contract tests. The start-crossing regression failed with an incorrectly accepted edit, then passed after the final start recheck. Real MySQL tests verify exact same/different-branch pricing, time/address price preservation, retained invoice identity, immutable ordered revisions, current ownership after reassignment, cross-client address denial, employee/CSRF denial, paid/state/time safeguards, conflict rollback, competing edits, opposite-barber swaps, reschedule versus new-booking races, and injected revision failure rollback. Forced backend lint/typecheck/build passed (11 tasks). Full `pnpm check` passed: repository lint, typecheck, 23 test files/161 tests, and build. Test/development migrations succeeded; `pnpm db:generate` reported no schema drift. Phase 7 unpaid edits are included in the accompanying implementation commit; frontend and whole-slice acceptance remain unchecked.
 
 ## Phase 8 — Full cash payment, corrections, and reconciliation
 

@@ -10,8 +10,8 @@ import { isWindowAvailable } from "../availability/availability.service.js";
 
 // Only trusted server code constructs this context. WhatsApp client identity must come from the authenticated sender, never model arguments.
 export type BookingActor = { kind: "administrator"; accountId: string } | { kind: "whatsapp"; accountId: string; clientId: string };
-function fils(price: string) { return BigInt(price.replace(".", "")); }
-function money(value: bigint) { return `${value / 1000n}.${(value % 1000n).toString().padStart(3, "0")}`; }
+export function fils(price: string) { return BigInt(price.replace(".", "")); }
+export function money(value: bigint) { return `${value / 1000n}.${(value % 1000n).toString().padStart(3, "0")}`; }
 export function assertFutureStart(input: Pick<BookingCreate, "date" | "startTime">) {
   if (new Date(`${input.date}T${input.startTime}:00+03:00`).getTime() <= Date.now()) throw new HttpError(400, "BOOKING_START_NOT_FUTURE", "يجب أن يبدأ الحجز في المستقبل بتوقيت الكويت");
 }

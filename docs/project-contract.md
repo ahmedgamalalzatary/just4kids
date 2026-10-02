@@ -62,6 +62,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Bookings must fit the employee's working availability and cannot overlap another blocking booking.
 - Recheck availability at commit time and protect against simultaneous bookings of the same employee.
 - Failed rescheduling preserves the original booking/window.
+- Confirmed reservation edits (2026-10-02): administrator-only edits may change address, adult/child counts, window, and assigned barber only while the visit is booked and its original start is strictly in the future in Kuwait. A changed window must also start strictly in the future, without an extra cutoff. Edits retain the reservation/reference and invoice identity, actor/time/reason when supplied, and complete previous/new values. Paid reservations remain blocked until phase 8 payment reconciliation is implemented. Client rescheduling policy remains pending.
 - Keep cancelled/no-show records for history. Arrival means the barber reached the client's address.
 - Visit states: booked, arrived, completed, cancelled, no-show. Payment and invoice states are separate.
 - Confirmed visit workflow (2026-10-02): booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion actions are allowed at or after the reserved start; no-show is allowed at or after the reserved end. Cancellation is allowed from booked or arrived, without an additional timing cutoff. Completed/cancelled/no-show states are final for employees.
@@ -94,6 +95,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Confirmed initial invoice fields (2026-10-02): booking reference, issue date, client and address, barber and branch, adult/child quantities and unit prices, line amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
 - Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.
 - Changing barber/branch or counts updates the existing invoice to match; retain revision history.
+- Confirmed edit pricing (2026-10-02): count edits and reassignment within the reservation's recorded branch preserve its agreed adult/child unit prices. Reassignment to a different branch uses that branch's current adult/child prices. A current employee's branch transfer alone does not change a reservation's historical branch, snapshots, or prices.
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
@@ -140,14 +142,14 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, initial reservations/invoices, and visit actions/history have implemented slices. Reservation edits, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, initial reservations/invoices, visit actions/history, and unpaid future-booked reservation edits/revisions have implemented slices. Paid-edit reconciliation, cash payments, reports, WhatsApp integration, frontend journeys, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 
 The following are implementation proposals or unresolved policies, not additional confirmed scope:
 
 - Client rescheduling policy remains to be confirmed; the proposed default is future booked reservations with no extra lead-time cutoff. Client cancellation, normal visit transitions/timing, and administrator-only corrections are confirmed above.
-- Use existing booked unit prices for same-branch count edits; branch-changing reassignment uses new branch prices. Exact repricing/reconciliation rules after payment and cash refunds need confirmation before implementation.
+- Same-branch and different-branch pricing rules are confirmed above. Paid-edit reconciliation and cash-refund policies still need confirmation before phase 8 implementation.
 - WhatsApp provider/onboarding, AI model/provider, conversation retention, automatic barber-selection tie-breaks, and production deployment/backup tooling remain to be selected. Initial invoice fields and no-tax behavior are confirmed above.
 
 ## Scope boundaries and completion

@@ -7,15 +7,13 @@ import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema 
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readBlockingBookings, readWorkingHours } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
-import { serializeBooking, createBookingService } from "./booking.service.js";
-import { createBookingRepository } from "./booking.repository.js";
+import { serializeBooking } from "./booking.service.js";
 
 type VisitActor = { kind: "account"; account: Account } | { kind: "client"; clientId: string };
 const blocking = new Set<VisitStatus>(["booked", "arrived", "completed"]);
 const allowed: Partial<Record<VisitStatus, VisitStatus[]>> = { booked: ["arrived", "cancelled", "no_show"], arrived: ["completed", "cancelled", "no_show"] };
 export function createVisitService(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
-  const bookingService = createBookingService(createBookingRepository(connection));
   async function change(id: string, input: VisitTransition | VisitCorrection, actor: VisitActor, correction: boolean) {
     const [identity] = await db.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id));
     if (!identity) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
@@ -60,9 +58,13 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
     // The caller must derive clientId from an authenticated WhatsApp sender. No public client-login/action endpoint exists.
     cancelForClient: (id: string, expectedVersion: number, clientId: string, reason?: string) => change(id, visitTransitionSchema.parse({ status: "cancelled", expectedVersion, ...(reason === undefined ? {} : { reason }) }), { kind: "client", clientId }, false),
     async history(id: string, account: Account) {
-      if (!await bookingService.get(id, account)) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
-      const events = await db.select().from(bookingVisitEvents).where(eq(bookingVisitEvents.bookingId, id)).orderBy(asc(bookingVisitEvents.version));
-      return { events: events.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() })) };
+      return db.transaction(async transaction => {
+        const [booking] = await transaction.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id)).for("share");
+        if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
+        if (account.role !== "admin" && account.id !== booking.employeeId) throw new ForbiddenError();
+        const events = await transaction.select().from(bookingVisitEvents).where(eq(bookingVisitEvents.bookingId, id)).orderBy(asc(bookingVisitEvents.version));
+        return { events: events.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() })) };
+      });
     },
   };
 }
