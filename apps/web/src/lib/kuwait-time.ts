@@ -52,12 +52,20 @@ export function formatDateTime(iso: string): string {
   return dateTimeFormatter.format(new Date(iso));
 }
 
+// Arabic counted nouns: one and two have their own words, 3–10 (by the last two digits) take the plural, and the rest the singular.
+function counted(count: number, one: string, two: string, plural: string): string {
+  if (count === 1) return one;
+  if (count === 2) return two;
+  return count % 100 >= 3 && count % 100 <= 10 ? `${count} ${plural}` : `${count} ${one}`;
+}
+
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  if (hours === 0) return `${rest} دقيقة`;
-  const hourText = hours === 1 ? "ساعة" : hours === 2 ? "ساعتان" : `${hours} ساعات`;
-  return rest === 0 ? hourText : `${hourText} و${rest} دقيقة`;
+  const minuteText = counted(rest, "دقيقة", "دقيقتان", "دقائق");
+  if (hours === 0) return minuteText;
+  const hourText = counted(hours, "ساعة", "ساعتان", "ساعات");
+  return rest === 0 ? hourText : `${hourText} و${minuteText}`;
 }
 
 export const WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"] as const;

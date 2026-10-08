@@ -47,7 +47,7 @@ Replace `api` with `web`, `contracts`, `db`, or `config` for lint/typecheck/test
 
 Individual app type checks/builds need compiled shared dependencies on a fresh checkout: run `pnpm build` first, or use `pnpm exec turbo run typecheck --filter=@just4kids/api` to build its prerequisites automatically.
 
-Tests live in each workspace's `tests/` directory. Root Vitest projects are named `api`, `web`, `contracts`, `db`, and `config`; `pnpm test --project api` also selects just the API. API, contract, and real database connection smoke tests are present. Web tests run in jsdom (setup `apps/web/tests/setup.ts`) and cover money/time/visit rules, form validation, the API client, and the login form. The empty config test folder permits a no-tests run and claims no feature coverage.
+Tests live in each workspace's `tests/` directory. Root Vitest projects are named `api`, `web`, `contracts`, `db`, and `config`; `pnpm test --project api` also selects just the API. API, contract, and real database connection smoke tests are present. Web tests run in jsdom (setup `apps/web/tests/setup.ts`) and cover money/time/visit rules, form validation, the API client, the login form, and report filters. The empty config test folder permits a no-tests run and claims no feature coverage.
 
 Vitest always loads the root `.env.test`, overriding inherited development connection settings. Use `.env.test.example` for setup. Test commands apply migrations to `just4kids_test` first and require its running MySQL instance. The dedicated test migration config refuses any other database. Both `.env` and `.env.test` are ignored by Git and Docker builds.
 
@@ -100,7 +100,7 @@ Employee login now rechecks the verified phone as well as enabled status and pas
 
 ## Web dashboard
 
-`apps/web` is an Arabic-only, right-to-left Next.js dashboard for the implemented backend (phases 1–8). Screens: login; bookings list/detail/new booking, visit actions, administrator corrections and edits, cash recording/undo/reconciliation, history tabs, and a printable invoice; clients and addresses; barbers with weekly hours and dated exceptions; branches and prices; the barber’s own schedule and profile. Employees see only their own bookings and pages; administrator pages show a clear message if opened directly by an employee. The API remains authoritative for every rule.
+`apps/web` is an Arabic-only, right-to-left Next.js dashboard for the implemented backend (phases 1–10). Screens: login; bookings list/detail/new booking, visit actions, administrator corrections and edits, cash recording/undo/reconciliation, history tabs, and a printable invoice; clients and addresses; barbers with weekly hours and dated exceptions; branches and prices; the barber’s own schedule and profile; and reports (`/reports`): bookings with a summary and linked records, haircuts by date/branch/barber, barber performance with reserved versus scheduled hours, and branch performance with a barber breakdown. Report filters (date basis, range, branch, barber, status, source, search) live in the page address, are shared by the four report tabs, and are printed with the report. Employees see only their own bookings and pages; administrator pages show a clear message if opened directly by an employee. The API remains authoritative for every rule.
 
 Design system:
 

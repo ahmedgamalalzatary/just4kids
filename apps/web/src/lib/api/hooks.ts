@@ -5,10 +5,12 @@ import type {
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
   EmployeeAdminUpdate, EmployeeCreate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
+import type { ReportFilters } from "@/lib/reports";
 import { apiRequest } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingRevision, Branch, Client, ClientSummary, Eligibility, Employee, Page, Payment, PaymentDetails, Schedule, VisitEvent,
+  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, Page, Payment, PaymentDetails,
+  ReservationReport, Schedule, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -25,6 +27,7 @@ export const keys = {
   bookings: ["bookings"] as const,
   bookingList: (offset: number) => ["bookings", "list", offset] as const,
   booking: (id: string) => ["bookings", id] as const,
+  reports: ["reports"] as const,
 };
 
 const PAGE_SIZE = 20;
@@ -42,7 +45,7 @@ export function useCreateBranch() {
 
 export function useUpdateBranch() {
   return useApiMutation(({ id, ...input }: BranchUpdate & { id: string }, csrfToken) => apiRequest<Branch>(`/branches/${id}`, { method: "PATCH", body: input, csrfToken }), {
-    invalidate: () => [keys.branches, keys.employees],
+    invalidate: () => [keys.branches, keys.employees, keys.reports],
   });
 }
 
@@ -66,7 +69,7 @@ export function useCreateEmployee() {
 
 export function useUpdateEmployee() {
   return useApiMutation(({ id, ...input }: EmployeeAdminUpdate & { id: string }, csrfToken) => apiRequest<Employee>(`/employees/${id}`, { method: "PATCH", body: input, csrfToken }), {
-    invalidate: () => [keys.employees],
+    invalidate: () => [keys.employees, keys.reports],
   });
 }
 
@@ -76,7 +79,7 @@ export function useResetEmployeePassword() {
 
 export function useUpdateMyName() {
   return useApiMutation((input: { displayName: string }, csrfToken) => apiRequest<Employee>("/employees/me", { method: "PATCH", body: input, csrfToken }), {
-    invalidate: () => [keys.myEmployee],
+    invalidate: () => [keys.myEmployee, keys.reports],
   });
 }
 
@@ -92,20 +95,20 @@ export function useMySchedule(enabled = true) {
 
 export function useReplaceWeekly() {
   return useApiMutation(({ id, ...input }: WeeklySchedule & { id: string }, csrfToken) => apiRequest<Schedule>(`/schedules/${id}/weekly`, { method: "PUT", body: input, csrfToken }), {
-    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"]],
+    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"], keys.reports],
   });
 }
 
 export function useReplaceException() {
   return useApiMutation(({ id, date, ...input }: ScheduleException & { id: string; date: string }, csrfToken) =>
     apiRequest<Schedule>(`/schedules/${id}/exceptions/${date}`, { method: "PUT", body: input, csrfToken }), {
-    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"]],
+    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"], keys.reports],
   });
 }
 
 export function useDeleteException() {
   return useApiMutation(({ id, date }: { id: string; date: string }, csrfToken) => apiRequest<void>(`/schedules/${id}/exceptions/${date}`, { method: "DELETE", csrfToken }), {
-    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"]],
+    invalidate: (_output, input) => [keys.schedule(input.id), ["availability"], keys.reports],
   });
 }
 
@@ -182,12 +185,12 @@ export function useBookingPayments(id: string) {
   return useQuery({ queryKey: [...keys.booking(id), "payments"], queryFn: ({ signal }) => apiRequest<PaymentDetails>(`/bookings/${id}/payments`, { signal }) });
 }
 
-// Every booking write refreshes the whole booking (detail, history, revisions, payments) and the lists.
-const bookingWrites = (id: string) => [keys.booking(id), [...keys.bookings, "list"], ["availability"]] as const;
+// Every booking write refreshes the whole booking (detail, history, revisions, payments), the lists, and the reports.
+const bookingWrites = (id: string) => [keys.booking(id), [...keys.bookings, "list"], ["availability"], keys.reports] as const;
 
 export function useCreateBooking() {
   return useApiMutation((input: BookingCreate, csrfToken) => apiRequest<Booking>("/bookings", { method: "POST", body: input, csrfToken }), {
-    invalidate: () => [[...keys.bookings, "list"], ["availability"]],
+    invalidate: () => [[...keys.bookings, "list"], ["availability"], keys.reports],
   });
 }
 
@@ -222,3 +225,18 @@ export function useUndoPayment() {
     invalidate: (_output, input) => bookingWrites(input.id),
   });
 }
+
+// Reports --------------------------------------------------------------------
+
+function useReport<T>(path: string, filters: ReportFilters, page?: { offset: number }) {
+  return useQuery({
+    queryKey: [...keys.reports, path, filters, page?.offset ?? null],
+    queryFn: ({ signal }) => apiRequest<T>(`/reports/${path}`, { query: { ...filters, ...(page ? { limit: PAGE_SIZE, offset: page.offset } : {}) }, signal }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export const useReservationReport = (filters: ReportFilters, offset: number) => useReport<ReservationReport>("reservations", filters, { offset });
+export const useHaircutReport = (filters: ReportFilters) => useReport<HaircutReport>("haircuts", filters);
+export const useEmployeeReport = (filters: ReportFilters) => useReport<EmployeeReport>("employees", filters);
+export const useBranchReport = (filters: ReportFilters) => useReport<BranchReport>("branches", filters);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatTime, kuwaitInstant, kuwaitNow, windowMinutes } from "@/lib/kuwait-time";
+import { formatDate, formatDuration, formatTime, kuwaitInstant, kuwaitNow, windowMinutes } from "@/lib/kuwait-time";
 
 describe("Kuwait time", () => {
   it("reads the current Kuwait date and time regardless of the browser zone", () => {
@@ -24,5 +24,26 @@ describe("Kuwait time", () => {
     expect(date).toContain("2026");
     expect(date).toContain("الأحد");
     expect(date).not.toMatch(/[٠-٩]/);
+  });
+});
+
+describe("formatDuration", () => {
+  it("uses the Arabic counted noun for minutes", () => {
+    expect(formatDuration(1)).toBe("دقيقة");
+    expect(formatDuration(2)).toBe("دقيقتان");
+    expect(formatDuration(5)).toBe("5 دقائق");
+    expect(formatDuration(10)).toBe("10 دقائق");
+    expect(formatDuration(20)).toBe("20 دقيقة");
+  });
+
+  it("uses the Arabic counted noun for hours, including report totals", () => {
+    expect(formatDuration(60)).toBe("ساعة");
+    expect(formatDuration(120)).toBe("ساعتان");
+    expect(formatDuration(240)).toBe("4 ساعات");
+    expect(formatDuration(600)).toBe("10 ساعات");
+    expect(formatDuration(735)).toBe("12 ساعة و15 دقيقة");
+    expect(formatDuration(2400)).toBe("40 ساعة");
+    expect(formatDuration(103 * 60 + 3)).toBe("103 ساعات و3 دقائق");
+    expect(formatDuration(90)).toBe("ساعة و30 دقيقة");
   });
 });

@@ -4,7 +4,7 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–10 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
+The initial task covered documentation and setup verification. Backend phases 1–10 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8 and then the phase 9–10 reports; its foundation, screens, and report pages are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
 
 Backend work covers `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend work in `apps/web` is done only when the user explicitly requests it, as on 2026-10-08. Do not change `apps/web` or frontend dependencies as part of backend-only work.
 
@@ -29,7 +29,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, cash receipt/undo/reconciliation, and report filter/response contracts |
 | Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
-| Frontend | Arabic RTL dashboard for backend phases 1–8 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
+| Frontend | Arabic RTL dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
 | Business features | Backend phases 1–10 implemented; phases 11–14 and all frontend journeys pending |

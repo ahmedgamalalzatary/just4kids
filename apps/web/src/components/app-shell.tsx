@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarClock, CalendarDays, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
+import { CalendarClock, CalendarDays, ChartColumn, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Ltr } from "@/components/page";
@@ -22,11 +22,13 @@ const adminNav: NavItem[] = [
   { href: "/clients", label: "العملاء", icon: Users },
   { href: "/employees", label: "الحلاقون", icon: Scissors },
   { href: "/branches", label: "الفروع", icon: Store },
+  { href: "/reports", label: "التقارير", icon: ChartColumn },
 ];
 
 const employeeNav: NavItem[] = [
   { href: "/bookings", label: "حجوزاتي", icon: CalendarDays },
   { href: "/schedule", label: "جدولي", icon: CalendarClock },
+  { href: "/reports", label: "تقاريري", icon: ChartColumn },
   { href: "/profile", label: "ملفي", icon: UserRound },
 ];
 
@@ -113,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items = account.role === "admin" ? adminNav : employeeNav;
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex" data-print-hidden>
         <Link href="/bookings" className="px-2"><Wordmark /></Link>
         <nav aria-label="القائمة الرئيسية" className="flex-1"><NavLinks items={items} pathname={pathname} /></nav>
