@@ -4,7 +4,7 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–9 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
+The initial task covered documentation and setup verification. Backend phases 1–10 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
 
 Backend work covers `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend work in `apps/web` is done only when the user explicitly requests it, as on 2026-10-08. Do not change `apps/web` or frontend dependencies as part of backend-only work.
 
@@ -25,14 +25,14 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, reservation edits/revisions, cash receipts/corrections/reconciliation, and reservation/haircut reports implemented |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, reservation edits/revisions, cash receipts/corrections/reconciliation, and reservation/haircut/barber/branch reports implemented |
 | Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, cash receipt/undo/reconciliation, and report filter/response contracts |
 | Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | Arabic RTL dashboard for backend phases 1–8 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–9 implemented; phases 10–14 and all frontend journeys pending |
+| Business features | Backend phases 1–10 implemented; phases 11–14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -369,17 +369,17 @@ Backend verification (2026-10-08): baseline forced backend lint/typecheck/build 
 
 ## Phase 10 — Branch and employee performance reports
 
-Depends on: phases 3 and 5–8; reuse phase 9 report filters/authorization.
+Depends on: phases 3 and 5–8; reuse phase 9 report filters/authorization. Decisions confirmed on 2026-10-08: availability is scheduled working time across the selected visit dates; reserved hours count booked/arrived/completed windows; invoice and cash measures follow the selected date basis.
 
 Outcome: administrator compares branches/barbers; employee sees only their own work and linked financial records.
 
 Backend checklist:
 
-- [ ] Report employee assigned/completed visits, adult/child counts, reserved hours, availability, and linked invoices/payments.
-- [ ] Report branch booking/haircut output, employee breakdown, invoices, and related cash receipts.
-- [ ] Attribute historical work to the recorded employee/branch even after transfers.
-- [ ] Label reserved hours as including travel and identify report date bases; apply relevant search/filters and role ownership.
-- [ ] Test transfers, hours, linked-detail authorization, filter boundaries, and cash/invoice separation; pass targeted checks.
+- [x] Report employee assigned/completed visits, adult/child counts, reserved hours, availability, and linked invoices/payments.
+- [x] Report branch booking/haircut output, employee breakdown, invoices, and related cash receipts.
+- [x] Attribute historical work to the recorded employee/branch even after transfers.
+- [x] Label reserved hours as including travel and identify report date bases; apply relevant search/filters and role ownership.
+- [x] Test transfers, hours, linked-detail authorization, filter boundaries, and cash/invoice separation; pass targeted checks.
 
 Frontend checklist:
 
@@ -389,6 +389,10 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Transferring a barber does not move past branch results; employees cannot retrieve another barber's details through reports.
+
+Backend handoff (2026-10-08): `GET /api/reports/employees` and `GET /api/reports/branches` reuse the phase 9 filters, date basis, and scoping. Rows contain `work` (phase 9 haircut measures plus `completedVisits` and `reservedMinutes`), `invoices` (`issued`, `cancelled`, `outstanding` = issued and unpaid, each `{ count, total }`), and `cash` (active receipts at their current reconciled amount, including cash kept on cancelled visits; voided receipts excluded). Money is summed in MySQL as exact `DECIMAL` and returned as three-decimal KWD strings. Each reservation has one invoice and at most one active receipt, so revisions and joins never double count. Reserved minutes are booked/arrived/completed windows and include travel. Barber rows add `enabled`, current branch, and `availableMinutes`: scheduled minutes from weekly hours, with dated exceptions replacing (or closing) a day, across every date from `from` to `to`; `null` unless the visit-date basis has both dates. With a branch filter, barbers currently in the branch and barbers with recorded work there are listed, with measures from that branch only. Branch rows list every branch for the administrator (zeros included) with an `employees` breakdown by recorded branch; employees receive only their own row and branches holding their own work, and filtering by another barber returns 403. Linked detail records come from `GET /api/reports/reservations` with the same filters, and cash detail from `GET /api/bookings/:id/payments`. No migration, dependency, or environment change.
+
+Backend verification (2026-10-08): baseline was the green phase 9 commit `024a353` (full `pnpm check`). New contract tests failed before the schemas existed (2 cases) and all eight API tests failed with 404 before the routes existed. Real-MySQL fixtures cover three barbers (one disabled, one transferred), weekly hours, a closed and a special-hours exception, all five visit states, completed unpaid, cancelled with retained cash, a reconciled receipt (7.000 → 8.000), a voided receipt, and a revised invoice. Tests now pass for barber and branch measures, reserved versus scheduled minutes, exact invoice/cash separation, transfer attribution, branch-filter membership, `null` availability for the booking-date basis or an open range, administrator zero rows, employee scoping, and cross-barber 403. Forced backend lint/typecheck/build passed (11 tasks). Full `pnpm check` passed: lint, typecheck, 36 test files/249 tests, and build. Frontend and acceptance items remain unchecked.
 
 ## Phase 11 — Client history and invoice/cash reports
 

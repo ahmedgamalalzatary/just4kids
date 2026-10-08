@@ -128,6 +128,7 @@ Reports cover the data collected by every module, with search, applicable date/b
 - Label each report's date basis. Reserved hours include travel; they are not measured cutting time.
 - Reports cover these modules, not an unlimited custom-report builder or data the application does not collect.
 - Confirmed on 2026-10-08 for reservation and haircut reports: the date basis is selectable as the Kuwait visit date (default) or the Kuwait date the reservation was made. Haircut reports show every reserved haircut and separately the completed, still open (booked/arrived), cancelled, and no-show quantities. Reservation changes count administrator edits and administrator status corrections, shown separately.
+- Confirmed on 2026-10-08 for barber and branch reports: availability is the barber's scheduled working time (weekly hours and dated exceptions) across the selected visit dates; reserved hours count only booked, arrived, and completed windows; invoice and cash measures follow the report's selected date basis.
 
 ## Infrastructure
 
@@ -146,7 +147,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation and haircut reports (phase 9) are implemented. The Arabic web dashboard for phases 1–8 is implemented; its end-to-end journey verification, reports, WhatsApp integration, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, and branch reports (phases 9–10) are implemented. The Arabic web dashboard for phases 1–8 is implemented; its end-to-end journey verification, reports, WhatsApp integration, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 

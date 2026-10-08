@@ -44,3 +44,37 @@ export type HaircutReportQuery = z.infer<typeof haircutReportQuerySchema>;
 export type ReservationReportQuery = z.infer<typeof reservationReportQuerySchema>;
 export type ReservationReportResponse = z.infer<typeof reservationReportResponseSchema>;
 export type HaircutReportResponse = z.infer<typeof haircutReportResponseSchema>;
+
+// Phase 10 barber and branch reports reuse the same filters and date basis.
+export const employeeReportQuerySchema = haircutReportQuerySchema;
+export const branchReportQuerySchema = haircutReportQuerySchema;
+export const reportMoneySchema = z.strictObject({ count: total, total: z.string().regex(/^(0|[1-9][0-9]*)\.[0-9]{3}$/) });
+const work = z.strictObject({
+  ...haircutMeasures, completedVisits: total,
+  // Booked, arrived, and completed windows, including travel; cancelled and no-show visits release their window.
+  reservedMinutes: total,
+});
+const performance = {
+  work,
+  // Issued and cancelled invoice values stay separate from cash; outstanding is issued and unpaid. Revisions update one invoice, so they are never counted twice.
+  invoices: z.strictObject({ issued: reportMoneySchema, cancelled: reportMoneySchema, outstanding: reportMoneySchema }),
+  // Active cash receipts at their current reconciled amount, including cash retained on cancelled visits; voided receipts are excluded.
+  cash: reportMoneySchema,
+};
+export const employeeReportResponseSchema = z.strictObject({
+  dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
+  employees: z.array(z.strictObject({
+    employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(), branchId: z.uuid(), branchName: z.string(),
+    // Scheduled working minutes from weekly hours and dated exceptions for each day from `from` to `to`; null without a visit-date range.
+    availableMinutes: total.nullable(), ...performance,
+  })),
+});
+export const branchReportResponseSchema = z.strictObject({
+  dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
+  branches: z.array(z.strictObject({
+    branchId: z.uuid(), branchName: z.string(), ...performance,
+    employees: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), ...performance })),
+  })),
+});
+export type EmployeeReportResponse = z.infer<typeof employeeReportResponseSchema>;
+export type BranchReportResponse = z.infer<typeof branchReportResponseSchema>;

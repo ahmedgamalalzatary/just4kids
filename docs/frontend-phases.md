@@ -22,7 +22,8 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 | 6 | Visit actions and history | Yes | No |
 | 7 | Reservation edits and revisions | Yes | No |
 | 8 | Cash payment, undo, and reconciliation | Yes | No |
-| 9–13 | Reports and WhatsApp views | No | No |
+| 9–10 | Reservation, haircut, barber, and branch reports (backend ready) | No | No |
+| 11–13 | Client/invoice reports and WhatsApp views | No | No |
 
 ## Phase 0 — Foundation and design system
 
