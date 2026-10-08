@@ -4,9 +4,9 @@ Created: 2026-09-29. Product authority: [project-contract.md](project-contract.m
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–8 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. All frontend and whole-slice acceptance items remain pending.
+The initial task covered documentation and setup verification. Backend phases 1–8 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented (see "Frontend implementation — 2026-10-08"). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
 
-Future implementation by this agent is **backend only**: `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend implementation is assigned separately. Do not change `apps/web` or frontend dependencies as part of backend work.
+Backend work covers `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend work in `apps/web` is done only when the user explicitly requests it, as on 2026-10-08. Do not change `apps/web` or frontend dependencies as part of backend-only work.
 
 Each feature slice describes a usable journey across backend and frontend. Finish and verify the backend for that journey together, including contracts, migrations, services, authorization, endpoints, and tests; then the frontend can consume it without waiting for an unrelated backend phase. Avoid separate project-wide schema, API, or UI implementation phases.
 
@@ -29,7 +29,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, and cash receipt/undo/reconciliation contracts |
 | Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
-| Frontend | Arabic RTL placeholder and API proxy; no feature journeys verified |
+| Frontend | Arabic RTL dashboard for backend phases 1–8 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
 | Business features | Backend phases 1–8 implemented; phases 9–14 and all frontend journeys pending |
@@ -54,8 +54,8 @@ Backend/setup checklist:
 
 Frontend checklist (separate owner):
 
-- [ ] Verify frontend dependency installation, lint, typecheck, tests, and build.
-- [ ] Verify Arabic RTL responsive shell and same-origin API proxy in the browser.
+- [x] Verify frontend dependency installation, lint, typecheck, tests, and build.
+- [x] Verify Arabic RTL responsive shell and same-origin API proxy in the browser.
 - [ ] Verify the web production image and Compose integration when Docker is available.
 
 Acceptance:
@@ -484,6 +484,34 @@ Acceptance:
 
 - [ ] Complete product acceptance matches the contract and all required frontend work is verified.
 - [ ] Production readiness includes functioning selected integrations, deployment configuration, and proven backup restoration.
+
+## Frontend implementation — 2026-10-08
+
+Requested by the user for the completed backend phases 1–8. Implemented in `apps/web`:
+
+| Area | Implemented |
+| --- | --- |
+| Foundation | Design tokens (light/dark) in `globals.css`, Readex Pro bundled locally, shadcn/ui (Radix) primitives with RTL configuration, `next-themes` light/dark/system switch, TanStack Query data layer with CSRF writes, 401 sign-out, and stale-version reloads; Arabic form schemas built on shared contracts; exact fils money and Kuwait-time helpers |
+| Phase 1 | Login page with safe return paths, session gate, role-aware sidebar/mobile navigation, logout |
+| Phase 2 | Branch list/create/edit with prices and durations; barber list/create/edit (phone, branch, enabled), password reset; barber own-name profile |
+| Phase 3 | Weekly hours editor, dated exceptions (closed or special hours), barber own read-only schedule, eligible-barber selection in booking |
+| Phase 4 | Client search/pagination, create with first address, edit contact, add/edit addresses with Maps link or coordinates |
+| Phase 5 | Bookings list grouped by date, new-booking flow (client, address, window, counts, eligible barber, price preview), booking detail, printable invoice |
+| Phase 6 | Visit actions with timing rules and confirmations, administrator status correction, visit history |
+| Phase 7 | Administrator edit dialog (address, barber, window, counts) with price preview, revision history |
+| Phase 8 | Full cash recording, administrator undo, paid-edit reconciliation preview and reason, cash history |
+
+Verification:
+
+| Check | Result |
+| --- | --- |
+| Baseline | Web lint/typecheck/build passed before changes (4 tasks) |
+| Web tests | 8 files, 34 tests: money, Kuwait time, visit rules, booking window/pricing/reconciliation, address and shift validation, API client, login form, date/time picker opening |
+| Full repository | `pnpm check`: lint, typecheck, 33 test files/217 tests, and build passed |
+| Browser | Playwright screenshots at 1440, 820, and 390 px widths, light and dark, against the running development API: login, bookings, new booking, clients, barbers, branches, mobile menu, branch form validation. The development database held no business records and the owner chose not to create any, so only empty states and forms were checked visually |
+| Session hygiene | The local administrator session used for screenshots was revoked (logout 204, then session 401) |
+
+Pending: end-to-end verification of every journey with real records (booking detail, actions, edits, payments, invoice printing, employee views) and Docker web image verification. The bookings list API has no date/status filters yet (phase 9), so the list pages through all permitted bookings, newest visit date first.
 
 ## Execution and handoff rules
 

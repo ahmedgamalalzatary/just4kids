@@ -26,7 +26,11 @@ export default defineConfig({
     restoreMocks: true,
     projects: [
       { test: { name: "api", fileParallelism: false, include: ["apps/api/tests/**/*.test.ts"] } },
-      { test: { name: "web", include: ["apps/web/tests/**/*.test.ts", "apps/web/tests/**/*.test.tsx"] } },
+      {
+        extends: true,
+        resolve: { alias: { "@": fileURLToPath(new URL("./apps/web/src", import.meta.url)) } },
+        test: { name: "web", environment: "jsdom", setupFiles: ["apps/web/tests/setup.ts"], include: ["apps/web/tests/**/*.test.ts", "apps/web/tests/**/*.test.tsx"] },
+      },
       { test: { name: "contracts", include: ["packages/contracts/tests/**/*.test.ts"] } },
       { test: { name: "db", include: ["packages/db/tests/**/*.test.ts"] } },
       { test: { name: "config", include: ["packages/config/tests/**/*.test.ts"] } }

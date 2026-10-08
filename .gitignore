@@ -5,6 +5,7 @@ next-env.d.ts
 .turbo/
 coverage/
 .vitest/
+.playwright-mcp/
 *.tsbuildinfo
 *.log
 .env

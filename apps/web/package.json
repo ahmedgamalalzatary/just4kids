@@ -12,18 +12,41 @@
     "test": "vitest run --config ../../vitest.config.ts --project web --passWithNoTests",
     "test:watch": "vitest --config ../../vitest.config.ts --project web --passWithNoTests"
   },
-  "dependencies": { "@just4kids/contracts": "workspace:*", "next": "catalog:", "react": "catalog:", "react-dom": "catalog:" },
+  "dependencies": {
+    "@fontsource-variable/readex-pro": "catalog:",
+    "@hookform/resolvers": "catalog:",
+    "@just4kids/contracts": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-themes": "catalog:",
+    "radix-ui": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "sonner": "catalog:",
+    "tailwind-merge": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
-    "dotenv": "catalog:",
     "@just4kids/config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "dotenv": "catalog:",
     "eslint": "catalog:",
     "eslint-config-next": "catalog:",
+    "jsdom": "catalog:",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:"
+    "tw-animate-css": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
