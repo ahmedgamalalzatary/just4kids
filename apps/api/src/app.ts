@@ -11,6 +11,7 @@ import { createEmployees } from "./modules/employees/index.js";
 import { createSchedules } from "./modules/schedules/index.js";
 import { createClients } from "./modules/clients/index.js";
 import { createBookings } from "./modules/bookings/index.js";
+import { createReports } from "./modules/reports/index.js";
 
 export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv }) {
   const app = express();
@@ -26,6 +27,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     if (options.connection && options.env) app.use("/employees", createEmployees(options.connection, options.auth, options.env));
     if (options.connection) app.use("/clients", createClients(options.connection, options.auth));
     if (options.connection) app.use("/bookings", createBookings(options.connection, options.auth));
+    if (options.connection) app.use("/reports", createReports(options.connection, options.auth));
     if (options.connection) {
       const schedules = createSchedules(options.connection, options.auth);
       app.use("/schedules", schedules.router);

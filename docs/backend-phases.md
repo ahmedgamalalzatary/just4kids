@@ -1,10 +1,10 @@
-# Just4Kids implementation phases
+# Just4Kids backend phases
 
-Created: 2026-09-29. Product authority: [project-contract.md](project-contract.md). Repository rules: [AGENTS.md](../AGENTS.md). Setup commands: [README.md](../README.md).
+Created: 2026-09-29. Product authority: [project-contract.md](project-contract.md). Frontend tracker: [frontend-phases.md](frontend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md). Setup commands: [README.md](../README.md).
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–8 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented (see "Frontend implementation — 2026-10-08"). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
+The initial task covered documentation and setup verification. Backend phases 1–9 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8; its foundation and screens are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
 
 Backend work covers `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend work in `apps/web` is done only when the user explicitly requests it, as on 2026-10-08. Do not change `apps/web` or frontend dependencies as part of backend-only work.
 
@@ -25,14 +25,14 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, reservation edits/revisions, and cash receipts/corrections/reconciliation implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, and cash receipt/undo/reconciliation contracts |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, reservation edits/revisions, cash receipts/corrections/reconciliation, and reservation/haircut reports implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, cash receipt/undo/reconciliation, and report filter/response contracts |
 | Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | Arabic RTL dashboard for backend phases 1–8 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–8 implemented; phases 9–14 and all frontend journeys pending |
+| Business features | Backend phases 1–9 implemented; phases 10–14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -341,18 +341,18 @@ Backend verification (2026-10-02): baseline forced backend lint/typecheck/build 
 
 ## Phase 9 — Reservation overview and haircut reports
 
-Depends on: phases 5–8. AI-source breakdown becomes end-to-end verifiable after phase 12.
+Depends on: phases 5–8. AI-source breakdown becomes end-to-end verifiable after phase 12. Decisions confirmed on 2026-10-08: selectable visit-date or booking-date basis; haircut quantities shown as reserved plus completed/open/cancelled/no-show; changes count administrator edits and status corrections separately.
 
 Outcome: administrator and employees inspect permitted reservations and haircut output using labelled date bases.
 
 Backend checklist:
 
-- [ ] Provide authorized overview/reservation report summaries and detail records covering windows, statuses, manual/AI source, cancellations, no-shows, and changes.
-- [ ] Provide booked versus completed adult/child haircut quantities by date, branch, and employee.
-- [ ] Add search and applicable date/branch/employee/client/status/source filters with a labelled date basis.
-- [ ] Derive completed haircut quantities from completed reservations, independently of payment status.
-- [ ] Scope employee summaries and detail records to their own permitted records; preserve historical attribution.
-- [ ] Test filter/date boundaries, status/source measures, completed-but-unpaid visits, and cross-employee denial; pass targeted checks.
+- [x] Provide authorized overview/reservation report summaries and detail records covering windows, statuses, manual/AI source, cancellations, no-shows, and changes.
+- [x] Provide booked versus completed adult/child haircut quantities by date, branch, and employee.
+- [x] Add search and applicable date/branch/employee/client/status/source filters with a labelled date basis.
+- [x] Derive completed haircut quantities from completed reservations, independently of payment status.
+- [x] Scope employee summaries and detail records to their own permitted records; preserve historical attribution.
+- [x] Test filter/date boundaries, status/source measures, completed-but-unpaid visits, and cross-employee denial; pass targeted checks.
 
 Frontend checklist:
 
@@ -362,6 +362,10 @@ Frontend checklist:
 Acceptance:
 
 - [ ] Filtered counts and quantities match permitted records, including completed unpaid visits and retained cancellations/no-shows.
+
+Backend handoff (2026-10-08): `GET /api/reports/reservations` and `GET /api/reports/haircuts` require a session (administrator or employee) and are read-only. Filters: `dateBasis` (`visit_date` default, or `created_date` = Kuwait day the reservation was made, computed from UTC `created_at` + 3 hours), inclusive `from`/`to`, `branchId`, `employeeId`, `clientId`, `status`, `source`, and `q` (literal match on reference or saved client name/phone). The reservations report adds `limit`/`offset` and returns `{ dateBasis, timeZone, summary, bookings, total, limit, offset }`. The summary counts all matching reservations by visit status and source, plus `editedBookings`/`edits` (administrator revisions) and `correctedBookings`/`corrections` (administrator visit-status corrections), regardless of the page. Each booking is the normal booking/invoice response plus `editCount` and `correctionCount`; visit-date results are ordered by newest visit and window, booking-date results by newest creation. The haircut report returns `totals`, `byDate`, `byBranch`, and `byEmployee`, each with `bookings` and adult/child `reserved`, `completed`, `open` (booked/arrived), `cancelled`, and `noShow` quantities from current reservation counts and visit status, independent of payment. Attribution uses the branch/barber recorded on the reservation, so a transferred barber's earlier work stays with the earlier branch; employee rows are split per recorded branch and show current names. Employees are always limited to reservations currently assigned to them (the same records they can open directly); an `employeeId` for another barber returns 403. Invalid filters return `INVALID_INPUT` (400). No migration, dependency, or environment change.
+
+Backend verification (2026-10-08): baseline forced backend lint/typecheck/build passed (11 tasks) and booking/visit/edit/payment/contract tests passed (5 files, 91 tests). The new report contract tests failed before the schemas existed (13 cases), and all nine report API tests failed with 404 before the routes existed. Real-MySQL fixtures cover six reservations across three visit dates, both sources, all five visit states, a completed unpaid visit, a paid cancelled visit, edits, a status correction, and a barber transferred between branches. Tests now pass for summary counts, ordering, inclusive visit-date and Kuwait booking-date boundaries (a reservation made at 00:00 Kuwait time while it is still the previous day in UTC), every filter, literal search, pagination with an unchanged summary, haircut breakdowns by date/branch/barber, transfer attribution, employee scoping, and cross-barber 403. Forced backend lint/typecheck/build passed (11 tasks); targeted tests passed (11 files, 91 tests). Full `pnpm check` passed: lint, typecheck, 35 test files/239 tests, and build. Frontend and acceptance items remain unchecked.
 
 ## Phase 10 — Branch and employee performance reports
 
@@ -485,33 +489,9 @@ Acceptance:
 - [ ] Complete product acceptance matches the contract and all required frontend work is verified.
 - [ ] Production readiness includes functioning selected integrations, deployment configuration, and proven backup restoration.
 
-## Frontend implementation — 2026-10-08
+## Frontend progress
 
-Requested by the user for the completed backend phases 1–8. Implemented in `apps/web`:
-
-| Area | Implemented |
-| --- | --- |
-| Foundation | Design tokens (light/dark) in `globals.css`, Readex Pro bundled locally, shadcn/ui (Radix) primitives with RTL configuration, `next-themes` light/dark/system switch, TanStack Query data layer with CSRF writes, 401 sign-out, and stale-version reloads; Arabic form schemas built on shared contracts; exact fils money and Kuwait-time helpers |
-| Phase 1 | Login page with safe return paths, session gate, role-aware sidebar/mobile navigation, logout |
-| Phase 2 | Branch list/create/edit with prices and durations; barber list/create/edit (phone, branch, enabled), password reset; barber own-name profile |
-| Phase 3 | Weekly hours editor, dated exceptions (closed or special hours), barber own read-only schedule, eligible-barber selection in booking |
-| Phase 4 | Client search/pagination, create with first address, edit contact, add/edit addresses with Maps link or coordinates |
-| Phase 5 | Bookings list grouped by date, new-booking flow (client, address, window, counts, eligible barber, price preview), booking detail, printable invoice |
-| Phase 6 | Visit actions with timing rules and confirmations, administrator status correction, visit history |
-| Phase 7 | Administrator edit dialog (address, barber, window, counts) with price preview, revision history |
-| Phase 8 | Full cash recording, administrator undo, paid-edit reconciliation preview and reason, cash history |
-
-Verification:
-
-| Check | Result |
-| --- | --- |
-| Baseline | Web lint/typecheck/build passed before changes (4 tasks) |
-| Web tests | 8 files, 34 tests: money, Kuwait time, visit rules, booking window/pricing/reconciliation, address and shift validation, API client, login form, date/time picker opening |
-| Full repository | `pnpm check`: lint, typecheck, 33 test files/217 tests, and build passed |
-| Browser | Playwright screenshots at 1440, 820, and 390 px widths, light and dark, against the running development API: login, bookings, new booking, clients, barbers, branches, mobile menu, branch form validation. The development database held no business records and the owner chose not to create any, so only empty states and forms were checked visually |
-| Session hygiene | The local administrator session used for screenshots was revoked (logout 204, then session 401) |
-
-Pending: end-to-end verification of every journey with real records (booking detail, actions, edits, payments, invoice printing, employee views) and Docker web image verification. The bookings list API has no date/status filters yet (phase 9), so the list pages through all permitted bookings, newest visit date first.
+Frontend work is tracked in [frontend-phases.md](frontend-phases.md). The frontend checklists in this document stay unchecked until each slice is verified end to end with real records.
 
 ## Execution and handoff rules
 
