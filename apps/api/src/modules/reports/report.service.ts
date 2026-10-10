@@ -1,4 +1,4 @@
-import { branchReportQuerySchema, branchReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
+import { branchReportQuerySchema, branchReportResponseSchema, clientReportQuerySchema, clientReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
 import type { Account, HaircutReportQuery } from "@just4kids/contracts";
 import { ForbiddenError } from "../../lib/http-error.js";
 import { serializeBooking } from "../bookings/booking.service.js";
@@ -70,6 +70,41 @@ export function createReportService(repository: ReportRepository) {
           employees: split.filter(row => row.branchId === place.branchId).map(row => ({ employeeId: row.employeeId, displayName: names.get(row.employeeId) ?? "", ...shapePerformance(row) }))
             .sort((left, right) => left.displayName.localeCompare(right.displayName, "ar") || left.employeeId.localeCompare(right.employeeId)),
         })),
+      });
+    },
+    async clients(queryInput: unknown, actor: Account) {
+      const query = scope(clientReportQuerySchema.parse(queryInput), actor);
+      const rows = await repository.clients(query);
+      return clientReportResponseSchema.parse({
+        dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
+        clients: rows.map(row => ({ clientId: row.clientId, name: row.name, phone: row.phone, ...shapePerformance(row) })),
+      });
+    },
+    async invoices(queryInput: unknown, actor: Account) {
+      const query = scope(invoiceReportQuerySchema.parse(queryInput), actor);
+      const { summary, rows } = await repository.invoiceList(query);
+      return invoiceReportResponseSchema.parse({
+        dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
+        summary: {
+          invoices: { issued: { count: summary.issuedCount, total: summary.issuedTotal }, cancelled: { count: summary.cancelledCount, total: summary.cancelledTotal }, outstanding: { count: summary.outstandingCount, total: summary.outstandingTotal } },
+          cash: { count: summary.cashCount, total: summary.cashTotal },
+          editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
+        },
+        invoices: rows.map(row => {
+          const { booking, invoice, cash } = row;
+          const snapshots = { client: booking.clientSnapshot, address: booking.addressSnapshot, employee: booking.employeeSnapshot };
+          return {
+            id: invoice.id, bookingId: booking.id, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD",
+            status: invoice.status, paymentStatus: invoice.paymentStatus,
+            adultCount: booking.adultCount, childCount: booking.childCount, adultUnitPrice: invoice.adultUnitPrice, childUnitPrice: invoice.childUnitPrice,
+            adultAmount: invoice.adultAmount, childAmount: invoice.childAmount, total: invoice.total,
+            date: booking.date, startTime: booking.startTime, endTime: booking.endTime, visitStatus: booking.visitStatus, source: booking.source,
+            editCount: row.editCount, correctionCount: row.correctionCount,
+            cash: cash ? { amount: cash.amount, status: cash.status, recordedAt: cash.recordedAt.toISOString(), recordedBy: cash.recordedBy } : null,
+            ...snapshots,
+          };
+        }),
+        total: summary.bookings, limit: query.limit, offset: query.offset,
       });
     },
   };

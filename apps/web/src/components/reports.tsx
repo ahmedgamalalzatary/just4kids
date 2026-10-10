@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBranches, useEmployees } from "@/lib/api/hooks";
+import { useBranches, useClient, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { BranchReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
@@ -21,6 +21,7 @@ import { emptyReportFilters, rangeError, readReportFilters, reportSearch, type R
 
 export const dateBasisLabels = { visit_date: "تاريخ الزيارة", created_date: "تاريخ إنشاء الحجز" } as const;
 export const sourceLabels = { manual: "حجز يدوي", ai: "عبر واتساب" } as const;
+export const paymentStatusLabels = { paid: "مدفوعة", unpaid: "غير مدفوعة" } as const;
 
 /** The current report filters from the address; branch and barber filters apply to the administrator only. */
 export function useReportFilters() {
@@ -40,6 +41,8 @@ const tabs = [
   { href: "/reports/haircuts", label: "الحلاقات" },
   { href: "/reports/barbers", label: "الحلاقون", employeeLabel: "أدائي" },
   { href: "/reports/branches", label: "الفروع" },
+  { href: "/reports/clients", label: "العملاء" },
+  { href: "/reports/invoices", label: "الفواتير والنقد" },
 ];
 
 export function reportTitle(pathname: string, isAdmin: boolean) {
@@ -129,7 +132,19 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
               <OptionSelect value={draft.source} onChange={value => set("source")(value as ReportFilters["source"])} all="كل المصادر"
                 options={Object.entries(sourceLabels).map(([value, label]) => ({ value, label }))} />
             </Field>
+            {pathname === "/reports/invoices" ? (
+              <Field label="حالة الدفع">
+                <OptionSelect value={draft.paymentStatus} onChange={value => set("paymentStatus")(value as ReportFilters["paymentStatus"])} all="مدفوعة وغير مدفوعة"
+                  options={[{ value: "paid", label: "مدفوعة" }, { value: "unpaid", label: "غير مدفوعة" }]} />
+              </Field>
+            ) : null}
           </div>
+          {isAdmin && filters.clientId ? (
+            <p className="text-sm text-muted-foreground">
+              مُقيّد على عميل واحد.{" "}
+              <Button type="button" variant="link" className="h-auto p-0" onClick={() => apply({ ...draft, clientId: "" })}>عرض كل العملاء</Button>
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
             <Button type="button" variant="ghost" onClick={() => { setDraft(emptyReportFilters); apply(emptyReportFilters); }}>مسح المرشحات</Button>
@@ -152,13 +167,16 @@ export function ReportScope() {
   const { filters, isAdmin } = useReportFilters();
   const branches = useBranches(isAdmin);
   const employees = useEmployees(isAdmin);
+  const client = useClient(isAdmin && filters.clientId ? filters.clientId : null);
   const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
     : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
   const applied = [
     filters.branchId ? `الفرع: ${branches.data?.find(branch => branch.id === filters.branchId)?.name ?? "…"}` : null,
     filters.employeeId ? `الحلاق: ${employees.data?.find(employee => employee.id === filters.employeeId)?.displayName ?? "…"}` : null,
+    filters.clientId ? `العميل: ${client.data?.name ?? "…"}` : null,
     filters.status ? `الحالة: ${visitStatusLabels[filters.status]}` : null,
     filters.source ? `المصدر: ${sourceLabels[filters.source]}` : null,
+    filters.paymentStatus && pathname === "/reports/invoices" ? `حالة الدفع: ${paymentStatusLabels[filters.paymentStatus]}` : null,
     filters.q ? `بحث: «${filters.q}»` : null,
   ].filter(Boolean);
   return (

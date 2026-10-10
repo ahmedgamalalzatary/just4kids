@@ -21,5 +21,7 @@ export function createReports(connection: ReturnType<typeof createDatabase>, aut
   router.get("/haircuts", handle(async (request, response) => { response.json(await service.haircuts(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/employees", handle(async (request, response) => { response.json(await service.employees(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/branches", handle(async (request, response) => { response.json(await service.branches(request.query, (response.locals.auth as Authenticated).account)); }));
+  router.get("/clients", handle(async (request, response) => { response.json(await service.clients(request.query, (response.locals.auth as Authenticated).account)); }));
+  router.get("/invoices", handle(async (request, response) => { response.json(await service.invoices(request.query, (response.locals.auth as Authenticated).account)); }));
   return router;
 }

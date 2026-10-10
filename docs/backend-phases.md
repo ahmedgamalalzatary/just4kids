@@ -32,7 +32,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Frontend | Arabic RTL dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–10 implemented; phases 11–14 and all frontend journeys pending |
+| Business features | Backend phases 1–11 implemented; phases 12–14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -402,12 +402,12 @@ Outcome: permitted users can trace client history, invoiced amounts, actual cash
 
 Backend checklist:
 
-- [ ] Report client contact details, booking history, repeat visits, haircut counts, invoiced totals, and payments within permitted access.
-- [ ] Report invoice line items, amounts, unpaid/paid/cancelled states, actual cash received, revisions, and corrections.
-- [ ] Keep invoice value, cancelled invoice amounts, and actual cash collected as separate measures; never double-count revisions.
-- [ ] Support applicable search/date/branch/employee/client/status/source filters, labelled date bases, summaries, and permitted details.
-- [ ] Return browser-print-ready report/invoice data; do not add custom PDF generation or CSV/Excel exports.
-- [ ] Test cancelled-but-paid invoices, correction effects, repeat visits, revision deduplication, and employee ownership; pass targeted checks.
+- [x] Report client contact details, booking history, repeat visits, haircut counts, invoiced totals, and payments within permitted access. (`GET /reports/clients` groups the phase 10 performance measures by client with contact details; `completedVisits` gives repeat visits, and invoice issued/cancelled/outstanding values stay separate from active cash. Verified in `apps/api/tests/client-invoice-reports.test.ts`.)
+- [x] Report invoice line items, amounts, unpaid/paid/cancelled states, actual cash received, revisions, and corrections. (`GET /reports/invoices` lists one invoice per reservation with quantities, unit prices, line amounts, total, statuses, the recorded receipt, and edit/correction counts.)
+- [x] Keep invoice value, cancelled invoice amounts, and actual cash collected as separate measures; never double-count revisions. (One invoice per reservation and at most one active receipt per invoice; the summary measures issued/cancelled/outstanding/cash independently, and a twice-edited invoice counts once with `edits: 2`.)
+- [x] Support applicable search/date/branch/employee/client/status/source filters, labelled date bases, summaries, and permitted details. (Both endpoints reuse the phase 9 filters plus a `paymentStatus` filter on invoices, both date bases, and pagination on the invoice list without changing the summary.)
+- [x] Return browser-print-ready report/invoice data; do not add custom PDF generation or CSV/Excel exports.
+- [x] Test cancelled-but-paid invoices, correction effects, repeat visits, revision deduplication, and employee ownership; pass targeted checks. (9 tests in `apps/api/tests/client-invoice-reports.test.ts` covering a cancelled-but-paid invoice with a correction, a repeat client's completed visits, revision deduplication, employee scoping/403 on another barber's filter, and the existing 17 phase 9–10 report tests still green.)
 
 Frontend checklist:
 

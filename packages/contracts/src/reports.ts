@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { eligibilityQuerySchema } from "./availability.js";
-import { bookingListQuerySchema, bookingResponseSchema, visitStatusSchema } from "./bookings.js";
+import { bookingListQuerySchema, bookingResponseSchema, invoiceResponseSchema, visitStatusSchema } from "./bookings.js";
+import { cashAmountSchema } from "./cash.js";
+import { phoneSchema } from "./auth.js";
 
 // visit_date is the reservation's Kuwait visit day; created_date is the Kuwait day the reservation was made.
 export const reportDateBasisSchema = z.enum(["visit_date", "created_date"]);
@@ -78,3 +80,41 @@ export const branchReportResponseSchema = z.strictObject({
 });
 export type EmployeeReportResponse = z.infer<typeof employeeReportResponseSchema>;
 export type BranchReportResponse = z.infer<typeof branchReportResponseSchema>;
+
+// Phase 11 client history and invoice/cash reports reuse the same filters and date basis.
+export const clientReportQuerySchema = haircutReportQuerySchema;
+export const invoiceReportQuerySchema = z.strictObject({
+  ...filters, paymentStatus: z.enum(["unpaid", "paid"]).optional(),
+  limit: bookingListQuerySchema.shape.limit, offset: bookingListQuerySchema.shape.offset,
+}).superRefine(orderedRange);
+export const clientReportResponseSchema = z.strictObject({
+  dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
+  clients: z.array(z.strictObject({
+    clientId: z.uuid(), name: z.string().min(1).max(120), phone: phoneSchema,
+    // completedVisits is the client's completed-visit count, so values above one are repeat visits.
+    ...performance,
+  })),
+});
+const invoiceCashSchema = z.strictObject({ amount: cashAmountSchema, status: z.enum(["active", "voided"]), recordedAt: z.iso.datetime(), recordedBy: z.uuid() });
+export const invoiceReportEntrySchema = z.strictObject({
+  ...invoiceResponseSchema.shape,
+  date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
+  visitStatus: visitStatusSchema, source: z.enum(["manual", "ai"]), editCount: total, correctionCount: total,
+  // The active or voided receipt actually recorded for this invoice; null when no cash was ever recorded.
+  cash: invoiceCashSchema.nullable(),
+});
+export const invoiceReportResponseSchema = z.strictObject({
+  dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
+  summary: z.strictObject({
+    // Invoice value, cancelled invoice amounts, and actual cash stay separate measures; one invoice per reservation means revisions are never counted twice.
+    invoices: z.strictObject({ issued: reportMoneySchema, cancelled: reportMoneySchema, outstanding: reportMoneySchema }),
+    cash: reportMoneySchema,
+    editedBookings: total, edits: total, correctedBookings: total, corrections: total,
+  }),
+  invoices: z.array(invoiceReportEntrySchema), total, limit: z.number().int(), offset: z.number().int(),
+});
+export type ClientReportQuery = z.infer<typeof clientReportQuerySchema>;
+export type ClientReportResponse = z.infer<typeof clientReportResponseSchema>;
+export type InvoiceReportQuery = z.infer<typeof invoiceReportQuerySchema>;
+export type InvoiceReportEntry = z.infer<typeof invoiceReportEntrySchema>;
+export type InvoiceReportResponse = z.infer<typeof invoiceReportResponseSchema>;

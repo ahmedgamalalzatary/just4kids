@@ -24,7 +24,8 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 | 8 | Cash payment, undo, and reconciliation | Yes | No |
 | 9 | Reservation and haircut reports | Yes | No |
 | 10 | Barber and branch performance reports | Yes | No |
-| 11–13 | Client/invoice reports and WhatsApp views | No | No |
+| 11 | Client history and invoice/cash reports | Yes | No |
+| 12–13 | WhatsApp booking views | No | No |
 
 ## Phase 0 — Foundation and design system
 
@@ -113,6 +114,14 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 - [x] Barbers report (barber view: أدائي): per barber, bookings, completed visits, reserved and completed haircuts, reserved hours labelled as including travel, scheduled hours and utilisation (shown only for the visit-date basis with both dates; otherwise explained), issued/outstanding/cancelled invoices, and cash received, kept separate. Disabled barbers are marked.
 - [x] Branches report: the same measures per branch, labelled by the branch recorded on each booking, with a barber breakdown table; links to the matching bookings.
 - [x] Report data refreshes after booking, visit, edit, payment, schedule, branch, and barber changes.
+- [ ] Verified with real records.
+
+## Phase 11 — Client history and invoice/cash reports
+
+- [x] Clients report (العملاء): per client, contact details, bookings, completed visits (repeat visits), reserved and completed haircuts, reserved hours, and issued/outstanding/cancelled invoice values kept separate from cash received; administrators can open the client's matching reservations.
+- [x] Invoices and cash report (الفواتير والنقد): one invoice per reservation with line items (quantities and unit prices), amounts, total, visit and payment statuses, the recorded cash receipt, and edit/correction counts; a payment-status filter, both date bases, search, and pagination; links to the booking record.
+- [x] Report filters gained the administrator-only client drill-down and the invoice-only payment filter; other reports drop the payment filter, and the filter round-trip is covered by `apps/web/tests/reports.test.ts`.
+- [x] Both pages print through the browser's normal print function; no PDF/CSV exports.
 - [ ] Verified with real records.
 
 ## Fixed bugs

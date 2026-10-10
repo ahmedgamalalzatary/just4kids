@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarDays } from "lucide-react";
-import type { VisitStatus } from "@just4kids/contracts";
-import { Detail, EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
+import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Pagination } from "@/components/pagination";
 import { useReportFilters } from "@/components/reports";
-import { PaymentBadge, SourceLabel, VisitStatusBadge, visitStatusLabels } from "@/components/status";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaymentBadge, SourceLabel, VisitStatusBadge } from "@/components/status";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReservationReport } from "@/lib/api/hooks";
 import type { ReservationReport } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
@@ -18,36 +17,6 @@ import { cn } from "@/lib/utils";
 
 function haircuts(booking: { adultCount: number; childCount: number }) {
   return [booking.adultCount ? `${booking.adultCount} بالغ` : null, booking.childCount ? `${booking.childCount} طفل` : null].filter(Boolean).join("، ");
-}
-
-function Summary({ summary }: { summary: ReservationReport["summary"] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <div>
-          <CardTitle>الملخص</CardTitle>
-          <CardDescription>يشمل كل الحجوزات المطابقة، وليس الصفحة المعروضة فقط.</CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Detail label="الحجوزات"><span className="text-lg font-semibold" data-numeric>{summary.bookings}</span></Detail>
-          <Detail label="حجز يدوي"><span data-numeric>{summary.sources.manual}</span></Detail>
-          <Detail label="عبر واتساب"><span data-numeric>{summary.sources.ai}</span></Detail>
-          <Detail label="تعديلات المدير"><span data-numeric>{summary.edits}</span><span className="block text-xs text-muted-foreground" data-numeric>على {summary.editedBookings} حجز</span></Detail>
-          <Detail label="تصحيحات الحالة"><span data-numeric>{summary.corrections}</span><span className="block text-xs text-muted-foreground" data-numeric>على {summary.correctedBookings} حجز</span></Detail>
-        </dl>
-        <ul className="flex flex-wrap gap-2" aria-label="الحجوزات حسب حالة الزيارة">
-          {(Object.keys(visitStatusLabels) as VisitStatus[]).map(status => (
-            <li key={status} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <VisitStatusBadge status={status} />
-              <span className="text-sm font-medium" data-numeric>{summary.statuses[status]}</span>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
 }
 
 function BookingRow({ booking, showBarber }: { booking: ReservationReport["bookings"][number]; showBarber: boolean }) {
@@ -91,7 +60,6 @@ function ReservationsReport({ filters, isAdmin }: { filters: ReportFilters; isAd
   const { data } = report;
   return (
     <div className={cn("flex flex-col gap-6", report.isPlaceholderData && "opacity-60")}>
-      <Summary summary={data.summary} />
       <Card>
         <CardHeader>
           <div>

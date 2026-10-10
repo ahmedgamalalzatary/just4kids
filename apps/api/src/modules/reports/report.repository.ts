@@ -1,8 +1,8 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices } from "@just4kids/db/schema";
-import type { HaircutReportQuery, ReservationReportQuery } from "@just4kids/contracts";
+import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices } from "@just4kids/db/schema";
+import type { ClientReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
 const createdDay = sql`DATE(${bookings.createdAt} + INTERVAL 3 HOUR)`;
@@ -137,6 +137,32 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         .from(employeeScheduleExceptions).leftJoin(employeeExceptionIntervals, eq(employeeExceptionIntervals.exceptionId, employeeScheduleExceptions.id))
         .where(and(inArray(employeeScheduleExceptions.employeeId, employeeIds), gte(employeeScheduleExceptions.date, from), lte(employeeScheduleExceptions.date, to)));
       return { weekly, exceptions };
+    },
+    async clients(query: ClientReportQuery) {
+      return db.select({ clientId: clients.id, name: clients.name, phone: clients.phone, ...performanceMeasures }).from(bookings)
+        .innerJoin(clients, eq(clients.id, bookings.clientId)).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
+        .where(filter(query)).groupBy(clients.id, clients.name, clients.phone)
+        .orderBy(asc(clients.name), asc(clients.id)) as unknown as Promise<({ clientId: string; name: string; phone: string } & PerformanceRow)[]>;
+    },
+    async invoiceList(query: InvoiceReportQuery) {
+      const where = filter(query);
+      const conditions = query.paymentStatus ? and(where, eq(invoices.paymentStatus, query.paymentStatus)) : where;
+      const [summary] = await db.select({
+        issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
+        outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
+        cashCount: total(sql`${cashPayments.id} IS NOT NULL`), cashTotal: exact(sql`${cashPayments.amount}`),
+        editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
+        bookings: count(),
+      }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
+        .where(conditions);
+      const order = query.dateBasis === "visit_date" ? [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)] : [desc(bookings.createdAt), desc(bookings.id)];
+      const rows = await db.select({ booking: bookings, invoice: invoices, cash: cashPayments, editCount, correctionCount }).from(bookings)
+        .innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
+        .where(conditions).orderBy(...order).limit(query.limit).offset(query.offset);
+      return { summary: summary!, rows };
     },
   };
 }

@@ -9,8 +9,8 @@ import type { ReportFilters } from "@/lib/reports";
 import { apiRequest } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, Page, Payment, PaymentDetails,
-  ReservationReport, Schedule, VisitEvent,
+  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  PaymentDetails, ReservationReport, Schedule, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -228,10 +228,12 @@ export function useUndoPayment() {
 
 // Reports --------------------------------------------------------------------
 
+// Only the invoice report accepts the payment filter; other reports must not receive it.
 function useReport<T>(path: string, filters: ReportFilters, page?: { offset: number }) {
+  const query = path === "invoices" ? filters : { ...filters, paymentStatus: undefined };
   return useQuery({
     queryKey: [...keys.reports, path, filters, page?.offset ?? null],
-    queryFn: ({ signal }) => apiRequest<T>(`/reports/${path}`, { query: { ...filters, ...(page ? { limit: PAGE_SIZE, offset: page.offset } : {}) }, signal }),
+    queryFn: ({ signal }) => apiRequest<T>(`/reports/${path}`, { query: { ...query, ...(page ? { limit: PAGE_SIZE, offset: page.offset } : {}) }, signal }),
     placeholderData: keepPreviousData,
   });
 }
@@ -240,3 +242,5 @@ export const useReservationReport = (filters: ReportFilters, offset: number) => 
 export const useHaircutReport = (filters: ReportFilters) => useReport<HaircutReport>("haircuts", filters);
 export const useEmployeeReport = (filters: ReportFilters) => useReport<EmployeeReport>("employees", filters);
 export const useBranchReport = (filters: ReportFilters) => useReport<BranchReport>("branches", filters);
+export const useClientReport = (filters: ReportFilters) => useReport<ClientReport>("clients", filters);
+export const useInvoiceReport = (filters: ReportFilters, offset: number) => useReport<InvoiceReport>("invoices", filters, { offset });
