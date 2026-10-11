@@ -1,6 +1,7 @@
-import { branchReportQuerySchema, branchReportResponseSchema, clientReportQuerySchema, clientReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
+import { branchReportQuerySchema, branchReportResponseSchema, clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
 import type { Account, HaircutReportQuery } from "@just4kids/contracts";
 import { ForbiddenError } from "../../lib/http-error.js";
+import { fils, money } from "../bookings/booking.repository.js";
 import { serializeBooking } from "../bookings/booking.service.js";
 import { scheduledMinutes, shapePerformance } from "./report.repository.js";
 import type { ReportRepository } from "./report.repository.js";
@@ -78,6 +79,26 @@ export function createReportService(repository: ReportRepository) {
       return clientReportResponseSchema.parse({
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
         clients: rows.map(row => ({ clientId: row.clientId, name: row.name, phone: row.phone, ...shapePerformance(row) })),
+      });
+    },
+    async comprehensive(queryInput: unknown) {
+      const query = comprehensiveReportQuerySchema.parse(queryInput);
+      const { barbers, salon } = await repository.comprehensive(query);
+      const addMoney = (left: { count: number; total: string }, right: { count: number; total: string }) => ({ count: left.count + right.count, total: money(fils(left.total) + fils(right.total)) });
+      const shaped = barbers.map(row => {
+        const cash = shapePerformance(row).cash;
+        return { employeeId: row.employeeId, displayName: row.displayName, enabled: row.enabled, cash: cash.byMethod.cash, link: cash.byMethod.link, knet: cash.byMethod.knet, collected: { count: cash.count, total: cash.total } };
+      });
+      const salonRow = { cash: { count: salon.cashCount, total: salon.cashTotal }, link: { count: salon.linkCount, total: salon.linkTotal }, knet: { count: salon.knetCount, total: salon.knetTotal }, collected: { count: salon.count, total: salon.total } };
+      const zero = { cash: { count: 0, total: "0.000" }, link: { count: 0, total: "0.000" }, knet: { count: 0, total: "0.000" }, collected: { count: 0, total: "0.000" } };
+      const totals = [...shaped, salonRow].reduce((accumulator, row) => ({ cash: addMoney(accumulator.cash, row.cash), link: addMoney(accumulator.link, row.link), knet: addMoney(accumulator.knet, row.knet), collected: addMoney(accumulator.collected, row.collected) }), zero);
+      // Kotlin-style percentage with one decimal, guarded against an empty period.
+      const share = (total: string) => totals.collected.total === "0.000" ? 0 : Math.round((Number(fils(total)) / Number(fils(totals.collected.total))) * 1000) / 10;
+      return comprehensiveReportResponseSchema.parse({
+        timeZone: "Asia/Kuwait",
+        barbers: shaped.map(row => ({ ...row, share: share(row.collected.total) })),
+        salon: { ...salonRow, share: share(salonRow.collected.total) },
+        totals,
       });
     },
     async invoices(queryInput: unknown, actor: Account) {

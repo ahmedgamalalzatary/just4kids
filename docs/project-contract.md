@@ -110,6 +110,12 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Confirmed paid-edit reconciliation (2026-10-02): an administrator changing a paid total must explicitly record the exact extra cash received or exact difference returned, with a required reason, in the same transaction as the invoice revision. Increasing 8 to 10 KWD records 2 KWD extra cash; decreasing 8 to 6 KWD records 2 KWD refunded. Preserve the original full receipt, original amount, historical barber/branch attribution, and before/after adjustment history; keep one active receipt whose adjusted amount matches the paid invoice. These corrections are amendments to a full payment, not partial/split payments. Cancellation itself creates no refund entry.
 - Print invoices and reports using the browser's normal print/Save as PDF function. No custom PDF generator or CSV/Excel exports.
 
+## Salon work (in-shop)
+
+- The shop records a daily in-shop (salon) collection separate from barber bookings: children count and the amounts received by cash, payment link, and KNET machine, each exact to three-decimal KWD; the total is the sum of the three methods.
+- One entry per branch per day. The administrator creates and edits entries; every change is retained with actor, time, and before/after values. Employees neither see nor change salon entries.
+- Confirmed salon reporting (2026-10-11): the salon report lists the period's daily entries with per-method and overall totals; the comprehensive report rows barbers beside a single salon row with per-method totals and each row's share of the combined collected total. Both are administrator-only.
+
 ## Reports
 
 Reports cover the data collected by every module, with search, applicable date/branch/employee/client/status/source filters, summaries, and permitted detail records.
@@ -122,6 +128,7 @@ Reports cover the data collected by every module, with search, applicable date/b
 | Haircuts | Booked versus completed adult/child quantities by date, branch, and employee |
 | Clients | Contact details, booking history, repeat visits, haircut counts, invoiced totals, payments |
 | Invoices/payments | Line items, amounts, unpaid/paid/cancelled state, actual cash received, revisions and corrections |
+| Salon work | Daily per-branch entries: children, cash/link/KNET, totals and history; comprehensive collections beside barbers |
 
 - Administrator reports across the business. Employees report only on their own permitted records.
 - Completed haircut counts come from completed reservations, not payment status.

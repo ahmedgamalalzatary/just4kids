@@ -33,7 +33,7 @@ Same as the backend tracker: each phase is a vertical slice (contracts, migratio
 | P2 | Special-needs children | Yes | Yes |
 | P3 | Client active/stopped | Yes | Yes |
 | P4 | Payment method (cash / link / KNET) | Yes | Yes |
-| P5 | Salon daily work and reports | No | No |
+| P5 | Salon daily work and reports | Yes | Yes |
 | P6 | UI parity screens | — | No |
 
 ## P1 — Barber photo
@@ -80,10 +80,12 @@ Evidence (2026-10-11): `paymentMethodSchema` is `cash | link | knet`; `paymentRe
 
 Decided 2026-10-11: **one entry per branch per day**.
 
-- [ ] Daily entry: date, branch, children count, cash, link, KNET amounts (exact 3-decimal KWD), auto total, entered by, timestamps; one entry per branch per date, editable with history.
-- [ ] Administrator-only create/edit; listing by period.
-- [ ] Salon report: period filter, daily rows, totals, print.
-- [ ] Comprehensive report: barbers plus salon rows, per-method totals, share of total.
+- [x] Daily entry: date, branch, children count, cash, link, KNET amounts (exact 3-decimal KWD), auto total, entered by, timestamps; one entry per branch per date, editable with history.
+- [x] Administrator-only create/edit; listing by period.
+- [x] Salon report: period filter, daily rows, totals, print.
+- [x] Comprehensive report: barbers plus salon rows, per-method totals, share of total.
+
+Evidence (2026-10-11): new `salon_entries` (branch, date, childCount, cash/link/knet, server-computed total, enteredBy, timestamps; unique per branch+date; amount and total checks) and `salon_entry_events` (before/after history) via migration `0012_certain_carlie_cooper.sql`, applied to test and development MySQL. Administrator-only `GET /api/salon?from&to&branchId` returns `{ entries, totals }`, `POST /api/salon` creates (409 `SALON_ENTRY_EXISTS` on a duplicate branch+date, 404 unknown branch), `PATCH /api/salon/:id` edits and recomputes the total (409 `SALON_ENTRY_UNCHANGED`), `GET /api/salon/:id/history` returns events; all writes need CSRF. `GET /api/reports/comprehensive?from&to&branchId` (administrator-only) returns barber rows and one salon row with per-method `{count,total}` money, a `collected` total, and a one-decimal `share` of the grand total, plus grand `totals`. Web adds an admin `/salon` entry screen (`SalonFilterBar`, create/edit dialog computing the total, period table with totals), `/reports/salon` (daily rows + totals) and `/reports/comprehensive` (summary cards + barbers/salon rows + share) in the reports tabs, and the `شغل الصالون` nav item. Tests: `apps/api/tests/salon.test.ts` (6), contracts `salon.test.ts` (5), `apps/web/tests/salon.test.ts` (2). `pnpm check` green: lint, typecheck, 49 files/314 tests, build. Not yet browser-verified with real records.
 
 ## P6 — UI parity screens (web)
 

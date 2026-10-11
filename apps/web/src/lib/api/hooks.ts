@@ -3,15 +3,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
-  EmployeeAdminUpdate, EmployeeCreate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
+  EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
 import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
-  PaymentDetails, PaymentMethod, ReservationReport, Schedule, VisitEvent,
+  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -250,6 +250,48 @@ export function useUndoPayment() {
   return useApiMutation(({ id, ...input }: { id: string; expectedVersion: number; paymentId: string; reason: string }, csrfToken) =>
     apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment/undo`, { method: "POST", body: input, csrfToken }), {
     invalidate: (_output, input) => bookingWrites(input.id),
+  });
+}
+
+// Salon work -----------------------------------------------------------------
+
+export type SalonFilters = { from: string; to: string; branchId: string };
+
+export function useSalonReport(filters: SalonFilters, enabled = true) {
+  return useQuery({
+    queryKey: ["salon", filters],
+    queryFn: ({ signal }) => apiRequest<SalonReport>("/salon", { query: filters, signal }),
+    enabled,
+  });
+}
+
+export function useCreateSalonEntry() {
+  return useApiMutation((input: SalonEntryCreate, csrfToken) =>
+    apiRequest<SalonEntry>("/salon", { method: "POST", body: input, csrfToken }), {
+    invalidate: () => [["salon"], keys.reports],
+  });
+}
+
+export function useUpdateSalonEntry() {
+  return useApiMutation(({ id, ...input }: SalonEntryUpdate & { id: string }, csrfToken) =>
+    apiRequest<SalonEntry>(`/salon/${id}`, { method: "PATCH", body: input, csrfToken }), {
+    invalidate: () => [["salon"], keys.reports],
+  });
+}
+
+export function useSalonEntryHistory(id: string | null) {
+  return useQuery({
+    queryKey: ["salon", id, "history"],
+    queryFn: ({ signal }) => apiRequest<{ events: SalonEntryEvent[] }>(`/salon/${id}/history`, { signal }).then(result => result.events),
+    enabled: id !== null,
+  });
+}
+
+export function useComprehensiveReport(filters: SalonFilters, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.reports, "comprehensive", filters],
+    queryFn: ({ signal }) => apiRequest<ComprehensiveReport>("/reports/comprehensive", { query: filters, signal }),
+    enabled,
   });
 }
 

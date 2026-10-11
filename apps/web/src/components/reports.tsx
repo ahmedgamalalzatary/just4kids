@@ -44,6 +44,8 @@ const tabs = [
   { href: "/reports/branches", label: "الفروع" },
   { href: "/reports/clients", label: "العملاء" },
   { href: "/reports/invoices", label: "الفواتير والنقد" },
+  { href: "/reports/salon", label: "شغل الصالون", adminOnly: true },
+  { href: "/reports/comprehensive", label: "التحصيل الشامل", adminOnly: true },
 ];
 
 export function reportTitle(pathname: string, isAdmin: boolean) {
@@ -57,7 +59,7 @@ export function ReportTabs() {
   return (
     <Tabs value={pathname} dir="rtl" activationMode="manual" data-print-hidden>
       <TabsList className="w-full sm:w-fit">
-        {tabs.map(tab => (
+        {tabs.filter(tab => isAdmin || !tab.adminOnly).map(tab => (
           <TabsTrigger key={tab.href} value={tab.href} asChild>
             <Link href={`${tab.href}${search}`}>{isAdmin ? tab.label : tab.employeeLabel ?? tab.label}</Link>
           </TabsTrigger>
@@ -160,6 +162,35 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
 export function ReportFilterBar() {
   const { filters, isAdmin, search } = useReportFilters();
   return <FilterForm key={search} filters={filters} isAdmin={isAdmin} />;
+}
+
+/** From/to/branch filter for the administrator-only salon and comprehensive reports. */
+export function SalonFilterBar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { filters, isAdmin } = useReportFilters();
+  const branches = useBranches(isAdmin);
+  const [draft, setDraft] = useState({ from: filters.from, to: filters.to, branchId: filters.branchId });
+  const error = rangeError(draft.from, draft.to);
+  const apply = (next: { from: string; to: string; branchId: string }) => router.replace(`${pathname}${reportSearch({ ...emptyReportFilters, ...next })}`, { scroll: false });
+  const set = <Key extends keyof typeof draft>(key: Key) => (value: string) => setDraft(current => ({ ...current, [key]: value }));
+  return (
+    <Card data-print-hidden>
+      <CardContent>
+        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="مرشحات التقرير">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Field label="من تاريخ" optional><Input type="date" value={draft.from} onChange={event => set("from")(event.target.value)} /></Field>
+            <Field label="إلى تاريخ" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to")(event.target.value)} /></Field>
+            <Field label="الفرع" className="col-span-2"><OptionSelect value={draft.branchId} onChange={set("branchId")} all="كل الفروع" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} /></Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
+            <Button type="button" variant="ghost" onClick={() => { const cleared = { from: "", to: "", branchId: "" }; setDraft(cleared); apply(cleared); }}>مسح المرشحات</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 
 /** The report name, date basis, and applied filters, shown on screen and on paper. */

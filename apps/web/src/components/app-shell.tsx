@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarClock, CalendarDays, ChartColumn, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
+import { CalendarClock, CalendarDays, ChartColumn, Coins, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Ltr } from "@/components/page";
@@ -22,6 +22,7 @@ const adminNav: NavItem[] = [
   { href: "/clients", label: "العملاء", icon: Users },
   { href: "/employees", label: "الحلاقون", icon: Scissors },
   { href: "/branches", label: "الفروع", icon: Store },
+  { href: "/salon", label: "شغل الصالون", icon: Coins },
   { href: "/reports", label: "التقارير", icon: ChartColumn },
 ];
 

@@ -1,8 +1,8 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices } from "@just4kids/db/schema";
-import type { ClientReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
+import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
+import type { ClientReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery, SalonQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
 const createdDay = sql`DATE(${bookings.createdAt} + INTERVAL 3 HOUR)`;
@@ -164,6 +164,26 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
         .where(filter(query)).groupBy(clients.id, clients.name, clients.phone)
         .orderBy(asc(clients.name), asc(clients.id)) as unknown as Promise<({ clientId: string; name: string; phone: string } & PerformanceRow)[]>;
+    },
+    /** Barber per-method collections joined with the shop's salon entries for the same period. */
+    async comprehensive(query: SalonQuery) {
+      const bookingFilter: HaircutReportQuery = { dateBasis: "visit_date", q: "", from: query.from, to: query.to, branchId: query.branchId };
+      const barbers = await db.select({ employeeId: bookings.employeeId, displayName: employees.displayName, enabled: accounts.enabled, ...performanceMeasures }).from(bookings)
+        .innerJoin(employees, eq(employees.accountId, bookings.employeeId)).innerJoin(accounts, eq(accounts.id, bookings.employeeId))
+        .innerJoin(invoices, eq(invoices.bookingId, bookings.id)).leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
+        .where(filter(bookingFilter)).groupBy(bookings.employeeId, employees.displayName, accounts.enabled)
+        .orderBy(asc(employees.displayName), asc(bookings.employeeId)) as unknown as ({ employeeId: string; displayName: string; enabled: boolean } & PerformanceRow)[];
+      const [salon] = await db.select({
+        cashCount: total(sql`${salonEntries.cash} > 0`), cashTotal: exact(sql`${salonEntries.cash}`),
+        linkCount: total(sql`${salonEntries.link} > 0`), linkTotal: exact(sql`${salonEntries.link}`),
+        knetCount: total(sql`${salonEntries.knet} > 0`), knetTotal: exact(sql`${salonEntries.knet}`),
+        count: count(), total: exact(sql`${salonEntries.total}`),
+      }).from(salonEntries).where(and(
+        query.from ? gte(salonEntries.date, query.from) : undefined,
+        query.to ? lte(salonEntries.date, query.to) : undefined,
+        query.branchId ? eq(salonEntries.branchId, query.branchId) : undefined,
+      ));
+      return { barbers, salon: salon! };
     },
     async invoiceList(query: InvoiceReportQuery) {
       const where = filter(query);

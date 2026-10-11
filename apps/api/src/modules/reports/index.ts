@@ -23,5 +23,6 @@ export function createReports(connection: ReturnType<typeof createDatabase>, aut
   router.get("/branches", handle(async (request, response) => { response.json(await service.branches(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/clients", handle(async (request, response) => { response.json(await service.clients(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/invoices", handle(async (request, response) => { response.json(await service.invoices(request.query, (response.locals.auth as Authenticated).account)); }));
+  router.get("/comprehensive", auth.requireAdmin, handle(async (request, response) => { response.json(await service.comprehensive(request.query)); }));
   return router;
 }
