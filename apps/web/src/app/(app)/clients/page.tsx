@@ -41,7 +41,7 @@ function ClientsScreen() {
           </Select>
         </div>
         {clients.isPending ? <LoadingRows /> : clients.isError ? <ErrorState error={clients.error} onRetry={() => clients.refetch()} /> : clients.data.clients.length === 0 ? (
-          query ? <EmptyState icon={Search} title="لا يوجد عميل مطابق" description="جرّب جزءاً من الاسم أو الرقم، أو أضف عميلاً جديداً." /> : (
+          query || status !== "all" ? <EmptyState icon={Search} title="لا يوجد عميل مطابق" description="غيّر البحث أو مرشح الحالة، أو أضف عميلاً جديداً." /> : (
             <EmptyState icon={Users} title="لا يوجد عملاء بعد" description="أضف العميل مع عنوان الزيارة لتتمكن من حجز موعد له." action={<Button onClick={() => setOpen(true)}><Plus aria-hidden />عميل جديد</Button>} />
           )
         ) : (

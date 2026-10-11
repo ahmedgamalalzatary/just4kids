@@ -11,7 +11,8 @@
 #   docker run --rm -v just4kids_db-data:/data -v "$PWD:/backup" alpine tar czf /backup/db-data.tgz -C /data .
 #   docker run --rm -v just4kids_uploads-data:/data -v "$PWD:/backup" alpine tar czf /backup/uploads-data.tgz -C /data .
 #   docker compose --env-file .env.production start
-# (Alternatively take a logical dump: docker compose exec db mysqldump -u root -p"$DB_ROOT_PASSWORD" just4kids > backup.sql.)
+# (Alternatively take a logical dump, reading the root password inside the container and disabling the TTY:
+#   docker compose --env-file .env.production exec -T db sh -c 'exec mysqldump --single-transaction -u root -p"$MYSQL_ROOT_PASSWORD" just4kids' > backup.sql)
 # Restore with the same commands in reverse (extract into the volume) while the stack is stopped.
 set -euo pipefail
 cd "$(dirname "$0")/.."
