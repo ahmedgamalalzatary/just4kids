@@ -1,5 +1,6 @@
 import type { NextFunction, RequestHandler, Response } from "express";
 import { ZodError } from "zod";
+import type { Authenticated } from "../auth/auth.service.js";
 import { deny } from "../../lib/security.js";
 import type { ClientService } from "./client.service.js";
 
@@ -52,5 +53,20 @@ export function createClientController(service: ClientService) {
       response.json(address);
     } catch (error) { handleError(error, response, next); }
   };
-  return { list, get, lookup, create, update, addAddress, updateAddress };
+  const setStatus: RequestHandler = async (request, response, next) => {
+    try {
+      const actor = (response.locals.auth as Authenticated).account;
+      const client = await service.setEnabled(String(request.params.id), request.body, actor.id);
+      if (!client) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      response.json(client);
+    } catch (error) { handleError(error, response, next); }
+  };
+  const statusEvents: RequestHandler = async (request, response, next) => {
+    try {
+      const result = await service.statusEvents(String(request.params.id));
+      if (!result) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      response.json(result);
+    } catch (error) { next(error); }
+  };
+  return { list, get, lookup, create, update, addAddress, updateAddress, setStatus, statusEvents };
 }

@@ -57,12 +57,18 @@ export const addressResponseSchema = z.strictObject({
 
 export const clientCreateSchema = z.strictObject({ name, phone: phoneSchema, address: addressCreateSchema });
 export const clientUpdateSchema = z.strictObject({ name: name.optional(), phone: phoneSchema.optional() }).refine(value => Object.keys(value).length > 0);
-export const clientSummarySchema = z.strictObject({ id: z.uuid(), name, phone: phoneSchema, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
+export const clientSummarySchema = z.strictObject({ id: z.uuid(), name, phone: phoneSchema, enabled: z.boolean(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
 export const clientResponseSchema = clientSummarySchema.extend({ addresses: z.array(addressResponseSchema) });
 export const clientSearchSchema = z.strictObject({
   q: z.string().trim().max(120).default(""),
+  status: z.enum(["all", "active", "stopped"]).default("all"),
   limit: z.string().regex(/^[0-9]+$/).default("20").transform(Number).pipe(z.number().int().min(1).max(100)),
   offset: z.string().regex(/^[0-9]+$/).default("0").transform(Number).pipe(z.number().int().min(0).max(1000000)),
+});
+const statusReason = z.string().trim().min(1).max(1000);
+export const clientStatusUpdateSchema = z.strictObject({ enabled: z.boolean(), reason: statusReason });
+export const clientStatusEventSchema = z.strictObject({
+  id: z.uuid(), clientId: z.uuid(), enabled: z.boolean(), previousEnabled: z.boolean(), reason: statusReason, actorAccountId: z.uuid(), occurredAt: z.iso.datetime(),
 });
 
 export type AddressCreate = z.infer<typeof addressCreateSchema>;

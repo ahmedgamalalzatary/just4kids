@@ -1,4 +1,4 @@
-import { addressCreateSchema, addressResponseSchema, addressUpdateSchema, clientCreateSchema, clientResponseSchema, clientSearchSchema, clientSummarySchema, clientUpdateSchema, phoneSchema } from "@just4kids/contracts";
+import { addressCreateSchema, addressResponseSchema, addressUpdateSchema, clientCreateSchema, clientResponseSchema, clientSearchSchema, clientStatusEventSchema, clientStatusUpdateSchema, clientSummarySchema, clientUpdateSchema, phoneSchema } from "@just4kids/contracts";
 import { HttpError } from "../../lib/http-error.js";
 import type { ClientRepository } from "./client.repository.js";
 
@@ -56,6 +56,16 @@ export function createClientService(repository: ClientRepository) {
       const input = addressUpdateSchema.parse(body);
       const row = await repository.updateAddress(clientId, addressId, input);
       return row ? serializeAddress(row) : undefined;
+    },
+    async setEnabled(id: string, body: unknown, actorAccountId: string) {
+      const input = clientStatusUpdateSchema.parse(body);
+      const row = await repository.setEnabled(id, input.enabled, input.reason, actorAccountId);
+      return row ? serializeClient(row) : undefined;
+    },
+    async statusEvents(id: string) {
+      if (!await repository.get(id)) return undefined;
+      const rows = await repository.statusEvents(id);
+      return { events: rows.map(row => clientStatusEventSchema.parse({ ...row, occurredAt: row.occurredAt.toISOString() })) };
     },
   };
 }

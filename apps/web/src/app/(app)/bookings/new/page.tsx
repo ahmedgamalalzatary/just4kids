@@ -10,6 +10,7 @@ import { EmployeeAvatar } from "@/components/avatar";
 import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,8 +70,11 @@ function ClientPicker({ onPick }: { onPick: (id: string) => void }) {
         <ul className="divide-y divide-border rounded-md border border-border">
           {clients.data.clients.slice(0, 8).map(client => (
             <li key={client.id}>
-              <button type="button" onClick={() => onPick(client.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted/60">
-                <span className="truncate font-medium">{client.name}</span>
+              <button type="button" disabled={!client.enabled} onClick={() => onPick(client.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{client.name}</span>
+                  {client.enabled ? null : <Badge variant="muted">موقوف</Badge>}
+                </span>
                 <Ltr className="text-sm text-muted-foreground">{client.phone}</Ltr>
               </button>
             </li>

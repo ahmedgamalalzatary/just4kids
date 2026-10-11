@@ -42,6 +42,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 - Store the main client's name, phone number, and usable service address.
 - One client record owns each international-format phone number; that exact phone is the primary-contact identity for later WhatsApp lookup.
+- Confirmed 2026-10-11: each client has an active/stopped state. The administrator can stop or reactivate a client with a required reason, recorded in the client's status history. A stopped client cannot receive new bookings (the booking attempt is refused with a clear Arabic message); existing bookings and historical records are unaffected. Client lists and lookups show the state.
 - Address fields: street, house number, block, floor, apartment, building, and additional instructions where applicable. Floor/apartment need not apply to every property.
 - A saved service address requires area/neighborhood, block, street, and at least one of house number or building name. Clients may have multiple saved addresses. Floor, apartment, instructions, Google Maps link, and WhatsApp pin coordinates are optional.
 - Accept a WhatsApp location or Google Maps link alongside visit details.

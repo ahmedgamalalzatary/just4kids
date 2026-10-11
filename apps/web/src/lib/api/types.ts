@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type {
   accountSchema, addressResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchReportResponseSchema, branchResponseSchema, clientReportResponseSchema,
-  clientResponseSchema, clientSummarySchema, eligibilityResponseSchema, employeeReportResponseSchema, employeeResponseSchema, haircutReportResponseSchema, invoiceReportResponseSchema,
+  clientResponseSchema, clientStatusEventSchema, clientSummarySchema, eligibilityResponseSchema, employeeReportResponseSchema, employeeResponseSchema, haircutReportResponseSchema, invoiceReportResponseSchema,
   invoiceResponseSchema, paymentEventResponseSchema, paymentResponseSchema, reservationReportResponseSchema,
   scheduleResponseSchema, sessionResponseSchema, visitEventResponseSchema,
 } from "@just4kids/contracts";
@@ -14,6 +14,7 @@ export type Schedule = z.output<typeof scheduleResponseSchema>;
 export type Eligibility = z.output<typeof eligibilityResponseSchema>;
 export type ClientSummary = z.output<typeof clientSummarySchema>;
 export type Client = z.output<typeof clientResponseSchema>;
+export type ClientStatusEvent = z.output<typeof clientStatusEventSchema>;
 export type Address = z.output<typeof addressResponseSchema>;
 export type Booking = z.output<typeof bookingResponseSchema>;
 export type Invoice = z.output<typeof invoiceResponseSchema>;

@@ -9,6 +9,8 @@ export function createClientRouter(auth: AuthModule, controller: ReturnType<type
   router.get("/", controller.list);
   router.post("/", auth.requireCsrf, controller.create);
   router.get("/lookup", controller.lookup);
+  router.patch("/:id/status", auth.requireCsrf, controller.setStatus);
+  router.get("/:id/status-events", controller.statusEvents);
   router.get("/:id", controller.get);
   router.patch("/:id", auth.requireCsrf, controller.update);
   router.post("/:id/addresses", auth.requireCsrf, controller.addAddress);

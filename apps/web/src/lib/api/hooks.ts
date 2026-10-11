@@ -5,11 +5,12 @@ import type {
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
   EmployeeAdminUpdate, EmployeeCreate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
+import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
   PaymentDetails, ReservationReport, Schedule, VisitEvent,
 } from "./types";
 
@@ -135,11 +136,25 @@ export function useEligibleBarbers(query: EligibilityQuery | null) {
 
 // Clients --------------------------------------------------------------------
 
-export function useClients(q: string, offset: number) {
+export function useClients(q: string, offset: number, status: ClientStatusFilter = "all") {
   return useQuery({
-    queryKey: keys.clientList(q, offset),
-    queryFn: ({ signal }) => apiRequest<Page<"clients", ClientSummary>>("/clients", { query: { q, limit: PAGE_SIZE, offset }, signal }),
+    queryKey: [...keys.clientList(q, offset), status],
+    queryFn: ({ signal }) => apiRequest<Page<"clients", ClientSummary>>("/clients", { query: { q, limit: PAGE_SIZE, offset, status }, signal }),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useSetClientStatus() {
+  return useApiMutation(({ id, ...input }: { id: string; enabled: boolean; reason: string }, csrfToken) =>
+    apiRequest<Client>(`/clients/${id}/status`, { method: "PATCH", body: input, csrfToken }), {
+    invalidate: (_output, input) => [keys.clients, keys.client(input.id)],
+  });
+}
+
+export function useClientStatusEvents(id: string) {
+  return useQuery({
+    queryKey: [...keys.client(id), "status-events"],
+    queryFn: ({ signal }) => apiRequest<{ events: ClientStatusEvent[] }>(`/clients/${id}/status-events`, { signal }).then(result => result.events),
   });
 }
 

@@ -3,20 +3,26 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CalendarPlus, ChevronRight, MapPin, Pencil, Plus } from "lucide-react";
+import { Ban, CalendarPlus, ChevronRight, MapPin, Pencil, Plus, RotateCcw } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
+import { Badge } from "@/components/ui/badge";
 import { AddressDialog, EditClientDialog } from "@/components/client-dialogs";
+import { ClientStatusDialog } from "@/components/client-status-dialog";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { useClient } from "@/lib/api/hooks";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useClient, useClientStatusEvents } from "@/lib/api/hooks";
 import type { Address } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
+import { clientStatusLabel } from "@/lib/clients";
+import { formatDateTime } from "@/lib/kuwait-time";
 
 function ClientScreen({ id }: { id: string }) {
   const client = useClient(id);
+  const statusEvents = useClientStatusEvents(id);
   const [editOpen, setEditOpen] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const openAddress = (address: Address | null) => { setEditingAddress(address); setAddressOpen(true); };
 
@@ -28,15 +34,36 @@ function ClientScreen({ id }: { id: string }) {
     <>
       <PageHeader
         back={back}
-        title={client.data.name}
+        title={<span className="flex flex-wrap items-center gap-3">{client.data.name}{client.data.enabled ? null : <Badge variant="muted">موقوف</Badge>}</span>}
         description={<Ltr>{client.data.phone}</Ltr>}
         actions={(
           <>
+            <Button variant="outline" onClick={() => setStatusOpen(true)}>{client.data.enabled ? <Ban aria-hidden /> : <RotateCcw aria-hidden />}{client.data.enabled ? "إيقاف العميل" : "إعادة تفعيل"}</Button>
             <Button variant="outline" onClick={() => setEditOpen(true)}><Pencil aria-hidden />تعديل البيانات</Button>
             <Button asChild><Link href={`/bookings/new?client=${client.data.id}`}><CalendarPlus aria-hidden />حجز جديد</Link></Button>
           </>
         )}
       />
+      <Card className="mb-6">
+        <CardHeader><CardTitle>حالة العميل</CardTitle><span className="text-sm text-muted-foreground">الحالة الحالية: {clientStatusLabel(client.data.enabled)}</span></CardHeader>
+        <CardContent>
+          {statusEvents.isPending ? <LoadingRows rows={1} /> : statusEvents.isError ? <ErrorState error={statusEvents.error} onRetry={() => statusEvents.refetch()} /> : statusEvents.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">لا يوجد سجل تغييرات للحالة.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {statusEvents.data.map(event => (
+                <li key={event.id} className="flex items-start justify-between gap-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">{event.enabled ? "إعادة تفعيل" : "إيقاف"}</p>
+                    <p className="text-muted-foreground">{event.reason}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>عناوين الزيارة</CardTitle>
@@ -61,6 +88,7 @@ function ClientScreen({ id }: { id: string }) {
       </Card>
       <EditClientDialog client={client.data} open={editOpen} onOpenChange={setEditOpen} />
       <AddressDialog clientId={client.data.id} address={editingAddress} open={addressOpen} onOpenChange={setAddressOpen} />
+      <ClientStatusDialog client={client.data} open={statusOpen} onOpenChange={setStatusOpen} />
     </>
   );
 }

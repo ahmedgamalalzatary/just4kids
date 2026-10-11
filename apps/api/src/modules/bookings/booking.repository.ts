@@ -41,6 +41,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         if (!branch) throw new HttpError(404, "BRANCH_NOT_FOUND", "الفرع غير موجود");
         const [client] = await transaction.select().from(clients).where(eq(clients.id, input.clientId)).for("update");
         if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "العميل غير موجود");
+        if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "هذا العميل موقوف، لا يمكن إنشاء حجز جديد");
         const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, input.addressId), eq(clientAddresses.clientId, input.clientId))).for("update");
         if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
         const hours = await readWorkingHours(transaction, input.employeeId, input.date);

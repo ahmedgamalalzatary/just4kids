@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addressCreateSchema, addressUpdateSchema, clientCreateSchema, clientSearchSchema } from "../src/index.js";
+import { addressCreateSchema, addressUpdateSchema, clientCreateSchema, clientSearchSchema, clientStatusUpdateSchema, clientSummarySchema } from "../src/index.js";
 
 const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12" };
 
@@ -29,7 +29,16 @@ describe("client and address contracts", () => {
   });
 
   it("bounds admin search and pagination", () => {
-    expect(clientSearchSchema.parse({ q: " سارة ", limit: "20", offset: "0" })).toEqual({ q: "سارة", limit: 20, offset: 0 });
+    expect(clientSearchSchema.parse({ q: " سارة ", limit: "20", offset: "0" })).toEqual({ q: "سارة", limit: 20, offset: 0, status: "all" });
     expect(clientSearchSchema.safeParse({ limit: "1000" }).success).toBe(false);
+    expect(clientSearchSchema.parse({ status: "stopped" }).status).toBe("stopped");
+    expect(clientSearchSchema.safeParse({ status: "paused" }).success).toBe(false);
+  });
+
+  it("requires an active flag on clients and a reason to stop or reactivate", () => {
+    expect(clientSummarySchema.safeParse({ id: "11111111-1111-4111-8111-111111111111", name: "سارة", phone: "+96555550101", createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z" }).success).toBe(false);
+    expect(clientStatusUpdateSchema.safeParse({ enabled: false, reason: "  " }).success).toBe(false);
+    expect(clientStatusUpdateSchema.safeParse({ enabled: false }).success).toBe(false);
+    expect(clientStatusUpdateSchema.parse({ enabled: false, reason: " طلب العميل " })).toEqual({ enabled: false, reason: "طلب العميل" });
   });
 });

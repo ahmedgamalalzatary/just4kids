@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, eq, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { clientAddresses, clients } from "@just4kids/db/schema";
+import { clientAddresses, clients, clientStatusEvents } from "@just4kids/db/schema";
 import { addressCreateSchema } from "@just4kids/contracts";
 import type { AddressCreate, AddressUpdate, ClientCreate, ClientSearch, ClientUpdate } from "@just4kids/contracts";
+import { HttpError } from "../../lib/http-error.js";
 
 function addressValues(address: AddressCreate) {
   return {
@@ -43,10 +44,28 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
     },
     async list(search: ClientSearch) {
       const pattern = `%${search.q.replace(/[!%_]/g, character => `!${character}`)}%`;
-      const filter = search.q ? or(sql`${clients.name} LIKE ${pattern} ESCAPE '!'`, sql`${clients.phone} LIKE ${pattern} ESCAPE '!'`) : undefined;
+      const filter = and(
+        search.q ? or(sql`${clients.name} LIKE ${pattern} ESCAPE '!'`, sql`${clients.phone} LIKE ${pattern} ESCAPE '!'`) : undefined,
+        search.status === "all" ? undefined : eq(clients.enabled, search.status === "active"),
+      );
       const rows = await db.select().from(clients).where(filter).orderBy(asc(clients.name), asc(clients.id)).limit(search.limit).offset(search.offset);
       const [total] = await db.select({ count: count() }).from(clients).where(filter);
       return { rows, total: total?.count ?? 0 };
+    },
+    async setEnabled(id: string, enabled: boolean, reason: string, actorAccountId: string) {
+      const found = await db.transaction(async transaction => {
+        const [client] = await transaction.select().from(clients).where(eq(clients.id, id)).for("update");
+        if (!client) return false;
+        if (client.enabled === enabled) throw new HttpError(409, "CLIENT_STATUS_UNCHANGED", "حالة العميل لم تتغير");
+        const now = new Date();
+        await transaction.update(clients).set({ enabled, updatedAt: now }).where(eq(clients.id, id));
+        await transaction.insert(clientStatusEvents).values({ id: randomUUID(), clientId: id, enabled, previousEnabled: client.enabled, reason, actorAccountId, occurredAt: now });
+        return true;
+      });
+      return found ? get(id) : undefined;
+    },
+    async statusEvents(id: string) {
+      return db.select().from(clientStatusEvents).where(eq(clientStatusEvents.clientId, id)).orderBy(asc(clientStatusEvents.occurredAt), asc(clientStatusEvents.id));
     },
     async create(input: ClientCreate) {
       const id = randomUUID();

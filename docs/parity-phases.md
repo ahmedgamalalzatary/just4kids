@@ -31,7 +31,7 @@ Same as the backend tracker: each phase is a vertical slice (contracts, migratio
 | --- | --- | --- | --- |
 | P1 | Barber photo | Yes | Yes |
 | P2 | Special-needs children | Yes | Yes |
-| P3 | Client active/stopped | No | No |
+| P3 | Client active/stopped | Yes | Yes |
 | P4 | Payment method (cash / link / KNET) | No | No |
 | P5 | Salon daily work and reports | No | No |
 | P6 | UI parity screens | — | No |
@@ -59,9 +59,11 @@ Evidence (2026-10-11): `specialChildCount` is a booking integer that defaults to
 
 ## P3 — Client active/stopped
 
-- [ ] `enabled` on clients; administrator can stop or reactivate with a reason recorded in history.
-- [ ] A stopped client cannot receive new bookings (clear Arabic error); existing bookings are unaffected.
-- [ ] Client list filter: all / active / stopped; badge in lists and lookup results.
+- [x] `enabled` on clients; administrator can stop or reactivate with a reason recorded in history.
+- [x] A stopped client cannot receive new bookings (clear Arabic error); existing bookings are unaffected.
+- [x] Client list filter: all / active / stopped; badge in lists and lookup results.
+
+Evidence (2026-10-11): `clients.enabled` (default true) plus a `client_status_events` table (enabled/previousEnabled/reason/actor/time, with a changed-state check). Administrator `PATCH /clients/:id/status` requires `{ enabled, reason }` (CSRF + admin), records the event, and returns 409 `CLIENT_STATUS_UNCHANGED` when the state already matches; `GET /clients/:id/status-events` returns the ordered history. `clientSearchSchema` gained a `status` filter (`all`/`active`/`stopped`) used by `GET /clients`. Booking creation rejects a stopped client with 409 `CLIENT_DISABLED` and a clear Arabic message; existing bookings/reads are unaffected. Migration `0010_rainy_joshua_kane.sql` adds the column and table; applied to test and development MySQL. Web adds a status filter and «موقوف» badge to the client list and booking client picker, and a stop/reactivate dialog with a required reason plus a status-history card on the client page. Tests: `apps/api/tests/client-status.test.ts` (3), contracts `clients.test.ts` (2 new/updated), `apps/web/tests/client-status.test.tsx` (2). `pnpm check` green: lint, typecheck, 45 files/296 tests, build. Not yet browser-verified with real records.
 
 ## P4 — Payment method
 
