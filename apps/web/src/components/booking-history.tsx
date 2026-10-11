@@ -13,6 +13,7 @@ import type { Booking, BookingRevision, PaymentEvent, VisitEvent } from "@/lib/a
 import { formatAddress } from "@/lib/address";
 import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
+import { paymentMethodLabels } from "@/lib/payments";
 
 /** Resolves account IDs to readable names with the data this viewer is allowed to see. */
 function useActorName() {
@@ -95,7 +96,7 @@ function Revisions({ id }: { id: string }) {
 }
 
 const paymentKinds: Record<PaymentEvent["kind"], string> = {
-  recorded: "تسجيل دفع نقدي كامل",
+  recorded: "تسجيل دفع كامل",
   voided: "إلغاء قيد دفع خاطئ",
   extra_cash: "استلام مبلغ إضافي بعد تعديل",
   refund: "إرجاع مبلغ للعميل بعد تعديل",
@@ -113,14 +114,14 @@ function Payments({ booking }: { booking: Booking }) {
     <div className="flex flex-col gap-5">
       {active ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-status-completed-soft px-4 py-3 text-status-completed">
-          <p className="text-sm">المبلغ المستلم حالياً: <Ltr className="font-semibold">{formatKwd(active.amount)}</Ltr></p>
+          <p className="text-sm">المبلغ المستلم حالياً: <Ltr className="font-semibold">{formatKwd(active.amount)}</Ltr> <span className="text-xs">({paymentMethodLabels[active.method]})</span></p>
           {isAdmin ? <Button variant="outline" size="sm" onClick={() => setUndoOpen(true)}>إلغاء قيد خاطئ</Button> : null}
         </div>
       ) : null}
       {payments.data.events.length === 0 ? <EmptyState icon={History} title="لم يُسجَّل أي نقد" className="py-8" /> : (
         <Timeline>
           {[...payments.data.events].reverse().map(event => (
-            <TimelineItem key={event.id} title={<>{paymentKinds[event.kind]}: <Ltr>{formatKwd(event.amount)}</Ltr></>} meta={`${actorName(event.actorAccountId)}، ${formatDateTime(event.occurredAt)}`}>
+            <TimelineItem key={event.id} title={<>{paymentKinds[event.kind]}: <Ltr>{formatKwd(event.amount)}</Ltr></>} meta={`${paymentMethodLabels[event.method]}، ${actorName(event.actorAccountId)}، ${formatDateTime(event.occurredAt)}`}>
               {event.reason ? <p className="text-muted-foreground">{event.reason}</p> : null}
             </TimelineItem>
           ))}

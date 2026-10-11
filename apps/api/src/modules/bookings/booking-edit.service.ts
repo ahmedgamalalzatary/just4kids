@@ -94,7 +94,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
           const beforePayment = serializePayment(activePayment), afterPayment = serializePayment({ ...activePayment, amount: nextInvoice.total });
           await transaction.update(cashPayments).set({ amount: nextInvoice.total }).where(eq(cashPayments.id, activePayment.id));
           await transaction.insert(cashPaymentEvents).values({ id: randomUUID(), bookingId: id, paymentId: activePayment.id, version: nextBooking.visitVersion, revisionId,
-            kind: input.reconciliation.action, amount: input.reconciliation.amount, actorAccountId: actor.id, reason: input.reconciliation.reason, occurredAt: new Date(now), before: beforePayment, after: afterPayment });
+            kind: input.reconciliation.action, method: activePayment.method, amount: input.reconciliation.amount, actorAccountId: actor.id, reason: input.reconciliation.reason, occurredAt: new Date(now), before: beforePayment, after: afterPayment });
         }
         return after;
       });

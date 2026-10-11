@@ -34,6 +34,8 @@ const fixtures: Fixture[] = [
 const ids: string[] = fixtures.map(() => randomUUID());
 const prices = { [branchOne]: { adult: 5, child: 3 }, [branchTwo]: { adult: 6, child: 4 } } as Record<string, { adult: number; child: number }>;
 const money = (count: number, total: string) => ({ count, total });
+// Every fixture receipt is recorded as cash, so the method split keeps it under "cash".
+const collected = (count: number, total: string) => ({ count, total, byMethod: { cash: money(count, total), link: money(0, "0.000"), knet: money(0, "0.000") } });
 const quantities = (adult: number, child: number) => ({ adult, child, special: 0 });
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
@@ -110,13 +112,13 @@ describe("barber performance report", () => {
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId!));
     expect(rows).toEqual([
       { employeeId: barberA, displayName: "أداء أ", enabled: true, branchId: branchTwo, branchName: "أداء الفرع الثاني", availableMinutes: 960, work: barberAWork,
-        invoices: { issued: money(2, "21.000"), cancelled: money(1, "5.000"), outstanding: money(1, "8.000") }, cash: money(2, "18.000") },
+        invoices: { issued: money(2, "21.000"), cancelled: money(1, "5.000"), outstanding: money(1, "8.000") }, cash: collected(2, "18.000") },
       { employeeId: barberB, displayName: "أداء ب", enabled: true, branchId: branchOne, branchName: "أداء الفرع الأول", availableMinutes: 600,
         work: { bookings: 2, reserved: quantities(2, 1), completed: quantities(0, 0), open: quantities(1, 1), cancelled: quantities(0, 0), noShow: quantities(1, 0), completedVisits: 0, reservedMinutes: 120 },
-        invoices: { issued: money(2, "13.000"), cancelled: money(0, "0.000"), outstanding: money(1, "5.000") }, cash: money(1, "8.000") },
+        invoices: { issued: money(2, "13.000"), cancelled: money(0, "0.000"), outstanding: money(1, "5.000") }, cash: collected(1, "8.000") },
       { employeeId: barberC, displayName: "أداء ج", enabled: false, branchId: branchTwo, branchName: "أداء الفرع الثاني", availableMinutes: 0,
         work: { bookings: 1, reserved: quantities(1, 0), completed: quantities(1, 0), open: quantities(0, 0), cancelled: quantities(0, 0), noShow: quantities(0, 0), completedVisits: 1, reservedMinutes: 20 },
-        invoices: { issued: money(1, "6.000"), cancelled: money(0, "0.000"), outstanding: money(1, "6.000") }, cash: money(0, "0.000") },
+        invoices: { issued: money(1, "6.000"), cancelled: money(0, "0.000"), outstanding: money(1, "6.000") }, cash: collected(0, "0.000") },
     ]);
   });
   it("leaves scheduled minutes empty without a visit-date range", async () => {
@@ -129,7 +131,7 @@ describe("barber performance report", () => {
     const response = await report("employees", { ...range, branchId: branchOne });
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId!));
     expect(rows.map((row: Row) => row.employeeId)).toEqual([barberA, barberB]);
-    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: money(2, "18.000") });
+    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: collected(2, "18.000") });
   });
   it("shows a barber only their own row and denies another barber", async () => {
     const own = await report("employees", range, sessionA);
@@ -148,24 +150,24 @@ describe("branch performance report", () => {
     expect(rows).toEqual([
       { branchId: branchOne, branchName: "أداء الفرع الأول",
         work: { bookings: 4, reserved: quantities(5, 2), completed: quantities(2, 1), open: quantities(1, 1), cancelled: quantities(1, 0), noShow: quantities(1, 0), completedVisits: 1, reservedMinutes: 180 },
-        invoices: { issued: money(3, "26.000"), cancelled: money(1, "5.000"), outstanding: money(1, "5.000") }, cash: money(3, "26.000"),
-        employees: [expect.objectContaining({ employeeId: barberA, displayName: "أداء أ", work: expect.objectContaining({ bookings: 2 }), cash: money(2, "18.000") }), expect.objectContaining({ employeeId: barberB, work: expect.objectContaining({ bookings: 2 }) })] },
+        invoices: { issued: money(3, "26.000"), cancelled: money(1, "5.000"), outstanding: money(1, "5.000") }, cash: collected(3, "26.000"),
+        employees: [expect.objectContaining({ employeeId: barberA, displayName: "أداء أ", work: expect.objectContaining({ bookings: 2 }), cash: collected(2, "18.000") }), expect.objectContaining({ employeeId: barberB, work: expect.objectContaining({ bookings: 2 }) })] },
       { branchId: branchTwo, branchName: "أداء الفرع الثاني",
         work: { bookings: 2, reserved: quantities(1, 2), completed: quantities(1, 0), open: quantities(0, 2), cancelled: quantities(0, 0), noShow: quantities(0, 0), completedVisits: 1, reservedMinutes: 40 },
-        invoices: { issued: money(2, "14.000"), cancelled: money(0, "0.000"), outstanding: money(2, "14.000") }, cash: money(0, "0.000"),
+        invoices: { issued: money(2, "14.000"), cancelled: money(0, "0.000"), outstanding: money(2, "14.000") }, cash: collected(0, "0.000"),
         employees: [expect.objectContaining({ employeeId: barberA, work: expect.objectContaining({ bookings: 1 }) }), expect.objectContaining({ employeeId: barberC, work: expect.objectContaining({ bookings: 1 }) })] },
     ]);
   });
   it("lists every branch for the administrator, even without matching work", async () => {
     const response = await report("branches", { ...range, status: "booked" });
     const one = response.body.branches.find((row: Row) => row.branchId === branchOne);
-    expect(one).toMatchObject({ work: { bookings: 0, reservedMinutes: 0 }, invoices: { issued: money(0, "0.000") }, cash: money(0, "0.000"), employees: [] });
+    expect(one).toMatchObject({ work: { bookings: 0, reservedMinutes: 0 }, invoices: { issued: money(0, "0.000") }, cash: collected(0, "0.000"), employees: [] });
   });
   it("limits a barber's branch report to their own work", async () => {
     const response = await report("branches", range, sessionA);
     expect(response.status).toBe(200);
     expect(response.body.branches.map((row: Row) => row.branchId).sort()).toEqual([branchOne, branchTwo].sort());
     for (const branch of response.body.branches) expect(branch.employees.map((row: Row) => row.employeeId)).toEqual([barberA]);
-    expect(response.body.branches.find((row: Row) => row.branchId === branchOne)).toMatchObject({ work: { bookings: 2 }, cash: money(2, "18.000") });
+    expect(response.body.branches.find((row: Row) => row.branchId === branchOne)).toMatchObject({ work: { bookings: 2 }, cash: collected(2, "18.000") });
   });
 });

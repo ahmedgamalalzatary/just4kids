@@ -1,0 +1,2 @@
+ALTER TABLE `cash_payment_events` ADD `method` enum('cash','link','knet') DEFAULT 'cash' NOT NULL;--> statement-breakpoint
+ALTER TABLE `cash_payments` ADD `method` enum('cash','link','knet') DEFAULT 'cash' NOT NULL;

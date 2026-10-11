@@ -34,6 +34,14 @@ const reservedMinutes = sql`(TIME_TO_SEC(CONCAT(${bookings.endTime}, ':00')) - T
 const exact = (expression: SQL) => sql<string>`CAST(COALESCE(SUM(${expression}), 0) AS DECIMAL(65, 3))`.mapWith(String);
 const invoiceTotal = (condition: SQL) => exact(sql`CASE WHEN ${condition} THEN ${invoices.total} ELSE 0 END`);
 const issued = sql`${invoices.status} = 'issued'`, cancelled = sql`${invoices.status} = 'cancelled'`, outstanding = sql`${invoices.status} = 'issued' AND ${invoices.paymentStatus} = 'unpaid'`;
+// Active receipts joined at most once per booking, split by the recorded payment method.
+const cashMethodCount = (method: string) => total(sql`${cashPayments.id} IS NOT NULL AND ${cashPayments.method} = ${method}`);
+const cashMethodTotal = (method: string) => exact(sql`CASE WHEN ${cashPayments.method} = ${method} THEN ${cashPayments.amount} ELSE 0 END`);
+const cashMethodMeasures = {
+  byMethodCashCount: cashMethodCount("cash"), byMethodCashTotal: cashMethodTotal("cash"),
+  byMethodLinkCount: cashMethodCount("link"), byMethodLinkTotal: cashMethodTotal("link"),
+  byMethodKnetCount: cashMethodCount("knet"), byMethodKnetTotal: cashMethodTotal("knet"),
+};
 const performanceMeasures = {
   ...measures,
   completedVisits: total(sql`${bookings.visitStatus} = 'completed'`),
@@ -41,14 +49,26 @@ const performanceMeasures = {
   issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
   outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
   cashCount: total(sql`${cashPayments.id} IS NOT NULL`), cashTotal: exact(sql`${cashPayments.amount}`),
+  ...cashMethodMeasures,
 };
-type PerformanceRow = { [Key in keyof typeof performanceMeasures]: Key extends "issuedTotal" | "cancelledTotal" | "outstandingTotal" | "cashTotal" ? string : number };
-const emptyPerformance: PerformanceRow = { ...Object.fromEntries(Object.keys(measures).map(key => [key, 0])) as MeasureRow, completedVisits: 0, reservedMinutes: 0, issuedCount: 0, issuedTotal: "0.000", cancelledCount: 0, cancelledTotal: "0.000", outstandingCount: 0, outstandingTotal: "0.000", cashCount: 0, cashTotal: "0.000" };
+type PerformanceRow = { [Key in keyof typeof performanceMeasures]: Key extends "issuedTotal" | "cancelledTotal" | "outstandingTotal" | "cashTotal" | "byMethodCashTotal" | "byMethodLinkTotal" | "byMethodKnetTotal" ? string : number };
+const emptyPerformance: PerformanceRow = {
+  ...Object.fromEntries(Object.keys(measures).map(key => [key, 0])) as MeasureRow,
+  completedVisits: 0, reservedMinutes: 0, issuedCount: 0, issuedTotal: "0.000", cancelledCount: 0, cancelledTotal: "0.000", outstandingCount: 0, outstandingTotal: "0.000", cashCount: 0, cashTotal: "0.000",
+  byMethodCashCount: 0, byMethodCashTotal: "0.000", byMethodLinkCount: 0, byMethodLinkTotal: "0.000", byMethodKnetCount: 0, byMethodKnetTotal: "0.000",
+};
 export function shapePerformance(row: PerformanceRow = emptyPerformance) {
   return {
     work: { ...shapeMeasures(row), completedVisits: row.completedVisits, reservedMinutes: row.reservedMinutes },
     invoices: { issued: { count: row.issuedCount, total: row.issuedTotal }, cancelled: { count: row.cancelledCount, total: row.cancelledTotal }, outstanding: { count: row.outstandingCount, total: row.outstandingTotal } },
-    cash: { count: row.cashCount, total: row.cashTotal },
+    cash: {
+      count: row.cashCount, total: row.cashTotal,
+      byMethod: {
+        cash: { count: row.byMethodCashCount, total: row.byMethodCashTotal },
+        link: { count: row.byMethodLinkCount, total: row.byMethodLinkTotal },
+        knet: { count: row.byMethodKnetCount, total: row.byMethodKnetTotal },
+      },
+    },
   };
 }
 
@@ -152,6 +172,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
         outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
         cashCount: total(sql`${cashPayments.id} IS NOT NULL`), cashTotal: exact(sql`${cashPayments.amount}`),
+        ...cashMethodMeasures,
         editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
         bookings: count(),
       }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))

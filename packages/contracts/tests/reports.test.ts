@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchReportQuerySchema, employeeReportQuerySchema, haircutReportQuerySchema, reportMoneySchema, reservationReportQuerySchema } from "../src/index.js";
+import { branchReportQuerySchema, employeeReportQuerySchema, haircutReportQuerySchema, reportCashSchema, reportMoneySchema, reservationReportQuerySchema } from "../src/index.js";
 
 const id = "11111111-1111-4111-8111-111111111111";
 describe("report contracts", () => {
@@ -30,5 +30,13 @@ describe("performance report contracts", () => {
     const money = { count: 1, total: "1234567890123456789012345.125" };
     expect(reportMoneySchema.safeParse(money).success).toBe(true);
     for (const total of ["1.5", "1.1250", "01.000", "-1.000"]) expect(reportMoneySchema.safeParse({ count: 1, total }).success).toBe(false);
+  });
+  it("splits collected cash by method while keeping the overall total", () => {
+    const zero = { count: 0, total: "0.000" };
+    const cash = { count: 3, total: "9.000", byMethod: { cash: { count: 1, total: "5.000" }, link: { count: 1, total: "3.000" }, knet: { count: 1, total: "1.000" } } };
+    expect(reportCashSchema.parse(cash)).toEqual(cash);
+    expect(reportCashSchema.safeParse({ count: 1, total: "5.000", byMethod: { cash: { count: 1, total: "5.000" }, link: zero, knet: zero } }).success).toBe(true);
+    expect(reportCashSchema.safeParse({ count: 1, total: "5.000" }).success).toBe(false);
+    expect(reportCashSchema.safeParse({ ...cash, byMethod: { ...cash.byMethod, card: zero } }).success).toBe(false);
   });
 });

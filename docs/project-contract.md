@@ -19,7 +19,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
 - Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, and password; employees do not change their own password.
-- Assigned employees can cancel, mark arrived, mark completed, mark no-show, and record cash payment.
+- Assigned employees can cancel, mark arrived, mark completed, mark no-show, and record a full payment with its method.
 - Employees cannot reschedule or reassign bookings.
 - Only the administrator can correct or undo payment records.
 - Backend authorization must enforce ownership even when a record is requested directly.
@@ -52,7 +52,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Reservation rules
 
-- One reservation = one client, one barber, one address, one shared window, one invoice, and one cash payment when paid.
+- One reservation = one client, one barber, one address, one shared window, one invoice, and one full payment when paid.
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
 - Client chooses the date and variable start/end window through AI. Administrator can choose/change it manually.
@@ -101,10 +101,10 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
-- Client pays cash at the home visit; assigned employee records one full payment.
-- Confirmed cash workflow (2026-10-02): full cash recording is allowed only for arrived or completed visits, by the assigned employee or administrator. The server uses the complete current invoice amount; callers cannot supply partial amounts or another payment method. Cash recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained.
-- Administrator may undo a mistaken payment entry with a required reason, retaining its original values, actor/time history, and any adjustment history. This marks the receipt voided and the invoice unpaid; it does not record a cash refund or change the visit/invoice amount. A replacement full receipt is permitted under the same cash-recording state rules. Employees cannot undo receipts or record reconciliation adjustments.
-- No partial/split payments, deposits, payment links, or online payments.
+- Client pays the full amount at the home visit by one method — cash, payment link, or KNET; the assigned employee records the single full payment together with its method.
+- Confirmed payment-method workflow (2026-10-11, extending the 2026-10-02 cash rule): one full payment is allowed only for arrived or completed visits, by the assigned employee or administrator. The server uses the complete current invoice amount; callers cannot supply partial amounts. The caller must choose exactly one method (`cash`, `link`, `knet`); the server stores it on the receipt and on every related history event (record, adjustment, and undo). Recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained. Receipts recorded before this change are treated as `cash`.
+- Administrator may undo a mistaken payment entry with a required reason, retaining its original values including the method, actor/time history, and any adjustment history. This marks the receipt voided and the invoice unpaid; it does not record a refund or change the visit/invoice amount. A replacement full receipt is permitted under the same payment-recording state rules. Employees cannot undo receipts or record reconciliation adjustments.
+- No partial/split payments, deposits, or multiple methods on one payment. A payment link is one of the accepted single methods, not a separate online-payment or deposit flow.
 - Administrator corrections retain actor, time, reason, and previous values. No duplicate active payment.
 - A paid-invoice amount change must be explicitly reconciled; cancellation does not automatically refund cash.
 - Confirmed paid-edit reconciliation (2026-10-02): an administrator changing a paid total must explicitly record the exact extra cash received or exact difference returned, with a required reason, in the same transaction as the invoice revision. Increasing 8 to 10 KWD records 2 KWD extra cash; decreasing 8 to 6 KWD records 2 KWD refunded. Preserve the original full receipt, original amount, historical barber/branch attribution, and before/after adjustment history; keep one active receipt whose adjusted amount matches the paid invoice. These corrections are amendments to a full payment, not partial/split payments. Cancellation itself creates no refund entry.
@@ -125,7 +125,7 @@ Reports cover the data collected by every module, with search, applicable date/b
 
 - Administrator reports across the business. Employees report only on their own permitted records.
 - Completed haircut counts come from completed reservations, not payment status.
-- Invoice value, cancelled invoice amounts, and cash collected are separate measures.
+- Invoice value, cancelled invoice amounts, and collected money are separate measures; collected money is split by payment method (cash, link, KNET) with totals.
 - Historical employee/branch attribution must survive branch transfers. Do not count invoice revisions twice.
 - Label each report's date basis. Reserved hours include travel; they are not measured cutting time.
 - Reports cover these modules, not an unlimited custom-report builder or data the application does not collect.

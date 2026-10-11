@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eligibilityQuerySchema } from "./availability.js";
 import { bookingListQuerySchema, bookingResponseSchema, invoiceResponseSchema, visitStatusSchema } from "./bookings.js";
 import { cashAmountSchema } from "./cash.js";
+import { paymentMethodSchema } from "./payments.js";
 import { phoneSchema } from "./auth.js";
 
 // visit_date is the reservation's Kuwait visit day; created_date is the Kuwait day the reservation was made.
@@ -51,6 +52,10 @@ export type HaircutReportResponse = z.infer<typeof haircutReportResponseSchema>;
 export const employeeReportQuerySchema = haircutReportQuerySchema;
 export const branchReportQuerySchema = haircutReportQuerySchema;
 export const reportMoneySchema = z.strictObject({ count: total, total: z.string().regex(/^(0|[1-9][0-9]*)\.[0-9]{3}$/) });
+// Collected money: the overall total plus how it splits across the accepted payment methods.
+export const reportCashSchema = reportMoneySchema.extend({
+  byMethod: z.strictObject({ cash: reportMoneySchema, link: reportMoneySchema, knet: reportMoneySchema }),
+});
 const work = z.strictObject({
   ...haircutMeasures, completedVisits: total,
   // Booked, arrived, and completed windows, including travel; cancelled and no-show visits release their window.
@@ -60,8 +65,8 @@ const performance = {
   work,
   // Issued and cancelled invoice values stay separate from cash; outstanding is issued and unpaid. Revisions update one invoice, so they are never counted twice.
   invoices: z.strictObject({ issued: reportMoneySchema, cancelled: reportMoneySchema, outstanding: reportMoneySchema }),
-  // Active cash receipts at their current reconciled amount, including cash retained on cancelled visits; voided receipts are excluded.
-  cash: reportMoneySchema,
+  // Active receipts at their current reconciled amount, including money retained on cancelled visits; voided receipts are excluded. Split by payment method.
+  cash: reportCashSchema,
 };
 export const employeeReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
@@ -95,7 +100,7 @@ export const clientReportResponseSchema = z.strictObject({
     ...performance,
   })),
 });
-const invoiceCashSchema = z.strictObject({ amount: cashAmountSchema, status: z.enum(["active", "voided"]), recordedAt: z.iso.datetime(), recordedBy: z.uuid() });
+const invoiceCashSchema = z.strictObject({ amount: cashAmountSchema, status: z.enum(["active", "voided"]), method: paymentMethodSchema, recordedAt: z.iso.datetime(), recordedBy: z.uuid() });
 export const invoiceReportEntrySchema = z.strictObject({
   ...invoiceResponseSchema.shape,
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
@@ -108,7 +113,7 @@ export const invoiceReportResponseSchema = z.strictObject({
   summary: z.strictObject({
     // Invoice value, cancelled invoice amounts, and actual cash stay separate measures; one invoice per reservation means revisions are never counted twice.
     invoices: z.strictObject({ issued: reportMoneySchema, cancelled: reportMoneySchema, outstanding: reportMoneySchema }),
-    cash: reportMoneySchema,
+    cash: reportCashSchema,
     editedBookings: total, edits: total, correctedBookings: total, corrections: total,
   }),
   invoices: z.array(invoiceReportEntrySchema), total, limit: z.number().int(), offset: z.number().int(),

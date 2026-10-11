@@ -2,7 +2,7 @@ import type { z } from "zod";
 import type {
   accountSchema, addressResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchReportResponseSchema, branchResponseSchema, clientReportResponseSchema,
   clientResponseSchema, clientStatusEventSchema, clientSummarySchema, eligibilityResponseSchema, employeeReportResponseSchema, employeeResponseSchema, haircutReportResponseSchema, invoiceReportResponseSchema,
-  invoiceResponseSchema, paymentEventResponseSchema, paymentResponseSchema, reservationReportResponseSchema,
+  invoiceResponseSchema, paymentEventResponseSchema, paymentMethodSchema, paymentResponseSchema, reservationReportResponseSchema,
   scheduleResponseSchema, sessionResponseSchema, visitEventResponseSchema,
 } from "@just4kids/contracts";
 
@@ -22,6 +22,7 @@ export type VisitEvent = z.output<typeof visitEventResponseSchema>;
 export type BookingRevision = z.output<typeof bookingRevisionResponseSchema>;
 export type Payment = z.output<typeof paymentResponseSchema>;
 export type PaymentEvent = z.output<typeof paymentEventResponseSchema>;
+export type PaymentMethod = z.output<typeof paymentMethodSchema>;
 
 export type Page<Key extends string, Item> = { [K in Key]: Item[] } & { total: number; limit: number; offset: number };
 export type PaymentDetails = { payment: Payment | null; payments: Payment[]; events: PaymentEvent[] };

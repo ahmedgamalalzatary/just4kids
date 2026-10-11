@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Store } from "lucide-react";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/page";
-import { Money, PerformanceDetails, printableTable, Quantity, reservationsHref, reservedHoursLabel, useReportFilters } from "@/components/reports";
+import { CashMoney, Money, PerformanceDetails, printableTable, Quantity, reservationsHref, reservedHoursLabel, useReportFilters } from "@/components/reports";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -48,7 +48,7 @@ export default function BranchReportPage() {
                     <TableHead>الحلاقات المكتملة</TableHead>
                     <TableHead>{reservedHoursLabel}</TableHead>
                     <TableHead>الفواتير الصادرة</TableHead>
-                    <TableHead>النقد المستلم</TableHead>
+                    <TableHead>المبلغ المستلم</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -62,7 +62,7 @@ export default function BranchReportPage() {
                       <TableCell><Quantity value={employee.work.completed} /></TableCell>
                       <TableCell>{formatDuration(employee.work.reservedMinutes)}</TableCell>
                       <TableCell><Money value={employee.invoices.issued} unit="فاتورة" /></TableCell>
-                      <TableCell><Money value={employee.cash} unit="إيصال" /></TableCell>
+                      <TableCell><CashMoney value={employee.cash} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

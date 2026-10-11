@@ -11,7 +11,7 @@ import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
   Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
-  PaymentDetails, ReservationReport, Schedule, VisitEvent,
+  PaymentDetails, PaymentMethod, ReservationReport, Schedule, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -240,8 +240,8 @@ export function useEditBooking() {
 }
 
 export function useRecordPayment() {
-  return useApiMutation(({ id, expectedVersion }: { id: string; expectedVersion: number }, csrfToken) =>
-    apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment`, { method: "POST", body: { expectedVersion }, csrfToken }), {
+  return useApiMutation(({ id, ...input }: { id: string; expectedVersion: number; method: PaymentMethod }, csrfToken) =>
+    apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment`, { method: "POST", body: input, csrfToken }), {
     invalidate: (_output, input) => bookingWrites(input.id),
   });
 }

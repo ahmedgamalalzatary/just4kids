@@ -87,7 +87,14 @@ export function createReportService(repository: ReportRepository) {
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
         summary: {
           invoices: { issued: { count: summary.issuedCount, total: summary.issuedTotal }, cancelled: { count: summary.cancelledCount, total: summary.cancelledTotal }, outstanding: { count: summary.outstandingCount, total: summary.outstandingTotal } },
-          cash: { count: summary.cashCount, total: summary.cashTotal },
+          cash: {
+            count: summary.cashCount, total: summary.cashTotal,
+            byMethod: {
+              cash: { count: summary.byMethodCashCount, total: summary.byMethodCashTotal },
+              link: { count: summary.byMethodLinkCount, total: summary.byMethodLinkTotal },
+              knet: { count: summary.byMethodKnetCount, total: summary.byMethodKnetTotal },
+            },
+          },
           editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
         },
         invoices: rows.map(row => {
@@ -100,7 +107,7 @@ export function createReportService(repository: ReportRepository) {
             adultAmount: invoice.adultAmount, childAmount: invoice.childAmount, total: invoice.total,
             date: booking.date, startTime: booking.startTime, endTime: booking.endTime, visitStatus: booking.visitStatus, source: booking.source,
             editCount: row.editCount, correctionCount: row.correctionCount,
-            cash: cash ? { amount: cash.amount, status: cash.status, recordedAt: cash.recordedAt.toISOString(), recordedBy: cash.recordedBy } : null,
+            cash: cash ? { amount: cash.amount, status: cash.status, method: cash.method, recordedAt: cash.recordedAt.toISOString(), recordedBy: cash.recordedBy } : null,
             ...snapshots,
           };
         }),

@@ -32,7 +32,7 @@ Same as the backend tracker: each phase is a vertical slice (contracts, migratio
 | P1 | Barber photo | Yes | Yes |
 | P2 | Special-needs children | Yes | Yes |
 | P3 | Client active/stopped | Yes | Yes |
-| P4 | Payment method (cash / link / KNET) | No | No |
+| P4 | Payment method (cash / link / KNET) | Yes | Yes |
 | P5 | Salon daily work and reports | No | No |
 | P6 | UI parity screens | — | No |
 
@@ -69,10 +69,12 @@ Evidence (2026-10-11): `clients.enabled` (default true) plus a `client_status_ev
 
 Decided 2026-10-11: **one method per payment**, still the full invoice amount (no split payments).
 
-- [ ] Payment `method` enum `cash | link | knet`; required when recording; shown in payment history; included in undo/reconciliation events.
-- [ ] Existing receipts migrate as `cash`.
-- [ ] Reports split collected amounts by method (barber, branch, invoices/cash reports) with totals.
-- [ ] Barber and administrator payment dialogs: method picker.
+- [x] Payment `method` enum `cash | link | knet`; required when recording; shown in payment history; included in undo/reconciliation events.
+- [x] Existing receipts migrate as `cash`.
+- [x] Reports split collected amounts by method (barber, branch, invoices/cash reports) with totals.
+- [x] Barber and administrator payment dialogs: method picker.
+
+Evidence (2026-10-11): `paymentMethodSchema` is `cash | link | knet`; `paymentRecordSchema` now requires `method`, and `paymentResponseSchema`/`paymentEventResponseSchema` carry it. `cash_payments.method` and `cash_payment_events.method` (both enum, default `cash`) are added by migration `0011_narrow_virginia_dare.sql`, so existing receipts become `cash`; applied to test and development MySQL. Recording stores the chosen method on the receipt and its `recorded` event; booking-edit reconciliation copies the receipt's method into `extra_cash`/`refund` events; `undo` copies it into the `voided` event. Reports: `reportCashSchema` adds `byMethod: { cash, link, knet }` beside the overall `count`/`total`, computed per barber and per branch (`performanceMeasures`) and in the invoice/cash report summary; each invoice-report entry's `cash` now includes `method`. Web: `paymentMethodLabels`/`paymentMethodOptions` (`apps/web/src/lib/payments.ts`), the payment dialog gains a required method picker (default cash), the payment history shows the method on the active receipt and each event, and barber/branch/invoice reports render the method split (`CashMoney`). Tests: `apps/api/tests/payments.test.ts` (method record/undo/reconcile), contracts `payments.test.ts` + `reports.test.ts`, `apps/web/tests/payment-method.test.ts`; `performance-reports.test.ts`/`client-invoice-reports.test.ts` updated to the split. `pnpm check` green: lint, typecheck, 46 files/301 tests, build. Not yet browser-verified with real records.
 
 ## P5 — Salon daily work
 

@@ -9,14 +9,15 @@ import { lockEmployee } from "../availability/availability.repository.js";
 import { serializeBooking } from "./booking.service.js";
 
 type PaymentRow = Omit<typeof cashPayments.$inferSelect, "activeInvoiceId">;
-export function serializePayment(row: PaymentRow) { return paymentResponseSchema.parse({ id: row.id, bookingId: row.bookingId, invoiceId: row.invoiceId, originalAmount: row.originalAmount, amount: row.amount, status: row.status, recordedBy: row.recordedBy, recordedAt: row.recordedAt.toISOString(), currency: "KWD", bookingAtReceipt: row.bookingAtReceipt }); }
+export function serializePayment(row: PaymentRow) { return paymentResponseSchema.parse({ id: row.id, bookingId: row.bookingId, invoiceId: row.invoiceId, originalAmount: row.originalAmount, amount: row.amount, status: row.status, method: row.method, recordedBy: row.recordedBy, recordedAt: row.recordedAt.toISOString(), currency: "KWD", bookingAtReceipt: row.bookingAtReceipt }); }
 
 export function createPaymentService(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
   async function change(id: string, body: unknown, actor: Account, undo: boolean) {
     if (undo && actor.role !== "admin") throw new ForbiddenError();
     const undoInput = undo ? paymentUndoSchema.parse(body) : undefined;
-    const input = undoInput ?? paymentRecordSchema.parse(body);
+    const recordInput = undo ? undefined : paymentRecordSchema.parse(body);
+    const expectedVersion = (undoInput ?? recordInput)!.expectedVersion;
     const [identity] = await db.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id));
     if (!identity) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
     return db.transaction(async transaction => {
@@ -28,7 +29,7 @@ export function createPaymentService(connection: ReturnType<typeof createDatabas
       const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("update");
       if (!barber || !booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
       if (actor.role !== "admin" && (actor.id !== booking.employeeId || !barber.account.enabled)) throw new ForbiddenError();
-      if (booking.employeeId !== identity.employeeId || booking.visitVersion !== input.expectedVersion) throw new HttpError(409, "PAYMENT_CONFLICT", "تم تعديل الحجز أو الدفع، أعد تحميله");
+      if (booking.employeeId !== identity.employeeId || booking.visitVersion !== expectedVersion) throw new HttpError(409, "PAYMENT_CONFLICT", "تم تعديل الحجز أو الدفع، أعد تحميله");
       const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
       if (!invoice) throw new Error("Booking invoice missing");
       const activeQuery = transaction.select().from(cashPayments).where(eq(cashPayments.activeInvoiceId, invoice.id));
@@ -42,18 +43,18 @@ export function createPaymentService(connection: ReturnType<typeof createDatabas
         await transaction.update(cashPayments).set({ status: "voided" }).where(eq(cashPayments.id, active.id));
         await transaction.update(invoices).set({ paymentStatus: "unpaid" }).where(eq(invoices.id, invoice.id));
         await transaction.update(bookings).set({ visitVersion: version }).where(eq(bookings.id, id));
-        await transaction.insert(cashPaymentEvents).values({ id: randomUUID(), bookingId: id, paymentId: active.id, version, revisionId: null, kind: "voided", amount: active.amount, actorAccountId: actor.id, reason: undoInput.reason, occurredAt: now, before, after: payment });
+        await transaction.insert(cashPaymentEvents).values({ id: randomUUID(), bookingId: id, paymentId: active.id, version, revisionId: null, kind: "voided", method: active.method, amount: active.amount, actorAccountId: actor.id, reason: undoInput.reason, occurredAt: now, before, after: payment });
         return { booking: nextBooking, payment };
       }
       if (invoice.paymentStatus === "paid" || active) throw new HttpError(409, "PAYMENT_ALREADY_RECORDED", "تم تسجيل الدفع بالفعل");
       if (invoice.status !== "issued" || !["arrived", "completed"].includes(booking.visitStatus)) throw new HttpError(409, "PAYMENT_NOT_ALLOWED", "يمكن تسجيل النقد بعد الوصول أو إتمام الزيارة فقط");
       const nextBooking = serializeBooking({ booking: { ...booking, visitVersion: version }, invoice: { ...invoice, paymentStatus: "paid" } });
-      const row = { id: randomUUID(), bookingId: id, invoiceId: invoice.id, originalAmount: invoice.total, amount: invoice.total, status: "active" as const, recordedBy: actor.id, recordedAt: now, bookingAtReceipt: nextBooking };
+      const row = { id: randomUUID(), bookingId: id, invoiceId: invoice.id, originalAmount: invoice.total, amount: invoice.total, status: "active" as const, method: recordInput!.method, recordedBy: actor.id, recordedAt: now, bookingAtReceipt: nextBooking };
       const payment = serializePayment(row);
       await transaction.insert(cashPayments).values(row);
       await transaction.update(invoices).set({ paymentStatus: "paid" }).where(eq(invoices.id, invoice.id));
       await transaction.update(bookings).set({ visitVersion: version }).where(eq(bookings.id, id));
-      await transaction.insert(cashPaymentEvents).values({ id: randomUUID(), bookingId: id, paymentId: row.id, version, revisionId: null, kind: "recorded", amount: invoice.total, actorAccountId: actor.id, reason: null, occurredAt: now, before: null, after: payment });
+      await transaction.insert(cashPaymentEvents).values({ id: randomUUID(), bookingId: id, paymentId: row.id, version, revisionId: null, kind: "recorded", method: recordInput!.method, amount: invoice.total, actorAccountId: actor.id, reason: null, occurredAt: now, before: null, after: payment });
       return { booking: nextBooking, payment };
     });
   }

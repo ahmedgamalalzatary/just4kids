@@ -24,7 +24,7 @@ async function signIn(phone: string, password: string): Promise<Session> {
   return { cookie: (login.headers["set-cookie"] as unknown as string[]).find(value => value.startsWith("j4k_session="))!.split(";")[0]!, csrf: login.body.csrfToken as string, id: login.body.account.id as string };
 }
 function write(method: "post" | "patch", path: string, body: object, session = admin) { return request(app)[method](path).set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf).send(body); }
-function record(version: number, session = employee) { return write("post", `/bookings/${booking.id}/payment`, { expectedVersion: version }, session); }
+function record(version: number, session = employee, method = "cash") { return write("post", `/bookings/${booking.id}/payment`, { expectedVersion: version, method }, session); }
 function correct(status: string, expectedVersion: number) { return write("post", `/bookings/${booking.id}/visit/correction`, { status, expectedVersion, reason: "correct visit status" }); }
 function undo(paymentId: string, expectedVersion: number, session = admin, reason = "mistaken cash entry") { return write("post", `/bookings/${booking.id}/payment/undo`, { paymentId, expectedVersion, reason }, session); }
 function edit(patch: object, expectedVersion: number) { return write("patch", `/bookings/${booking.id}`, { expectedVersion, ...patch }); }
@@ -132,7 +132,7 @@ describe("full cash receipts and administrator corrections", () => {
     expect((await record(0)).status).toBe(409);
     expect((await correct("arrived", 0)).status).toBe(200);
     const paid = await record(1); expect(paid.status).toBe(200);
-    expect(paid.body).toMatchObject({ booking: { visitStatus: "arrived", visitVersion: 2, invoice: { id: booking.invoice.id, total: "8.126", paymentStatus: "paid" } }, payment: { amount: "8.126", originalAmount: "8.126", status: "active", recordedBy: employeeId, bookingAtReceipt: { employee: { id: employeeId, branchId } } } });
+    expect(paid.body).toMatchObject({ booking: { visitStatus: "arrived", visitVersion: 2, invoice: { id: booking.invoice.id, total: "8.126", paymentStatus: "paid" } }, payment: { amount: "8.126", originalAmount: "8.126", status: "active", method: "cash", recordedBy: employeeId, bookingAtReceipt: { employee: { id: employeeId, branchId } } } });
     expect((await record(2)).status).toBe(409);
     const history = await payments(); expect(history.status).toBe(200); expect(history.body.payments).toHaveLength(1); expect(history.body.events).toHaveLength(1);
     expect(history.body.events[0]).toMatchObject({ kind: "recorded", actorAccountId: employeeId, before: null, amount: "8.126" });
@@ -144,6 +144,30 @@ describe("full cash receipts and administrator corrections", () => {
   it.each(["cancelled", "no_show"])("denies cash recording for %s visits", async status => {
     expect((await correct(status, 0)).status).toBe(200); expect((await record(1)).status).toBe(409);
     expect((await payments()).body.payments).toEqual([]);
+  });
+  it("stores the chosen method and carries it into history, reconciliation, and undo", async () => {
+    // Arrive, record a KNET full payment, then return the future visit to "booked" so it can still be edited.
+    expect((await correct("arrived", 0)).status).toBe(200);
+    const paid = await record(1, employee, "knet");
+    expect(paid.status).toBe(200);
+    expect(paid.body.payment).toMatchObject({ method: "knet", amount: "8.126" });
+    // A missing method is rejected before any receipt is written.
+    expect((await write("post", `/bookings/${booking.id}/payment`, { expectedVersion: 2 }, employee)).status).toBe(400);
+    expect((await correct("booked", 2)).status).toBe(200);
+
+    const recorded = await payments();
+    expect(recorded.body.payment).toMatchObject({ method: "knet" });
+    expect(recorded.body.events[0]).toMatchObject({ kind: "recorded", method: "knet" });
+
+    expect((await edit({ adultCount: 2, reconciliation: { action: "extra_cash", amount: "5.125", reason: "additional knet" } }, 3)).status).toBe(200);
+    const afterEdit = await payments();
+    expect(afterEdit.body.events[1]).toMatchObject({ kind: "extra_cash", method: "knet", amount: "5.125" });
+
+    expect((await undo(afterEdit.body.payment.id, 4)).status).toBe(200);
+    const afterUndo = await payments();
+    expect(afterUndo.body.events[2]).toMatchObject({ kind: "voided", method: "knet" });
+    // The voided receipt keeps the method it was recorded with.
+    expect(afterUndo.body.payments[0]).toMatchObject({ status: "voided", method: "knet" });
   });
   it("enforces employee ownership, CSRF, and server-selected amount", async () => {
     expect((await record(0, other)).status).toBe(403);
@@ -188,7 +212,7 @@ describe("full cash receipts and administrator corrections", () => {
     const second = await write("post", "/bookings", { clientId, addressId, employeeId: otherId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 }); expect(second.status).toBe(201);
     expect((await correct("arrived", 0)).status).toBe(200);
     expect((await write("post", `/bookings/${second.body.id}/visit/correction`, { status: "arrived", expectedVersion: 0, reason: "correct visit" })).status).toBe(200);
-    const results = await Promise.all([record(1), write("post", `/bookings/${second.body.id}/payment`, { expectedVersion: 1 }, other)]);
+    const results = await Promise.all([record(1), write("post", `/bookings/${second.body.id}/payment`, { expectedVersion: 1, method: "cash" }, other)]);
     expect(results.map(result => result.status)).toEqual([200, 200]);
   });
   it("serializes undo against a paid edit without losing payment history", async () => {

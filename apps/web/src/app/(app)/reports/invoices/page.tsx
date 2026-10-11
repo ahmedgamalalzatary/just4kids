@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Banknote } from "lucide-react";
-import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
+import { Detail, EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Pagination } from "@/components/pagination";
-import { useReportFilters } from "@/components/reports";
+import { CashMoney, Money, useReportFilters } from "@/components/reports";
 import { PaymentBadge, SourceLabel, VisitStatusBadge } from "@/components/status";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInvoiceReport } from "@/lib/api/hooks";
 import type { InvoiceReport } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
+import { paymentMethodLabels } from "@/lib/payments";
 import type { ReportFilters } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,7 @@ function InvoiceRow({ invoice, showBarber }: { invoice: InvoiceReport["invoices"
           <PaymentBadge paymentStatus={invoice.paymentStatus} invoiceStatus={invoice.status} />
           {invoice.cash ? (
             <span className="text-xs text-muted-foreground">
-              نقد <Ltr>{formatKwd(invoice.cash.amount)}</Ltr>
+              {paymentMethodLabels[invoice.cash.method]} <Ltr>{formatKwd(invoice.cash.amount)}</Ltr>
               <span className="ms-1" data-numeric>بتاريخ {formatDateTime(invoice.cash.recordedAt)}</span>
             </span>
           ) : null}
@@ -69,6 +70,20 @@ function InvoicesReport({ filters, isAdmin }: { filters: ReportFilters; isAdmin:
   const { data } = report;
   return (
     <div className={cn("flex flex-col gap-6", report.isPlaceholderData && "opacity-60")}>
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>ملخص الفواتير والنقد</CardTitle>
+            <CardDescription>قيم الفواتير منفصلة عن المبلغ المستلم، مع توزيعه على طريقة الدفع.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Detail label="الفواتير الصادرة"><Money value={data.summary.invoices.issued} unit="فاتورة" /></Detail>
+          <Detail label="فواتير غير مدفوعة"><Money value={data.summary.invoices.outstanding} unit="فاتورة" /></Detail>
+          <Detail label="الفواتير الملغاة"><Money value={data.summary.invoices.cancelled} unit="فاتورة" /></Detail>
+          <Detail label="المبلغ المستلم"><CashMoney value={data.summary.cash} /></Detail>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <div>

@@ -38,6 +38,8 @@ const invoiceTotals = fixtures.map(fixture => {
 });
 const invoiceIds: string[] = fixtures.map(() => randomUUID());
 const money = (count: number, total: string) => ({ count, total });
+// Every fixture receipt is recorded as cash, so the method split keeps it under "cash".
+const collected = (count: number, total: string) => ({ count, total, byMethod: { cash: money(count, total), link: money(0, "0.000"), knet: money(0, "0.000") } });
 const quantities = (adult: number, child: number) => ({ adult, child, special: 0 });
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
@@ -113,12 +115,12 @@ describe("client history report", () => {
       {
         clientId: clientTwo, name: "سلمى العملاء", phone: rows[0].phone,
         work: { bookings: 2, reserved: quantities(1, 3), completed: quantities(0, 0), open: quantities(0, 0), cancelled: quantities(0, 2), noShow: quantities(1, 1), completedVisits: 0, reservedMinutes: 0 },
-        invoices: { issued: money(1, "10.000"), cancelled: money(1, "6.000"), outstanding: money(1, "10.000") }, cash: money(1, "6.000"),
+        invoices: { issued: money(1, "10.000"), cancelled: money(1, "6.000"), outstanding: money(1, "10.000") }, cash: collected(1, "6.000"),
       },
       {
         clientId: clientOne, name: "نورة العملاء", phone: rows[1].phone,
         work: { bookings: 3, reserved: quantities(6, 1), completed: quantities(3, 1), open: quantities(3, 0), cancelled: quantities(0, 0), noShow: quantities(0, 0), completedVisits: 2, reservedMinutes: 180 },
-        invoices: { issued: money(3, "33.000"), cancelled: money(0, "0.000"), outstanding: money(2, "20.000") }, cash: money(1, "13.000"),
+        invoices: { issued: money(3, "33.000"), cancelled: money(0, "0.000"), outstanding: money(2, "20.000") }, cash: collected(1, "13.000"),
       },
     ]);
     expect(rows[1].phone).toMatch(/^\+965[0-9]{8}$/);
@@ -158,7 +160,7 @@ describe("invoice and cash report", () => {
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait", total: 5, limit: 20, offset: 0 });
     expect(response.body.summary).toEqual({
       invoices: { issued: money(4, "43.000"), cancelled: money(1, "6.000"), outstanding: money(3, "30.000") },
-      cash: money(2, "19.000"), editedBookings: 1, edits: 2, correctedBookings: 1, corrections: 1,
+      cash: collected(2, "19.000"), editedBookings: 1, edits: 2, correctedBookings: 1, corrections: 1,
     });
   });
   it("lists invoice line items with visit, cash, edit, and correction details, keeping paid cancelled invoices visible", async () => {
@@ -171,13 +173,13 @@ describe("invoice and cash report", () => {
       id: invoiceIds[0], reference: references[0], status: "issued", paymentStatus: "paid", currency: "KWD",
       adultCount: 2, childCount: 1, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "10.000", childAmount: "3.000", total: "13.000",
       client: { name: "نورة العملاء", phone: "+96555000004" }, employee: { id: barberX, branchId: branchOne }, visitStatus: "completed", editCount: 2, correctionCount: 0,
-      cash: { amount: "13.000", status: "active" },
+      cash: { amount: "13.000", status: "active", method: "cash" },
     });
     expect(first.date).toBe("2098-05-01");
     expect(first.issuedAt).toMatch(/^2098-04-2[0-9]T/);
     // The cancelled-but-paid invoice keeps its cancelled value separate from issued value while its recorded cash stays visible.
     const cancelled = response.body.invoices.find((row: { bookingId: string }) => row.bookingId === ids[2]);
-    expect(cancelled).toMatchObject({ status: "cancelled", paymentStatus: "paid", total: "6.000", visitStatus: "cancelled", editCount: 0, correctionCount: 1, cash: { amount: "6.000", status: "active" } });
+    expect(cancelled).toMatchObject({ status: "cancelled", paymentStatus: "paid", total: "6.000", visitStatus: "cancelled", editCount: 0, correctionCount: 1, cash: { amount: "6.000", status: "active", method: "cash" } });
     const unpaid = response.body.invoices.find((row: { bookingId: string }) => row.bookingId === ids[4]);
     expect(unpaid).toMatchObject({ status: "issued", paymentStatus: "unpaid", total: "15.000", cash: null });
   });
@@ -195,7 +197,7 @@ describe("invoice and cash report", () => {
     expect(bookedDay.body.dateBasis).toBe("created_date");
     expect(bookedDay.body.invoices.map((row: { bookingId: string }) => row.bookingId)).toEqual([ids[2]]);
     const page = await report("invoices", { ...range, limit: "2", offset: "2" });
-    expect(page.body).toMatchObject({ total: 5, limit: 2, offset: 2, summary: { cash: money(2, "19.000") } });
+    expect(page.body).toMatchObject({ total: 5, limit: 2, offset: 2, summary: { cash: collected(2, "19.000") } });
     expect(page.body.invoices).toHaveLength(2);
   });
   it("limits a barber to their own invoices and denies another barber's filter", async () => {

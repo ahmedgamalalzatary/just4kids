@@ -17,6 +17,7 @@ import { useSession } from "@/lib/api/session";
 import type { BranchReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
+import { paymentMethodOptions } from "@/lib/payments";
 import { emptyReportFilters, rangeError, readReportFilters, reportSearch, type ReportFilters } from "@/lib/reports";
 
 export const dateBasisLabels = { visit_date: "تاريخ الزيارة", created_date: "تاريخ إنشاء الحجز" } as const;
@@ -213,6 +214,20 @@ export function Money({ value, unit }: { value: { count: number; total: string }
 
 export const reservedHoursLabel = "الساعات المحجوزة (تشمل التنقل)";
 
+type Collected = BranchReport["branches"][number]["cash"];
+
+/** Collected money with the overall total and its split across the used payment methods. */
+export function CashMoney({ value }: { value: Collected }) {
+  const parts = paymentMethodOptions.filter(option => value.byMethod[option.value].count > 0).map(option => `${option.label} ${formatKwd(value.byMethod[option.value].total)}`);
+  return (
+    <span className="inline-flex flex-col">
+      <Ltr className="font-medium">{formatKwd(value.total)}</Ltr>
+      <span className="text-xs text-muted-foreground" data-numeric>{value.count} إيصال</span>
+      {parts.length ? <span className="text-xs text-muted-foreground" data-numeric>{parts.join("، ")}</span> : null}
+    </span>
+  );
+}
+
 type Performance = Pick<BranchReport["branches"][number], "work" | "invoices" | "cash">;
 
 /** Work, time, and money measures shared by the barber and branch reports. Invoices and cash stay separate. */
@@ -235,7 +250,7 @@ export function PerformanceDetails({ value, children }: { value: Performance; ch
         <Detail label="الفواتير الصادرة"><Money value={invoices.issued} unit="فاتورة" /></Detail>
         <Detail label="فواتير غير مدفوعة"><Money value={invoices.outstanding} unit="فاتورة" /></Detail>
         <Detail label="الفواتير الملغاة"><Money value={invoices.cancelled} unit="فاتورة" /></Detail>
-        <Detail label="النقد المستلم"><Money value={cash} unit="إيصال" /></Detail>
+        <Detail label="المبلغ المستلم"><CashMoney value={cash} /></Detail>
       </dl>
     </div>
   );

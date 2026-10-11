@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRecordPayment, useUndoPayment, useVisitCorrection, useVisitTransition } from "@/lib/api/hooks";
-import type { Booking, Payment } from "@/lib/api/types";
+import type { Booking, Payment, PaymentMethod } from "@/lib/api/types";
 import { formatTime } from "@/lib/kuwait-time";
+import { paymentMethodOptions } from "@/lib/payments";
 import { formatKwd } from "@/lib/money";
 import { visitActions, type VisitAction } from "@/lib/visit-rules";
 
@@ -78,23 +79,30 @@ export function VisitActions({ booking }: { booking: Booking }) {
   );
 }
 
-/** Records the full current invoice amount in cash. The amount is set by the server, never typed. */
+/** Records the full current invoice amount with one payment method. The amount is set by the server, never typed. */
 export function RecordPaymentButton({ booking }: { booking: Booking }) {
   const record = useRecordPayment();
   const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<PaymentMethod>("cash");
   return (
     <>
-      <Button size="lg" variant="secondary" onClick={() => setOpen(true)}><Banknote aria-hidden />استلمت المبلغ نقداً</Button>
+      <Button size="lg" variant="secondary" onClick={() => setOpen(true)}><Banknote aria-hidden />تسجيل الدفع</Button>
       <Dialog open={open} onOpenChange={value => { if (!value) record.reset(); setOpen(value); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تسجيل دفع نقدي كامل</DialogTitle>
-            <DialogDescription>يُسجَّل المبلغ الكامل للفاتورة. لا يوجد دفع جزئي.</DialogDescription>
+            <DialogTitle>تسجيل دفع كامل</DialogTitle>
+            <DialogDescription>يُسجَّل المبلغ الكامل للفاتورة بطريقة دفع واحدة. لا يوجد دفع جزئي.</DialogDescription>
           </DialogHeader>
           <p className="rounded-md bg-muted px-4 py-3 text-center text-2xl font-semibold"><Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
+          <Field label="طريقة الدفع">
+            <Select value={method} onValueChange={value => setMethod(value as PaymentMethod)}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{paymentMethodOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
           <FormAlert error={record.error} />
           <DialogFooter>
-            <Button onClick={() => record.mutate({ id: booking.id, expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("تم تسجيل الدفع النقدي"); setOpen(false); } })} disabled={record.isPending}>
+            <Button onClick={() => record.mutate({ id: booking.id, expectedVersion: booking.visitVersion, method }, { onSuccess: () => { toast.success("تم تسجيل الدفع"); setOpen(false); } })} disabled={record.isPending}>
               {record.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
               تأكيد الاستلام
             </Button>
