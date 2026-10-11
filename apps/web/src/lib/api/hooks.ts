@@ -196,6 +196,19 @@ export function useBookings(offset: number) {
   });
 }
 
+export const DAY_LIMIT = 100;
+
+/** One Kuwait day's bookings in start-time order, optionally for one barber (employees always get their own). */
+export function useDayBookings(date: string, employeeId?: string | null, enabled = true) {
+  const query = { limit: DAY_LIMIT, date, ...(employeeId ? { employeeId } : {}) };
+  return useQuery({
+    queryKey: [...keys.bookings, "list", "day", date, employeeId ?? "all"],
+    queryFn: ({ signal }) => apiRequest<Page<"bookings", Booking>>("/bookings", { query, signal }),
+    enabled: enabled && Boolean(date),
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useBooking(id: string) {
   return useQuery({ queryKey: keys.booking(id), queryFn: ({ signal }) => apiRequest<Booking>(`/bookings/${id}`, { signal }) });
 }

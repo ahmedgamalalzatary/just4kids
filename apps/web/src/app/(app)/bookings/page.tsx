@@ -1,24 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { CalendarDays, Plus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useId, useState, type ReactNode } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
+import { DayBookingRow, TimeChip, VisitCard } from "@/components/day-bookings";
+import { Field } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Pagination } from "@/components/pagination";
 import { PaymentBadge, VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useBookings } from "@/lib/api/hooks";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBookings, useDayBookings, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
-import type { Booking } from "@/lib/api/types";
-import { formatDate, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
+import type { Booking, Employee } from "@/lib/api/types";
+import { daySummary, haircutSummary, shiftDate } from "@/lib/day";
+import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { cn } from "@/lib/utils";
-
-function haircuts(booking: Pick<Booking, "adultCount" | "childCount">) {
-  return [booking.adultCount ? `${booking.adultCount} بالغ` : null, booking.childCount ? `${booking.childCount} طفل` : null].filter(Boolean).join("، ");
-}
 
 function groupByDate(bookings: Booking[]) {
   const groups = new Map<string, Booking[]>();
@@ -26,64 +30,156 @@ function groupByDate(bookings: Booking[]) {
   return [...groups.entries()];
 }
 
-function BookingRow({ booking, showBarber }: { booking: Booking; showBarber: boolean }) {
+function BookingRow({ booking, showBarber, photoVersion }: { booking: Booking; showBarber: boolean; photoVersion?: string | null | undefined }) {
   return (
     <li>
-      <Link href={`/bookings/${booking.id}`} className="grid gap-x-6 gap-y-2 px-5 py-4 transition-colors hover:bg-muted/50 sm:grid-cols-[9.5rem_1fr_auto] sm:items-center">
-        <div className="flex items-center justify-between gap-3 sm:block">
-          <p className="text-sm font-semibold" data-numeric>{formatWindow(booking.startTime, booking.endTime)}</p>
-          <Ltr className="text-xs text-muted-foreground">{booking.reference}</Ltr>
+      <Link href={`/bookings/${booking.id}`} className="grid gap-2.5 px-4 py-4 transition-colors hover:bg-muted/50 sm:px-5 lg:grid-cols-[10rem_1fr_auto] lg:items-center lg:gap-6">
+        <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-2">
+          <TimeChip booking={booking} />
+          {showBarber ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+              <EmployeeAvatar employeeId={booking.employee.id} name={booking.employee.displayName} version={photoVersion} className="size-6 text-xs" />
+              <span className="truncate">{booking.employee.displayName}</span>
+            </span>
+          ) : null}
         </div>
         <div className="min-w-0">
-          <p className="truncate font-medium">{booking.client.name}</p>
-          <p className="flex items-center gap-1.5 truncate text-sm text-muted-foreground">
-            {showBarber ? <EmployeeAvatar employeeId={booking.employee.id} name={booking.employee.displayName} className="size-5" /> : null}
-            <span className="truncate">{booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}` : ""}</span>
-          </p>
+          <p className="flex flex-wrap items-center gap-x-2 font-medium">{booking.client.name} <Ltr className="text-sm font-normal text-muted-foreground">{booking.client.phone}</Ltr></p>
+          <p className="truncate text-sm text-muted-foreground">{booking.address.area}، {haircutSummary(booking)}</p>
+          <p className="truncate text-xs text-muted-foreground"><Ltr>{booking.reference}</Ltr></p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <VisitStatusBadge status={booking.visitStatus} />
           <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
-          <Ltr className="ms-auto text-sm font-medium sm:ms-0 sm:min-w-[6.5rem] sm:text-end">{formatKwd(booking.invoice.total)}</Ltr>
+          <Ltr className="ms-auto text-sm font-semibold lg:ms-0 lg:min-w-[6.5rem] lg:text-end">{formatKwd(booking.invoice.total)}</Ltr>
         </div>
       </Link>
     </li>
   );
 }
 
-export default function BookingsPage() {
-  const session = useSession();
-  const isAdmin = session.data?.account.role === "admin";
+type Filters = { date?: string; barber?: string; view?: string };
+
+function DayFilters({ date, barber, isAdmin, employees, onChange }: { date: string; barber: string; isAdmin: boolean; employees: Employee[]; onChange: (next: Filters) => void }) {
+  const dateId = useId();
+  const today = kuwaitNow().date;
+  return (
+    <Card className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={dateId}>التاريخ</Label>
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="outline" size="icon" aria-label="اليوم السابق" onClick={() => onChange({ date: shiftDate(date, -1) })}><ChevronRight /></Button>
+          <Input id={dateId} type="date" dir="ltr" value={date} onChange={event => { if (event.target.value) onChange({ date: event.target.value }); }} className="w-40" />
+          <Button type="button" variant="outline" size="icon" aria-label="اليوم التالي" onClick={() => onChange({ date: shiftDate(date, 1) })}><ChevronLeft /></Button>
+          {date !== today ? <Button type="button" variant="ghost" onClick={() => onChange({ date: today })}>اليوم</Button> : null}
+        </div>
+      </div>
+      {isAdmin ? (
+        <Field label="الحلاق" className="sm:w-56">
+          <Select value={barber || "all"} onValueChange={value => onChange({ barber: value === "all" ? "" : value })}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحلاقين</SelectItem>
+              {employees.map(employee => <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : null}
+    </Card>
+  );
+}
+
+function DayView({ date, barber, isAdmin, employees, newButton }: { date: string; barber: string; isAdmin: boolean; employees: Employee[]; newButton: ReactNode }) {
+  const day = useDayBookings(date, barber || null);
+  const byId = new Map(employees.map(employee => [employee.id, employee]));
+  if (day.isPending) return <Card><LoadingRows /></Card>;
+  if (day.isError) return <Card><ErrorState error={day.error} onRetry={() => day.refetch()} /></Card>;
+  const { bookings, total } = day.data;
+  const summary = daySummary(bookings);
+  return (
+    <div className={cn("flex flex-col gap-3", day.isPlaceholderData && "opacity-60")}>
+      <p className="px-1 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">{formatDate(date)}</span> · <span data-numeric>{summary.active}</span> حجز، <span data-numeric>{summary.open}</span> مفتوح
+      </p>
+      {bookings.length === 0 ? (
+        <Card><EmptyState icon={CalendarDays} title="لا توجد مواعيد في هذا اليوم" description={isAdmin ? "اختر يوماً آخر أو أنشئ حجزاً جديداً." : "ستظهر هنا الزيارات التي يسندها إليك المدير."} action={newButton} /></Card>
+      ) : isAdmin ? (
+        <Card><ul className="divide-y divide-border">{bookings.map(booking => <DayBookingRow key={booking.id} booking={booking} barberPhone={byId.get(booking.employeeId)?.phone} photoVersion={byId.get(booking.employeeId)?.photoUpdatedAt} />)}</ul></Card>
+      ) : (
+        <div className="flex flex-col gap-3">{bookings.map(booking => <VisitCard key={booking.id} booking={booking} />)}</div>
+      )}
+      {total > bookings.length ? <p className="px-1 text-xs text-muted-foreground">يظهر أول <span data-numeric>{bookings.length}</span> من <span data-numeric>{total}</span> موعداً. اختر حلاقاً لعرض مواعيده كاملة.</p> : null}
+    </div>
+  );
+}
+
+function AllView({ isAdmin, employees, newButton }: { isAdmin: boolean; employees: Employee[]; newButton: ReactNode }) {
   const [offset, setOffset] = useState(0);
+  const photos = new Map(employees.map(employee => [employee.id, employee.photoUpdatedAt]));
   const bookings = useBookings(offset);
   const today = kuwaitNow().date;
-  const newButton = isAdmin ? <Button asChild><Link href="/bookings/new"><Plus aria-hidden />حجز جديد</Link></Button> : null;
+  if (bookings.isPending) return <Card><LoadingRows /></Card>;
+  if (bookings.isError) return <Card><ErrorState error={bookings.error} onRetry={() => bookings.refetch()} /></Card>;
+  if (bookings.data.bookings.length === 0) {
+    return <Card><EmptyState icon={CalendarDays} title="لا توجد حجوزات بعد" description={isAdmin ? "أنشئ أول حجز لعميل مع حلاق متاح." : "ستظهر هنا الزيارات التي يسندها إليك المدير."} action={newButton} /></Card>;
+  }
+  return (
+    <div className={cn("flex flex-col gap-6", bookings.isPlaceholderData && "opacity-60")}>
+      {groupByDate(bookings.data.bookings).map(([date, items]) => (
+        <section key={date} aria-labelledby={`day-${date}`}>
+          <h2 id={`day-${date}`} className="mb-2 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+            {formatDate(date)}
+            {date === today ? <span className="rounded-full bg-sun px-2 py-0.5 text-xs font-semibold text-sun-foreground">اليوم</span> : null}
+          </h2>
+          <Card><ul className="divide-y divide-border">{items.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} photoVersion={photos.get(booking.employeeId)} />)}</ul></Card>
+        </section>
+      ))}
+      {bookings.data.total > bookings.data.limit ? <Card><Pagination total={bookings.data.total} limit={bookings.data.limit} offset={bookings.data.offset} onChange={setOffset} className="border-t-0" /></Card> : null}
+    </div>
+  );
+}
+
+function BookingsScreen() {
+  const session = useSession();
+  const isAdmin = session.data?.account.role === "admin";
+  const router = useRouter();
+  const params = useSearchParams();
+  const date = params.get("date") || kuwaitNow().date;
+  const barber = isAdmin ? params.get("barber") ?? "" : "";
+  const view = params.get("view") === "all" ? "all" : "day";
+  const employees = useEmployees(isAdmin);
+  // Filters live in the address so the home cards can link to one barber's day and the back button keeps them.
+  const update = (next: Filters) => {
+    const search = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(next)) if (value) search.set(key, value); else search.delete(key);
+    const query = search.toString();
+    router.replace(query ? `/bookings?${query}` : "/bookings", { scroll: false });
+  };
+  const newButton = isAdmin ? <Button asChild variant="sun"><Link href={barber ? `/bookings/new?barber=${barber}` : "/bookings/new"}><Plus aria-hidden />حجز جديد</Link></Button> : null;
 
   return (
     <>
       <PageHeader
-        title={isAdmin ? "الحجوزات" : "حجوزاتي"}
-        description={isAdmin ? "كل الزيارات، الأحدث موعداً أولاً." : "زياراتك المسندة إليك، الأحدث موعداً أولاً."}
+        title={isAdmin ? "توجيه الحجز" : "حجوزاتي"}
+        description={isAdmin ? "مواعيد الحلاقين في اليوم، وإرسال تفاصيل الموعد للحلاق عبر واتساب." : "زياراتك المسندة إليك."}
         actions={newButton}
       />
-      {bookings.isPending ? <Card><LoadingRows /></Card> : bookings.isError ? <Card><ErrorState error={bookings.error} onRetry={() => bookings.refetch()} /></Card> : bookings.data.bookings.length === 0 ? (
-        <Card>
-          <EmptyState icon={CalendarDays} title="لا توجد حجوزات بعد" description={isAdmin ? "أنشئ أول حجز لعميل مع حلاق متاح." : "ستظهر هنا الزيارات التي يسندها إليك المدير."} action={newButton} />
-        </Card>
-      ) : (
-        <div className={cn("flex flex-col gap-6", bookings.isPlaceholderData && "opacity-60")}>
-          {groupByDate(bookings.data.bookings).map(([date, items]) => (
-            <section key={date} aria-labelledby={`day-${date}`}>
-              <h2 id={`day-${date}`} className="mb-2 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
-                {formatDate(date)}
-                {date === today ? <span className="rounded-full bg-sun px-2 py-0.5 text-xs font-semibold text-sun-foreground">اليوم</span> : null}
-              </h2>
-              <Card><ul className="divide-y divide-border">{items.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} />)}</ul></Card>
-            </section>
-          ))}
-          {bookings.data.total > bookings.data.limit ? <Card><Pagination total={bookings.data.total} limit={bookings.data.limit} offset={bookings.data.offset} onChange={setOffset} className="border-t-0" /></Card> : null}
-        </div>
-      )}
+      <Tabs value={view} onValueChange={value => update({ view: value === "all" ? "all" : "" })} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="day">مواعيد يوم</TabsTrigger>
+          <TabsTrigger value="all">كل الحجوزات</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {view === "day" ? (
+        <>
+          <DayFilters date={date} barber={barber} isAdmin={isAdmin} employees={employees.data ?? []} onChange={update} />
+          <DayView date={date} barber={barber} isAdmin={isAdmin} employees={employees.data ?? []} newButton={newButton} />
+        </>
+      ) : <AllView isAdmin={isAdmin} employees={employees.data ?? []} newButton={newButton} />}
     </>
   );
+}
+
+export default function BookingsPage() {
+  return <Suspense><BookingsScreen /></Suspense>;
 }

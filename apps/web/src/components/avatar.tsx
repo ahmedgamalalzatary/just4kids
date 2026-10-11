@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * Shows a barber's current photo, falling back to the first letter of their name when
  * no photo has been uploaded (the API returns 404). Decorative: the name is shown separately.
  */
-export function EmployeeAvatar({ employeeId, name, version, className }: { employeeId: string; name: string; version?: string | null; className?: string }) {
+export function EmployeeAvatar({ employeeId, name, version, className }: { employeeId: string; name: string; version?: string | null | undefined; className?: string }) {
   const src = employeePhotoUrl(employeeId, version);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const base = cn("size-10 shrink-0 rounded-full", className);

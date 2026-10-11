@@ -49,6 +49,8 @@ export const bookingResponseSchema = z.strictObject({
 export const bookingListQuerySchema = z.strictObject({
   limit: z.string().regex(/^[0-9]+$/).default("20").transform(Number).pipe(z.number().int().min(1).max(100)),
   offset: z.string().regex(/^[0-9]+$/).default("0").transform(Number).pipe(z.number().int().min(0).max(1000000)),
+  date: eligibilityQuerySchema.shape.date.optional(),
+  employeeId: z.uuid().optional(),
 });
 export type BookingCreate = z.infer<typeof bookingCreateSchema>;
 export const bookingEditSchema = z.strictObject({

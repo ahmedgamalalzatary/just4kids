@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, branches, clients, clientAddresses, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
 import type { Account, BookingCreate, BookingListQuery } from "@just4kids/contracts";
@@ -24,8 +24,12 @@ export function createBookingRepository(connection: ReturnType<typeof createData
   return {
     get,
     async list(actor: Account, query: BookingListQuery) {
-      const filter = actor.role === "employee" ? eq(bookings.employeeId, actor.id) : undefined;
-      const rows = await db.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id)).where(filter).orderBy(desc(bookings.date), desc(bookings.startTime), desc(bookings.id)).limit(query.limit).offset(query.offset);
+      // Employees only ever see their own bookings, whatever barber filter they send.
+      const employeeId = actor.role === "employee" ? actor.id : query.employeeId;
+      const filter = and(employeeId ? eq(bookings.employeeId, employeeId) : undefined, query.date ? eq(bookings.date, query.date) : undefined);
+      // One day reads as an agenda (earliest first); the full list shows the latest dates first.
+      const order = query.date ? [asc(bookings.startTime), asc(bookings.id)] : [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)];
+      const rows = await db.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id)).where(filter).orderBy(...order).limit(query.limit).offset(query.offset);
       const [total] = await db.select({ n: count() }).from(bookings).where(filter);
       return { rows, total: total?.n ?? 0 };
     },

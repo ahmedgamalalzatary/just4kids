@@ -34,7 +34,7 @@ Same as the backend tracker: each phase is a vertical slice (contracts, migratio
 | P3 | Client active/stopped | Yes | Yes |
 | P4 | Payment method (cash / link / KNET) | Yes | Yes |
 | P5 | Salon daily work and reports | Yes | Yes |
-| P6 | UI parity screens | — | No |
+| P6 | UI parity screens | Yes (day filter) | Yes (client review pending) |
 
 ## P1 — Barber photo
 
@@ -91,11 +91,13 @@ Evidence (2026-10-11): new `salon_entries` (branch, date, childCount, cash/link/
 
 Follow the old app's layout and flow with the existing design system (tokens, components, RTL, light/dark).
 
-- [ ] Navigation regrouped like the old sidebar: الحلاقين (barbers, working hours) · النظام (clients, branches, salon work) · التقارير.
-- [ ] Administrator home: grid of barber cards: photo, enabled state, today's next/current booking, today's count, primary action "حجز لهذا الحلاق"; quick tiles: bookings of the day, barbers' work, salon work, salon report.
-- [ ] Barber-first booking: pick barber → date → **30-minute time pills** built from working hours/exceptions and existing bookings (free / booked with details on hover) → booking form (client phone lookup, children/adults, special, address, notes).
-- [ ] Day bookings list (old "توجيه الحجز"): per-day table with barber photo, time chip, client, counts, actions: WhatsApp to barber (prefilled booking details via `wa.me`), edit, cancel.
-- [ ] Cancel dialog with fixed reasons: العميل غير متواجد، العميل ألغى الحجز، لا يوجد رد على الهاتف، مشكلة في العنوان، تأخير بسبب الزحمة، مشكلة من الحلاق، سبب آخر (free text required for "سبب آخر").
-- [ ] Barber home: two large cards: today's bookings (open count) and today's revenue; orders list with tap-to-call, complete, cancel.
-- [ ] Mobile-first check of every changed screen at 390 px (barbers use phones).
+- [x] Navigation regrouped like the old sidebar: الحلاقون (barbers and working hours, book for a barber) · النظام (clients, branches, salon work) · التقارير (reports, salon report, comprehensive report).
+- [x] Administrator home: grid of barber cards: photo, enabled state, today's current/next booking, today's count, primary action "حجز لهذا الحلاق"; quick tiles: bookings of the day, barbers' work, salon work, salon report.
+- [x] Barber-first booking: pick barber → date and visit length → **30-minute time pills** built from working hours/exceptions and existing bookings (free / booked with details on tap / unavailable) → client, address, children/special/adults.
+- [x] Day bookings list (old "توجيه الحجز"): per-day list with barber photo, time chip, client, counts, actions: WhatsApp to barber (prefilled booking details via `wa.me`), edit, cancel.
+- [x] Cancel dialog with fixed reasons: العميل غير متواجد، العميل ألغى الحجز، لا يوجد رد على الهاتف، مشكلة في العنوان، تأخير بسبب الزحمة، مشكلة من الحلاق، سبب آخر (free text required for "سبب آخر").
+- [x] Barber home: two large cards: today's bookings (open count) and today's revenue; today's visits with tap-to-call, map, visit steps, payment, cancel.
+- [ ] Mobile-first check of every changed screen at 390 px (barbers use phones). Done: barber home, all-bookings list, booking page, admin home. Still to check: admin day list and new booking at 390 px.
 - [ ] Client review of the home, booking, and barber screens before polishing the rest.
+
+Evidence (2026-10-11): API `GET /bookings` accepts optional `date` and `employeeId` (`bookingListQuerySchema`); with `date` the list is in start-time order, and employees stay limited to their own bookings whatever barber they send (`apps/api/tests/bookings.test.ts`, new test). Web: `apps/web/src/lib/day.ts` holds the slot builder (same coverage and blocking rules as the API's `isWindowAvailable`), the WhatsApp message, the fixed cancel reasons, the day summary (open/active/collected), current-or-next visit, and date shifting (`apps/web/tests/day.test.ts`, 9 tests). `useDayBookings` hook; `/` is the admin barber-cards home or the barber home (`components/home.tsx`); `/bookings` has a day view (date with previous/next, barber filter, address-kept filters) and the full list; `/bookings/new` is barber-first with time pills (`?barber=` preselects); `CancelVisitDialog` replaces the free-text cancel everywhere (`components/booking-actions.tsx`); shared row/card pieces in `components/day-bookings.tsx`. Login now lands on `/`. Colours switched to the old app's palette on request: navy primary `#243165`, yellow→orange main button (`sun` → `sun-end`), light-blue highlights, matching dark theme. Browser-checked on local dev with sample data: cards, pills (booked/past/blocked for 60 minutes), creating a booking, cancel with a fixed reason saved in history, WhatsApp text, barber home at 390 px, dark mode. `pnpm check` green: lint, typecheck, 50 files/324 tests, build.

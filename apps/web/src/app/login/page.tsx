@@ -9,7 +9,7 @@ import { useSession } from "@/lib/api/session";
 
 /** Only same-site paths are accepted as a return address after signing in. */
 function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\") ? value : "/bookings";
+  return value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\") ? value : "/";
 }
 
 function LoginScreen() {

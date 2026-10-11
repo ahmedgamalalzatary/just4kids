@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarClock, CalendarDays, ChartColumn, Coins, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
+import { CalendarClock, CalendarDays, CalendarPlus, ChartColumn, ChartPie, ClipboardList, Coins, House, LogOut, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Ltr } from "@/components/page";
@@ -16,50 +16,61 @@ import type { Account } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { label?: string; items: NavItem[] };
 
-const adminNav: NavItem[] = [
-  { href: "/bookings", label: "الحجوزات", icon: CalendarDays },
-  { href: "/clients", label: "العملاء", icon: Users },
-  { href: "/employees", label: "الحلاقون", icon: Scissors },
-  { href: "/branches", label: "الفروع", icon: Store },
-  { href: "/salon", label: "شغل الصالون", icon: Coins },
-  { href: "/reports", label: "التقارير", icon: ChartColumn },
+const home: NavItem = { href: "/", label: "الرئيسية", icon: House };
+
+// Grouped like the old dashboard sidebar the team is used to: barbers, system, reports.
+const adminNav: NavGroup[] = [
+  { items: [home, { href: "/bookings", label: "توجيه الحجز", icon: CalendarDays }] },
+  { label: "الحلاقون", items: [{ href: "/employees", label: "الحلاقون وساعات العمل", icon: Scissors }, { href: "/bookings/new", label: "حجز لحلاق", icon: CalendarPlus }] },
+  { label: "النظام", items: [{ href: "/clients", label: "العملاء", icon: Users }, { href: "/branches", label: "الفروع", icon: Store }, { href: "/salon", label: "شغل الصالون", icon: Coins }] },
+  { label: "التقارير", items: [{ href: "/reports", label: "التقارير", icon: ChartColumn }, { href: "/reports/salon", label: "تقرير الصالون", icon: ChartPie }, { href: "/reports/comprehensive", label: "التقرير الشامل", icon: ClipboardList }] },
 ];
 
-const employeeNav: NavItem[] = [
-  { href: "/bookings", label: "حجوزاتي", icon: CalendarDays },
-  { href: "/schedule", label: "جدولي", icon: CalendarClock },
-  { href: "/reports", label: "تقاريري", icon: ChartColumn },
-  { href: "/profile", label: "ملفي", icon: UserRound },
+const employeeNav: NavGroup[] = [
+  { items: [home, { href: "/bookings", label: "حجوزاتي", icon: CalendarDays }, { href: "/schedule", label: "جدولي", icon: CalendarClock }, { href: "/reports", label: "تقاريري", icon: ChartColumn }, { href: "/profile", label: "ملفي", icon: UserRound }] },
 ];
 
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+// The phone bar keeps the five places used most during the day.
+const adminQuick: NavItem[] = [home, { href: "/bookings", label: "الحجوزات", icon: CalendarDays }, { href: "/employees", label: "الحلاقون", icon: Scissors }, { href: "/clients", label: "العملاء", icon: Users }, { href: "/reports", label: "التقارير", icon: ChartColumn }];
+const employeeQuick: NavItem[] = employeeNav[0]!.items;
+
+/** The single link that best matches the address, so a parent and its child page are never both highlighted. */
+function activeHref(pathname: string, items: NavItem[]): string | undefined {
+  return items
+    .filter(item => item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 }
 
-function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
+function NavLinks({ groups, pathname, onNavigate }: { groups: NavGroup[]; pathname: string; onNavigate?: () => void }) {
+  const active = activeHref(pathname, groups.flatMap(group => group.items));
   return (
-    <ul className="flex flex-col gap-1">
-      {items.map(item => {
-        const active = isActive(pathname, item.href);
-        return (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              {...(onNavigate ? { onClick: onNavigate } : {})}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                active && "bg-sidebar-accent text-sidebar-accent-foreground",
-              )}
-            >
-              <item.icon className="size-[1.125rem]" aria-hidden />
-              {item.label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="flex flex-col gap-4">
+      {groups.map((group, index) => (
+        <div key={group.label ?? index}>
+          {group.label ? <p className="mb-1 px-3 text-xs font-semibold text-muted-foreground">{group.label}</p> : null}
+          <ul className="flex flex-col gap-1">
+            {group.items.map(item => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  {...(onNavigate ? { onClick: onNavigate } : {})}
+                  aria-current={item.href === active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    item.href === active && "bg-sidebar-accent text-sidebar-accent-foreground",
+                  )}
+                >
+                  <item.icon className="size-[1.125rem]" aria-hidden />
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -113,13 +124,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const items = account.role === "admin" ? adminNav : employeeNav;
+  const groups = account.role === "admin" ? adminNav : employeeNav;
+  const quick = account.role === "admin" ? adminQuick : employeeQuick;
+  const quickActive = activeHref(pathname, quick);
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex" data-print-hidden>
-        <Link href="/bookings" className="px-2"><Wordmark /></Link>
-        <nav aria-label="القائمة الرئيسية" className="flex-1"><NavLinks items={items} pathname={pathname} /></nav>
+      <aside className="sticky top-0 hidden h-dvh flex-col gap-5 border-e border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex" data-print-hidden>
+        <Link href="/" className="px-2"><Wordmark /></Link>
+        <nav aria-label="القائمة الرئيسية" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} /></nav>
         <AccountFooter account={account} />
       </aside>
 
@@ -133,19 +146,19 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SheetTitle className="sr-only">القائمة</SheetTitle>
               <SheetDescription className="sr-only">التنقل والحساب</SheetDescription>
               <Wordmark className="self-start px-2" />
-              <nav aria-label="القائمة الرئيسية" className="flex-1"><NavLinks items={items} pathname={pathname} onNavigate={() => setMenuOpen(false)} /></nav>
+              <nav aria-label="القائمة الرئيسية" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} onNavigate={() => setMenuOpen(false)} /></nav>
               <AccountFooter account={account} />
             </SheetContent>
           </Sheet>
-          <Link href="/bookings"><Wordmark /></Link>
+          <Link href="/"><Wordmark /></Link>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-24 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">{children}</main>
 
         <nav aria-label="التنقل السريع" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" data-print-hidden>
-          <ul className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
-            {items.map(item => {
-              const active = isActive(pathname, item.href);
+          <ul className="grid" style={{ gridTemplateColumns: `repeat(${quick.length}, minmax(0, 1fr))` }}>
+            {quick.map(item => {
+              const active = item.href === quickActive;
               return (
                 <li key={item.href}>
                   <Link href={item.href} aria-current={active ? "page" : undefined} className={cn("flex flex-col items-center gap-1 py-2 text-[0.6875rem] text-muted-foreground", active && "text-primary")}>

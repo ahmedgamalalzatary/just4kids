@@ -102,6 +102,27 @@ describe("manual bookings and initial invoices", () => {
     expect(listed.body.bookings).toEqual([]);
     expect((await request(app).get("/bookings").set("Cookie", employee.cookie)).body.bookings).toEqual(expect.arrayContaining([expect.objectContaining({ id: bookingId })]));
   });
+  it("filters the list to one day and barber in start-time order, still scoped to the signed-in employee", async () => {
+    const later = await post({ ...input, startTime: "22:00", endTime: "22:20" });
+    const otherDay = await post({ ...input, date: "2099-01-06", startTime: "22:00", endTime: "22:20" });
+    try {
+      expect([later.status, otherDay.status]).toEqual([201, 201]);
+      const day = await request(app).get("/bookings").query({ date, employeeId, limit: "100" }).set("Cookie", admin.cookie);
+      expect(day.status).toBe(200);
+      expect(day.body.bookings.map((booking: { id: string }) => booking.id)).toEqual([bookingId, later.body.id]);
+      expect(day.body.total).toBe(2);
+      expect(day.body).toMatchObject({ date, employeeId });
+      expect((await request(app).get("/bookings").query({ date, employeeId: otherEmployeeId }).set("Cookie", admin.cookie)).body.bookings).toEqual([]);
+      expect((await request(app).get("/bookings").query({ date, employeeId }).set("Cookie", other.cookie)).body.bookings).toEqual([]);
+      expect((await request(app).get("/bookings").query({ date: "2099-02-30" }).set("Cookie", admin.cookie)).status).toBe(400);
+    } finally {
+      // Release the extra windows so later tests can reuse them.
+      for (const id of [later.body.id, otherDay.body.id].filter(Boolean)) {
+        const current = await request(app).get(`/bookings/${id}`).set("Cookie", admin.cookie);
+        await request(app).post(`/bookings/${id}/visit`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ status: "cancelled", expectedVersion: current.body.visitVersion });
+      }
+    }
+  });
   it("rejects past starts, invalid counts, outside-hours windows, and another client's address without saving bookings", async () => {
     for (const body of [{ ...input, date: "2000-01-01" }, { ...input, adultCount: 0 }, { ...input, adultCount: -1 }, { ...input, adultCount: 0.5 }, { ...input, endTime: "09:19" }, { ...input, endTime: "13:01" }]) expect((await post(body)).status).toBe(400);
     expect((await post({ ...input, startTime: "07:00", endTime: "07:20" })).status).toBe(409);

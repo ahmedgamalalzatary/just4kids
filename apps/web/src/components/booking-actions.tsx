@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useRecordPayment, useUndoPayment, useVisitCorrection, useVisitTransition } from "@/lib/api/hooks";
 import type { Booking, Payment, PaymentMethod } from "@/lib/api/types";
-import { formatTime } from "@/lib/kuwait-time";
+import { cancelReasonText, cancelReasons } from "@/lib/day";
+import { formatTime, formatWindow } from "@/lib/kuwait-time";
+import { cn } from "@/lib/utils";
 import { paymentMethodOptions } from "@/lib/payments";
 import { formatKwd } from "@/lib/money";
 import { visitActions, type VisitAction } from "@/lib/visit-rules";
@@ -55,9 +57,10 @@ export function VisitActions({ booking }: { booking: Booking }) {
           </div>
         ))}
       </div>
-      <Dialog open={pending !== null} onOpenChange={open => { if (!open) close(); }}>
+      <CancelVisitDialog booking={booking} open={pending === "cancelled"} onOpenChange={open => { if (!open) close(); }} />
+      <Dialog open={pending !== null && pending !== "cancelled"} onOpenChange={open => { if (!open) close(); }}>
         <DialogContent>
-          {pending ? (
+          {pending && pending !== "cancelled" ? (
             <>
               <DialogHeader>
                 <DialogTitle>{actionCopy[pending].label}؟</DialogTitle>
@@ -66,7 +69,7 @@ export function VisitActions({ booking }: { booking: Booking }) {
               <Field label="ملاحظة" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
               <FormAlert error={transition.error} />
               <DialogFooter>
-                <Button variant={pending === "cancelled" ? "destructive" : "default"} onClick={confirm} disabled={transition.isPending}>
+                <Button onClick={confirm} disabled={transition.isPending}>
                   {transition.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
                   {actionCopy[pending].label}
                 </Button>
@@ -76,6 +79,51 @@ export function VisitActions({ booking }: { booking: Booking }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Cancels a visit with one of the fixed reasons the team uses; «سبب آخر» needs a written reason. */
+export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Booking; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const transition = useVisitTransition();
+  const [reason, setReason] = useState("");
+  const [other, setOther] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const close = (value: boolean) => { if (!value) { transition.reset(); setReason(""); setOther(""); setProblem(null); } onOpenChange(value); };
+  const submit = () => {
+    const text = cancelReasonText(reason, other);
+    if (!text) { setProblem(reason === "other" ? "اكتب سبب الإلغاء" : "اختر سبب الإلغاء"); return; }
+    setProblem(null);
+    transition.mutate({ id: booking.id, status: "cancelled", expectedVersion: booking.visitVersion, reason: text }, { onSuccess: () => { toast.success(actionCopy.cancelled.done); close(false); } });
+  };
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>إلغاء الحجز</DialogTitle>
+          <DialogDescription>
+            {booking.client.name}، <span data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span> · <Ltr className="text-xs">{booking.reference}</Ltr>
+            <span className="mt-1 block">{actionCopy.cancelled.confirm}</span>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="سبب الإلغاء">
+          {cancelReasons.map(option => (
+            <button key={option.value} type="button" role="radio" aria-checked={reason === option.value} onClick={() => { setReason(option.value); setProblem(null); }}
+              className={cn("rounded-md border px-3 py-2.5 text-start text-sm transition-colors", reason === option.value ? "border-destructive bg-destructive/10 font-medium" : "border-border hover:bg-muted/50", option.value === "other" && "sm:col-span-2")}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {reason === "other" ? <Field label="اكتب السبب"><Textarea rows={2} autoFocus value={other} onChange={event => setOther(event.target.value)} maxLength={900} /></Field> : null}
+        {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
+        <FormAlert error={transition.error} />
+        <DialogFooter>
+          <Button variant="destructive" onClick={submit} disabled={transition.isPending}>
+            {transition.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            تأكيد الإلغاء
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
