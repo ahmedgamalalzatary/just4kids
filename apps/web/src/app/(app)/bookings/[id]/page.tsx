@@ -104,7 +104,7 @@ function BookingScreen({ id }: { id: string }) {
                     <span>{data.employee.displayName}<span className="block text-xs text-muted-foreground">{data.employee.branchName}</span></span>
                   </span>
                 </Detail>
-                <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null].filter(Boolean).join("، ")}</Detail>
+                <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null, data.specialChildCount ? `${data.specialChildCount} من ذوي الاحتياجات الخاصة` : null].filter(Boolean).join("، ")}</Detail>
                 <Detail label="المصدر"><SourceLabel source={data.source} /></Detail>
                 <Detail label="تاريخ الحجز">{formatDateTime(data.createdAt)}</Detail>
               </dl>

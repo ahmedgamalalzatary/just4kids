@@ -147,6 +147,11 @@ describe("barber photos", () => {
     const oversized = await uploadPhoto(created.body.id, admin.csrf, admin.cookie, Buffer.alloc(2 * 1024 * 1024 + 1), "image/png");
     expect(oversized.status).toBe(413);
 
+    // A flat PNG over the 24 MP cap stays under 2 MB but must fail as a client error, not a 500.
+    const oversizedPixels = await sharp({ create: { width: 6001, height: 4000, channels: 3, background: { r: 5, g: 5, b: 5 } } }).png().toBuffer();
+    expect(oversizedPixels.length).toBeLessThan(2 * 1024 * 1024);
+    expect((await uploadPhoto(created.body.id, admin.csrf, admin.cookie, oversizedPixels, "image/png")).status).toBe(415);
+
     expect((await uploadPhoto(randomUUID(), admin.csrf, admin.cookie, await colorPhoto("png", { r: 1, g: 2, b: 3 }), "image/png")).status).toBe(404);
     expect((await request(app).delete(`/employees/${randomUUID()}/photo`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)).status).toBe(404);
   });

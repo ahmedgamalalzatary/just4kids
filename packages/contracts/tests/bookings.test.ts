@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bookingCreateSchema, bookingEditSchema, visitTransitionSchema, visitCorrectionSchema } from "../src/index.js";
 
-const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0 };
+const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0, specialChildCount: 0 };
 describe("booking contracts", () => {
   it("accepts partial booking edits with a required version", () => {
     expect(bookingEditSchema).toBeDefined();
@@ -28,5 +28,13 @@ describe("booking contracts", () => {
   });
   it("accepts the inclusive four-hour upper boundary", () => {
     expect(bookingCreateSchema.safeParse({ ...input, endTime: "13:00" }).success).toBe(true);
+  });
+  it("carries a special-needs child count bounded by the child count and defaults it to zero", () => {
+    expect(bookingCreateSchema.parse({ ...input, childCount: 3, specialChildCount: 2 }).specialChildCount).toBe(2);
+    expect(bookingCreateSchema.parse({ ...input, childCount: 3 }).specialChildCount).toBe(0);
+    expect(bookingCreateSchema.safeParse({ ...input, childCount: 1, specialChildCount: 2 }).success).toBe(false);
+    expect(bookingCreateSchema.safeParse({ ...input, childCount: 1, specialChildCount: -1 }).success).toBe(false);
+    expect(bookingEditSchema.parse({ expectedVersion: 0, specialChildCount: 2 }).specialChildCount).toBe(2);
+    expect(bookingEditSchema.safeParse({ expectedVersion: 0, specialChildCount: -1 }).success).toBe(false);
   });
 });

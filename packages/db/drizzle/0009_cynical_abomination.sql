@@ -1,0 +1,3 @@
+ALTER TABLE `bookings` DROP CONSTRAINT `bookings_counts_valid`;--> statement-breakpoint
+ALTER TABLE `bookings` ADD `special_child_count` int DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE `bookings` ADD CONSTRAINT `bookings_counts_valid` CHECK (`bookings`.`adult_count` >= 0 AND `bookings`.`child_count` >= 0 AND `bookings`.`special_child_count` >= 0 AND `bookings`.`special_child_count` <= `bookings`.`child_count` AND (`bookings`.`adult_count` > 0 OR `bookings`.`child_count` > 0));

@@ -31,7 +31,7 @@ export const reservationReportResponseSchema = z.strictObject({
   bookings: z.array(bookingResponseSchema.extend({ editCount: total, correctionCount: total })),
   total, limit: z.number().int(), offset: z.number().int(),
 });
-const quantities = z.strictObject({ adult: total, child: total });
+const quantities = z.strictObject({ adult: total, child: total, special: total });
 // reserved covers every matching reservation; the other measures split it by current visit status, independently of payment.
 const haircutMeasures = { bookings: total, reserved: quantities, completed: quantities, open: quantities, cancelled: quantities, noShow: quantities };
 export const haircutReportResponseSchema = z.strictObject({

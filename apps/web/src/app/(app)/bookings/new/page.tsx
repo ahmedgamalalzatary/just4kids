@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api/client";
 import { useBranches, useClient, useClients, useCreateBooking, useEligibleBarbers } from "@/lib/api/hooks";
 import { formatAddress } from "@/lib/address";
-import { windowProblem } from "@/lib/booking";
+import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 import { formatDate, formatDuration, formatWindow, kuwaitNow, windowMinutes } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -35,14 +35,14 @@ function Step({ number, title, done, children }: { number: number; title: string
   );
 }
 
-function Counter({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function Counter({ label, value, onChange, max = 99 }: { label: string; value: number; onChange: (value: number) => void; max?: number }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-2">
       <span className="text-sm font-medium">{label}</span>
       <div className="flex items-center gap-1" role="group" aria-label={label}>
         <Button type="button" variant="ghost" size="icon-sm" aria-label={`إنقاص ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
         <output className="w-8 text-center text-lg font-semibold" data-numeric aria-live="polite">{value}</output>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= 99} onClick={() => onChange(value + 1)}><Plus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
       </div>
     </div>
   );
@@ -93,6 +93,7 @@ function NewBookingScreen() {
   const [endTime, setEndTime] = useState("");
   const [adultCount, setAdultCount] = useState(0);
   const [childCount, setChildCount] = useState(1);
+  const [specialChildCount, setSpecialChildCount] = useState(0);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
 
   const client = useClient(clientId);
@@ -108,13 +109,15 @@ function NewBookingScreen() {
   const address = client.data?.addresses.find(candidate => candidate.id === addressId)
     ?? (client.data?.addresses.length === 1 ? client.data.addresses[0] : undefined);
   const haircuts = adultCount + childCount;
+  const specialProblem = specialChildrenProblem(childCount, specialChildCount);
   const total = branch ? invoiceTotal({ adultCount, childCount, adultUnitPrice: branch.adultPrice, childUnitPrice: branch.childPrice }) : null;
-  const ready = Boolean(client.data && address && !timingProblem && haircuts > 0 && barber);
+  const ready = Boolean(client.data && address && !timingProblem && haircuts > 0 && barber && !specialProblem);
+  const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
 
   const pickClient = (id: string | null) => { setClientId(id); setAddressId(null); };
   const submit = () => {
     if (!ready || !client.data || !address || !barber) return;
-    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime, endTime, adultCount, childCount }, {
+    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime, endTime, adultCount, childCount, specialChildCount }, {
       onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); router.push(`/bookings/${booking.id}`); },
       onError: error => { if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setEmployeeId(null); void eligibility.refetch(); } },
     });
@@ -171,11 +174,13 @@ function NewBookingScreen() {
             <p className={cn("mt-2 text-xs", timingProblem && date && startTime && endTime ? "text-destructive" : "text-muted-foreground")} role="status">
               {date && startTime && endTime ? timingProblem ?? `${formatDate(date)}، المدة ${formatDuration(windowMinutes(startTime, endTime))}` : "من 20 دقيقة إلى 4 ساعات بتوقيت الكويت، بغض النظر عن عدد الحلاقات."}
             </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Counter label="بالغون" value={adultCount} onChange={setAdultCount} />
-              <Counter label="أطفال" value={childCount} onChange={setChildCount} />
+              <Counter label="أطفال" value={childCount} onChange={setChildren} />
+              <Counter label="منهم ذوو احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
             </div>
             {haircuts === 0 ? <p className="mt-2 text-xs text-destructive">حلاقة واحدة على الأقل.</p> : null}
+            {specialProblem ? <p className="mt-2 text-xs text-destructive">{specialProblem}</p> : null}
           </Step>
 
           <Step number={4} title="الحلاق" done={Boolean(barber)}>

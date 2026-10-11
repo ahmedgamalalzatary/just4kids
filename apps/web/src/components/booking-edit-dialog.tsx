@@ -14,20 +14,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { useBranches, useClient, useEditBooking, useEmployees } from "@/lib/api/hooks";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
-import { editedPricing, reconciliationFor, windowProblem } from "@/lib/booking";
+import { editedPricing, reconciliationFor, specialChildrenProblem, windowProblem } from "@/lib/booking";
 import { kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 
 const KEEP_ADDRESS = "keep";
 
-function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function Stepper({ label, value, onChange, max = 99 }: { label: string; value: number; onChange: (value: number) => void; max?: number }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5">
       <span className="text-sm">{label}</span>
       <div className="flex items-center gap-1" role="group" aria-label={label}>
         <Button type="button" variant="ghost" size="icon-sm" aria-label={`إنقاص ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
         <output className="w-7 text-center font-semibold" data-numeric>{value}</output>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= 99} onClick={() => onChange(value + 1)}><Plus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
       </div>
     </div>
   );
@@ -45,6 +45,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const [endTime, setEndTime] = useState(booking.endTime);
   const [adultCount, setAdultCount] = useState(booking.adultCount);
   const [childCount, setChildCount] = useState(booking.childCount);
+  const [specialChildCount, setSpecialChildCount] = useState(booking.specialChildCount);
   const [reason, setReason] = useState("");
   const [cashReason, setCashReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -54,7 +55,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
 
   const selectedEmployee = employees.data.find(employee => employee.id === employeeId);
   const timingChanged = date !== booking.date || startTime !== booking.startTime || endTime !== booking.endTime;
-  const countsChanged = adultCount !== booking.adultCount || childCount !== booking.childCount;
+  const countsChanged = adultCount !== booking.adultCount || childCount !== booking.childCount || specialChildCount !== booking.specialChildCount;
+  const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const barberChanged = employeeId !== booking.employeeId;
   const addressChanged = addressId !== KEEP_ADDRESS;
   const changed = timingChanged || countsChanged || barberChanged || addressChanged;
@@ -67,6 +69,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
     if (!changed) { setProblem("لم تغيّر شيئاً بعد"); return; }
     if (timingChanged) { const issue = windowProblem({ date, startTime, endTime }); if (issue) { setProblem(issue); return; } }
     if (adultCount + childCount === 0) { setProblem("حلاقة واحدة على الأقل"); return; }
+    const specialProblem = specialChildrenProblem(childCount, specialChildCount);
+    if (specialProblem) { setProblem(specialProblem); return; }
     if (reconciliation && !cashReason.trim()) { setProblem("اكتب سبب فرق النقد"); return; }
     setProblem(null);
     const input: BookingEdit & { id: string } = {
@@ -76,7 +80,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
       ...(addressChanged ? { addressId } : {}),
       ...(barberChanged ? { employeeId } : {}),
       ...(timingChanged ? { date, startTime, endTime } : {}),
-      ...(countsChanged ? { adultCount, childCount } : {}),
+      ...(countsChanged ? { adultCount, childCount, specialChildCount } : {}),
       ...(reconciliation ? { reconciliation: { ...reconciliation, reason: cashReason.trim() } } : {}),
     };
     edit.mutate(input, { onSuccess: () => { toast.success("تم تعديل الحجز"); onDone(); } });
@@ -109,9 +113,10 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           <Field label="من"><Input type="time" dir="ltr" value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
           <Field label="إلى"><Input type="time" dir="ltr" value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Stepper label="بالغون" value={adultCount} onChange={setAdultCount} />
-          <Stepper label="أطفال" value={childCount} onChange={setChildCount} />
+          <Stepper label="أطفال" value={childCount} onChange={setChildren} />
+          <Stepper label="منهم ذوو احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
         </div>
         <div className="rounded-md bg-muted px-4 py-3 text-sm">
           {pricing ? (

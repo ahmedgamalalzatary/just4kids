@@ -96,7 +96,7 @@ export function createReportService(repository: ReportRepository) {
           return {
             id: invoice.id, bookingId: booking.id, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD",
             status: invoice.status, paymentStatus: invoice.paymentStatus,
-            adultCount: booking.adultCount, childCount: booking.childCount, adultUnitPrice: invoice.adultUnitPrice, childUnitPrice: invoice.childUnitPrice,
+            adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, adultUnitPrice: invoice.adultUnitPrice, childUnitPrice: invoice.childUnitPrice,
             adultAmount: invoice.adultAmount, childAmount: invoice.childAmount, total: invoice.total,
             date: booking.date, startTime: booking.startTime, endTime: booking.endTime, visitStatus: booking.visitStatus, source: booking.source,
             editCount: row.editCount, correctionCount: row.correctionCount,

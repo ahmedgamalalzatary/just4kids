@@ -191,12 +191,12 @@ export function ReportScope() {
   );
 }
 
-/** Adult plus child haircuts with the split underneath. */
-export function Quantity({ value }: { value: { adult: number; child: number } }) {
+/** Adult plus child haircuts with the split underneath, including the special-needs subset of children. */
+export function Quantity({ value }: { value: { adult: number; child: number; special: number } }) {
   return (
     <span className="inline-flex flex-col">
       <span className="font-medium" data-numeric>{value.adult + value.child}</span>
-      <span className="text-xs text-muted-foreground" data-numeric>{value.adult} بالغ، {value.child} طفل</span>
+      <span className="text-xs text-muted-foreground" data-numeric>{value.adult} بالغ، {value.child} طفل، {value.special} احتياج خاص</span>
     </span>
   );
 }

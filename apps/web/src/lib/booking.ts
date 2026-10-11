@@ -32,6 +32,12 @@ export function editedPricing(booking: PricedBooking, next: { adultCount: number
   return { adultUnitPrice, childUnitPrice, total: invoiceTotal({ adultCount: next.adultCount, childCount: next.childCount, adultUnitPrice, childUnitPrice }) };
 }
 
+/** Arabic description of why a special-needs child count is invalid, or null. Special children are a subset of children. */
+export function specialChildrenProblem(childCount: number, specialChildCount: number): string | null {
+  if (specialChildCount < 0 || specialChildCount > childCount) return "عدد الأطفال ذوي الاحتياجات الخاصة لا يزيد عن عدد الأطفال";
+  return null;
+}
+
 /** The exact cash movement required when a paid total changes. */
 export function reconciliationFor(previousTotal: string, nextTotal: string): { action: "extra_cash" | "refund"; amount: string } | null {
   const difference = toFils(nextTotal) - toFils(previousTotal);

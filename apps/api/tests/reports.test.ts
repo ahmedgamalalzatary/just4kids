@@ -41,7 +41,7 @@ async function signIn(phone: string, password: string): Promise<Session> {
 function report(kind: "reservations" | "haircuts", query: Record<string, string>, session = admin) {
   return request(app).get(`/reports/${kind}`).query(query).set("Cookie", session.cookie);
 }
-const pair = (adult: number, child: number) => ({ adult, child });
+const pair = (adult: number, child: number) => ({ adult, child, special: 0 });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();

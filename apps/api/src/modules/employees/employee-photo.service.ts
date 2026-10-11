@@ -37,8 +37,12 @@ export function createEmployeePhotoService(options: { uploadsDir: string; reposi
       let format: string | undefined;
       try { format = (await sharp(body, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()).format; } catch { throw unsupported(); }
       if (!format || !allowedFormats.has(format)) throw unsupported();
-      const encoded = await sharp(body, { limitInputPixels: MAX_INPUT_PIXELS }).rotate()
-        .resize(PHOTO_EDGE, PHOTO_EDGE, { fit: "cover", position: "centre" }).jpeg({ quality: 82 }).toBuffer();
+      let encoded: Buffer;
+      // metadata() reads only the header, so a body that overruns the pixel cap or is truncated fails here instead.
+      try {
+        encoded = await sharp(body, { limitInputPixels: MAX_INPUT_PIXELS }).rotate()
+          .resize(PHOTO_EDGE, PHOTO_EDGE, { fit: "cover", position: "centre" }).jpeg({ quality: 82 }).toBuffer();
+      } catch { throw unsupported(); }
       await mkdir(photosDir, { recursive: true });
       const path = photoPath(id);
       const temporary = `${path}.${randomUUID()}.tmp`;

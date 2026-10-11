@@ -46,6 +46,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - A saved service address requires area/neighborhood, block, street, and at least one of house number or building name. Clients may have multiple saved addresses. Floor, apartment, instructions, Google Maps link, and WhatsApp pin coordinates are optional.
 - Accept a WhatsApp location or Google Maps link alongside visit details.
 - Reservations record adult/child counts. Separate child names, ages, and saved child profiles are not required.
+- Confirmed 2026-10-11: a reservation also records a special-needs child count, an integer `0 ≤ special ≤ childCount`. These are a subset of the children and are priced as children (no pricing change). The count appears on the booking form, edit dialog, booking detail, invoice, and reports (shown beside the child counts).
 - Preserve the reservation's address and historical branch/pricing details when current client/employee information changes.
 
 ## Reservation rules
@@ -147,7 +148,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, and branch reports (phases 9–10) are implemented. The Arabic web dashboard for phases 1–10 is implemented, including reservation, haircut, barber, and branch reports; its end-to-end journey verification, client/invoice reports, WhatsApp integration, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, branch, client, and invoice/cash reports (phases 9–11) are implemented. The Arabic web dashboard for phases 1–11 is implemented, including those reports and barber photos; its end-to-end journey verification, WhatsApp integration, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 

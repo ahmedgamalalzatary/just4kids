@@ -42,7 +42,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         if (invoice.paymentStatus !== "paid" && input.reconciliation) throw new HttpError(409, "RECONCILIATION_NOT_ALLOWED", "تسوية النقد تتطلب فاتورة مدفوعة");
         const merged = bookingCreateSchema.parse({ clientId: booking.clientId, addressId: input.addressId ?? booking.addressId, employeeId: targetId,
           date: input.date ?? booking.date, startTime: input.startTime ?? booking.startTime, endTime: input.endTime ?? booking.endTime,
-          adultCount: input.adultCount ?? booking.adultCount, childCount: input.childCount ?? booking.childCount });
+          adultCount: input.adultCount ?? booking.adultCount, childCount: input.childCount ?? booking.childCount, specialChildCount: input.specialChildCount ?? booking.specialChildCount });
         assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;

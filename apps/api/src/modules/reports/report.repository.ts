@@ -15,17 +15,17 @@ const quantity = (statuses: string[] | undefined, column: AnyColumn) => statuses
   : total(sql`${column}`);
 const measures = {
   bookings: count(),
-  reservedAdult: quantity(undefined, bookings.adultCount), reservedChild: quantity(undefined, bookings.childCount),
-  completedAdult: quantity(["completed"], bookings.adultCount), completedChild: quantity(["completed"], bookings.childCount),
-  openAdult: quantity(["booked", "arrived"], bookings.adultCount), openChild: quantity(["booked", "arrived"], bookings.childCount),
-  cancelledAdult: quantity(["cancelled"], bookings.adultCount), cancelledChild: quantity(["cancelled"], bookings.childCount),
-  noShowAdult: quantity(["no_show"], bookings.adultCount), noShowChild: quantity(["no_show"], bookings.childCount),
+  reservedAdult: quantity(undefined, bookings.adultCount), reservedChild: quantity(undefined, bookings.childCount), reservedSpecial: quantity(undefined, bookings.specialChildCount),
+  completedAdult: quantity(["completed"], bookings.adultCount), completedChild: quantity(["completed"], bookings.childCount), completedSpecial: quantity(["completed"], bookings.specialChildCount),
+  openAdult: quantity(["booked", "arrived"], bookings.adultCount), openChild: quantity(["booked", "arrived"], bookings.childCount), openSpecial: quantity(["booked", "arrived"], bookings.specialChildCount),
+  cancelledAdult: quantity(["cancelled"], bookings.adultCount), cancelledChild: quantity(["cancelled"], bookings.childCount), cancelledSpecial: quantity(["cancelled"], bookings.specialChildCount),
+  noShowAdult: quantity(["no_show"], bookings.adultCount), noShowChild: quantity(["no_show"], bookings.childCount), noShowSpecial: quantity(["no_show"], bookings.specialChildCount),
 };
 type MeasureRow = { [Key in keyof typeof measures]: number };
 function shapeMeasures(row: MeasureRow) {
   return {
-    bookings: row.bookings, reserved: { adult: row.reservedAdult, child: row.reservedChild }, completed: { adult: row.completedAdult, child: row.completedChild },
-    open: { adult: row.openAdult, child: row.openChild }, cancelled: { adult: row.cancelledAdult, child: row.cancelledChild }, noShow: { adult: row.noShowAdult, child: row.noShowChild },
+    bookings: row.bookings, reserved: { adult: row.reservedAdult, child: row.reservedChild, special: row.reservedSpecial }, completed: { adult: row.completedAdult, child: row.completedChild, special: row.completedSpecial },
+    open: { adult: row.openAdult, child: row.openChild, special: row.openSpecial }, cancelled: { adult: row.cancelledAdult, child: row.cancelledChild, special: row.cancelledSpecial }, noShow: { adult: row.noShowAdult, child: row.noShowChild, special: row.noShowSpecial },
   };
 }
 

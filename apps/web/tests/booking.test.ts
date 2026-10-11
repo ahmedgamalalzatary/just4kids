@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedPricing, reconciliationFor, windowProblem } from "@/lib/booking";
+import { editedPricing, reconciliationFor, specialChildrenProblem, windowProblem } from "@/lib/booking";
 
 const now = new Date("2026-10-10T07:00:00.000Z"); // 10:00 in Kuwait
 
@@ -15,6 +15,15 @@ describe("booking window", () => {
     expect(windowProblem({ date: "2026-10-11", startTime: "10:00", endTime: "10:19" }, now)).toBe("أقل مدة للموعد 20 دقيقة");
     expect(windowProblem({ date: "2026-10-11", startTime: "08:00", endTime: "12:01" }, now)).toBe("أطول مدة للموعد 4 ساعات");
     expect(windowProblem({ date: "2026-10-10", startTime: "10:00", endTime: "11:00" }, now)).toBe("يجب أن يبدأ الموعد بعد الوقت الحالي بتوقيت الكويت");
+  });
+});
+
+describe("special-needs child count", () => {
+  it("allows zero up to the child count and explains the bound", () => {
+    expect(specialChildrenProblem(3, 2)).toBeNull();
+    expect(specialChildrenProblem(0, 0)).toBeNull();
+    expect(specialChildrenProblem(1, 0)).toBeNull();
+    expect(specialChildrenProblem(1, 2)).toBe("عدد الأطفال ذوي الاحتياجات الخاصة لا يزيد عن عدد الأطفال");
   });
 });
 

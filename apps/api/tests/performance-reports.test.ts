@@ -34,7 +34,7 @@ const fixtures: Fixture[] = [
 const ids: string[] = fixtures.map(() => randomUUID());
 const prices = { [branchOne]: { adult: 5, child: 3 }, [branchTwo]: { adult: 6, child: 4 } } as Record<string, { adult: number; child: number }>;
 const money = (count: number, total: string) => ({ count, total });
-const quantities = (adult: number, child: number) => ({ adult, child });
+const quantities = (adult: number, child: number) => ({ adult, child, special: 0 });
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });

@@ -30,7 +30,7 @@ Same as the backend tracker: each phase is a vertical slice (contracts, migratio
 | Phase | Area | Backend | Web |
 | --- | --- | --- | --- |
 | P1 | Barber photo | Yes | Yes |
-| P2 | Special-needs children | No | No |
+| P2 | Special-needs children | Yes | Yes |
 | P3 | Client active/stopped | No | No |
 | P4 | Payment method (cash / link / KNET) | No | No |
 | P5 | Salon daily work and reports | No | No |
@@ -50,10 +50,12 @@ Production hardening (2026-10-11, from review): `docker.api` pre-creates `/app/u
 
 ## P2 — Special-needs children
 
-- [ ] `specialChildCount` on bookings: integer, `0 ≤ special ≤ childCount`; included in create, edit, revisions, snapshots, and history.
-- [ ] No price change: special children are priced as children.
-- [ ] Reports show special-needs counts next to child counts (haircuts, barbers, branches, bookings).
-- [ ] Booking form, edit dialog, detail, and invoice show the count.
+- [x] `specialChildCount` on bookings: integer, `0 ≤ special ≤ childCount`; included in create, edit, revisions, snapshots, and history.
+- [x] No price change: special children are priced as children.
+- [x] Reports show special-needs counts next to child counts (haircuts, barbers, branches, bookings).
+- [x] Booking form, edit dialog, detail, and invoice show the count.
+
+Evidence (2026-10-11): `specialChildCount` is a booking integer that defaults to 0 and is validated `0 ≤ special ≤ childCount` in `bookingCreateSchema` (used for create and the merged edit) plus a database check. `bookingResponseSchema`/`invoiceResponseSchema` carry it, so create, edits, revisions, history, and snapshots include it; special children are priced as children (no pricing change). Reports gained a `special` quantity beside `adult`/`child` in `shapeMeasures` (haircuts and the barber/branch/client `work` measures) and in each invoice-report entry. Web adds a bounded special-needs counter to the booking form and edit dialog (with an Arabic bound message), and shows the count on the booking detail and invoice plus the report quantity split. Migration `0009_cynical_abomination.sql` adds `bookings.special_child_count DEFAULT 0 NOT NULL` and the extended counts check; applied to test and development MySQL. Tests: `apps/api/tests/booking-special-children.test.ts` (4), contracts `bookings.test.ts` (2 new), `apps/web/tests/booking.test.ts` (count helper). `pnpm check` green: lint, typecheck, 43 files/290 tests, build. Not yet browser-verified with real records.
 
 ## P3 — Client active/stopped
 
