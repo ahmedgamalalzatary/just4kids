@@ -53,7 +53,7 @@ Vitest always loads the root `.env.test`, overriding inherited development conne
 
 ## Database
 
-Set `DATABASE_URL` in the root `.env` for the existing MySQL instance on port 3306. Docker uses `DOCKER_DATABASE_URL`, pointing to the host through `host.docker.internal`. URL-encode special characters in credentials.
+Set `DATABASE_URL` in the root `.env` for the existing MySQL instance on port 3306. Docker uses `DOCKER_DATABASE_URL`, pointing to the Compose `db` service. URL-encode special characters in credentials.
 
 Development database: `just4kids`. Test database: `just4kids_test`, selected by `.env.test`. These databases are separate from the database belonging to the project the credentials were copied from.
 
@@ -120,6 +120,6 @@ pnpm docker:up
 pnpm docker:down
 ```
 
-Compose runs web and API and uses your existing host MySQL; it does not create another MySQL container. Following the VPS port convention (web `30x0`, API `40x0`), web is published on `127.0.0.1:3030` for a host reverse proxy and the API on `127.0.0.1:4030` for host-only checks; set `WEB_BIND_ADDRESS`/`WEB_PORT` or `API_BIND_ADDRESS`/`API_PORT` if needed. The host MySQL listener and account must allow connections from containers. Compose requires `API_ENV_FILE` to name the API's production environment file. Set `API_ENV_FILE=.env.production` and `DOCKER_DATABASE_URL` in that file, then run `pnpm docker:up` after migrating the database. The `docker:*` scripts pass `.env.production` to Compose so it can interpolate `DOCKER_DATABASE_URL`; the API container also receives the selected file through `env_file`. Docker packaging has not been verified on this computer.
+Compose runs its own MySQL 8 container (`db`, data in the `db-data` volume), a one-off `migrate` service that applies Drizzle migrations on every `up`, then the API and web. Following the VPS port convention (web `30x0`, API `40x0`), web is published on `127.0.0.1:3030` for a host reverse proxy and the API on `127.0.0.1:4030` for host-only checks; set `WEB_BIND_ADDRESS`/`WEB_PORT` or `API_BIND_ADDRESS`/`API_PORT` if needed. MySQL is not published to the host. On the server, `scripts/deploy.sh +965XXXXXXXX` creates `.env.production` with random secrets on the first run (and prints the administrator password once), then builds and starts everything; later runs keep the existing file. Compose needs `DB_PASSWORD`, `DB_ROOT_PASSWORD`, `DOCKER_DATABASE_URL`, and `API_ENV_FILE=.env.production` from that file; the `docker:*` scripts pass it with `--env-file`.
 
 The internal API address is a web build argument, so rebuild web when changing it. Docker is required for image builds and Compose execution.
