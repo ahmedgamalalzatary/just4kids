@@ -3,6 +3,7 @@ name: just4kids
 services:
   db:
     image: mysql:8.0
+    mem_limit: 768m
     environment:
       MYSQL_DATABASE: just4kids
       MYSQL_USER: just4kids
@@ -23,6 +24,7 @@ services:
       context: .
       dockerfile: docker.api
       target: builder
+    mem_limit: 512m
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL in the production env file}
     command: ['pnpm', 'db:migrate']
@@ -35,6 +37,7 @@ services:
     build:
       context: .
       dockerfile: docker.api
+    mem_limit: 384m
     env_file: ${API_ENV_FILE:?Set API_ENV_FILE to a production env file such as .env.production}
     environment:
       NODE_ENV: production
@@ -63,6 +66,7 @@ services:
       dockerfile: docker.web
       args:
         API_INTERNAL_URL: http://api:4000
+    mem_limit: 384m
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0

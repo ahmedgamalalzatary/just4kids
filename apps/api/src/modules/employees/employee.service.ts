@@ -1,6 +1,4 @@
-import { z } from "zod";
 import { employeeAdminUpdateSchema, employeeCreateSchema, employeePasswordResetSchema, employeeResponseSchema, employeeSelfUpdateSchema } from "@just4kids/contracts";
-import type { ApiEnv } from "../../configs/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import { hashPassword } from "../../lib/password.js";
 import type { EmployeeRepository } from "./employee.repository.js";
@@ -29,17 +27,13 @@ function rethrowDatabaseConflict(error: unknown): never {
   throw error;
 }
 
-export function createEmployeeService(repository: EmployeeRepository, env: ApiEnv) {
-  function checkPassword(password: string) {
-    if (env.NODE_ENV === "production") z.string().min(12).parse(password);
-  }
+export function createEmployeeService(repository: EmployeeRepository) {
   return {
     async list() { return (await repository.list()).map(serialize); },
     async get(id: string) { const row = await repository.get(id); return row ? serialize(row) : undefined; },
 
     async create(body: unknown) {
       const input = employeeCreateSchema.parse(body);
-      checkPassword(input.password);
       if (!await repository.branchExists(input.branchId)) throw new HttpError(404, "BRANCH_NOT_FOUND", "الفرع غير موجود");
       try {
         const row = await repository.create({ displayName: input.displayName, phone: input.phone, branchId: input.branchId, passwordHash: await hashPassword(input.password) });
@@ -63,7 +57,6 @@ export function createEmployeeService(repository: EmployeeRepository, env: ApiEn
 
     async resetPassword(id: string, body: unknown): Promise<boolean> {
       const input = employeePasswordResetSchema.parse(body);
-      checkPassword(input.password);
       return repository.resetPassword(id, await hashPassword(input.password));
     },
   };

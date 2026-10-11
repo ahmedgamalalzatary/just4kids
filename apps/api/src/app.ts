@@ -24,7 +24,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     app.use(options.auth.guardOrigin);
     app.use("/auth", options.auth.router);
     if (options.connection) app.use("/branches", createBranches(options.connection, options.auth));
-    if (options.connection && options.env) app.use("/employees", createEmployees(options.connection, options.auth, options.env));
+    if (options.connection && options.env) app.use("/employees", createEmployees(options.connection, options.auth));
     if (options.connection) app.use("/clients", createClients(options.connection, options.auth));
     if (options.connection) app.use("/bookings", createBookings(options.connection, options.auth));
     if (options.connection) app.use("/reports", createReports(options.connection, options.auth));
