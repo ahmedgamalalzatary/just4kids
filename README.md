@@ -30,7 +30,7 @@ Set `ADMIN_PHONE` in international format (`+965` followed by eight digits for a
 
 The browser login flow uses same-origin `/api/auth/csrf` (receive a CSRF token and an HttpOnly pre-login cookie), then `POST /api/auth/login` with `{ "phone": "+96555551234", "password": "..." }` and the token in `X-CSRF-Token`. On success the server sets an HttpOnly, SameSite=Strict session cookie lasting seven days. `GET /api/auth/session` returns the permitted account and a fresh CSRF token; `POST /api/auth/logout` requires that token and revokes the session. The backend returns no bearer token, and the frontend should keep the CSRF token in memory rather than localStorage. The web app implements this flow and keeps the CSRF token in its in-memory query cache.
 
-For production, set `NODE_ENV=production`, use a root `.env.production` based on `.env.production.example`, and run `pnpm build` then `pnpm start`. The API reads `.env.production` in production unless `ENV_FILE` selects another root environment filename. The example binds a directly run API to `127.0.0.1`; Docker Compose overrides `HOST` to `0.0.0.0` inside the private container network. Configure HTTPS `APP_ORIGIN`, a unique administrator password of at least 12 characters, and a random `AUTH_SECRET`. VPS deployment is a later step.
+For production, set `NODE_ENV=production`, use a root `.env.production` based on `.env.production.example`, and run `pnpm build` then `pnpm start`. The API reads `.env.production` in production unless `ENV_FILE` selects another root environment filename. The example binds a directly run API to `127.0.0.1`; Docker Compose overrides `HOST` to `0.0.0.0` inside the private container network. Configure HTTPS `APP_ORIGIN`, a unique administrator password (not the template value), and a random `AUTH_SECRET`. VPS deployment is a later step.
 
 ## Checks
 
@@ -113,7 +113,7 @@ Design system:
 
 ## Docker
 
-`docker.web` builds the Next.js standalone server; `docker.api` builds and packages the Express API with production dependencies. Both run as non-root users. `.dockerignore` excludes secrets and local build/dependency artifacts.
+`docker.web` builds the Next.js standalone server; `docker.api` builds and packages the Express API with production dependencies. Each image copies only its own app and the packages it uses, installs from manifests first, and keeps the pnpm store (and the Next.js build cache) in BuildKit cache mounts, so an API-only change does not rebuild web, a web-only change does not rebuild the API, and docs/tests edits rebuild nothing. A lockfile change reinstalls dependencies for both. Both run as non-root users. `.dockerignore` excludes secrets and local build/dependency artifacts.
 
 ```sh
 pnpm docker:up

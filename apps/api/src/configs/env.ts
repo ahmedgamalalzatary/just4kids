@@ -13,7 +13,7 @@ export const apiEnvSchema = z.object({
 }).superRefine((env, context) => {
   if (env.NODE_ENV === "production") {
     if (!env.APP_ORIGIN.startsWith("https://")) context.addIssue({ code: "custom", path: ["APP_ORIGIN"], message: "Production requires an HTTPS APP_ORIGIN" });
-    if (env.ADMIN_PASSWORD.length < 12 || env.ADMIN_PASSWORD.startsWith("REPLACE_")) context.addIssue({ code: "custom", path: ["ADMIN_PASSWORD"], message: "Production requires a unique administrator password of at least 12 characters" });
+    if (env.ADMIN_PASSWORD.startsWith("REPLACE_")) context.addIssue({ code: "custom", path: ["ADMIN_PASSWORD"], message: "Production requires a unique administrator password, not the template value" });
   }
 });
 

@@ -1,18 +1,27 @@
-FROM node:24-bookworm-slim AS builder
-WORKDIR /repo
-RUN npm install --global pnpm@12.4.1
+# syntax=docker/dockerfile:1
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/api/package.json ./apps/api/package.json
-COPY apps/web/package.json ./apps/web/package.json
-COPY packages/config/package.json ./packages/config/package.json
-COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY packages/db/package.json ./packages/db/package.json
-RUN pnpm install --frozen-lockfile
-COPY . .
+FROM node:24-bookworm-slim AS base
+RUN npm install --global pnpm@12.4.1
+WORKDIR /repo
+
+# Dependencies: only manifests, so source edits keep this layer cached.
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+RUN --mount=type=cache,id=just4kids-pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir=/pnpm/store --filter=@just4kids/web...
+
+# Build: only the web app and the packages it uses, so API edits never rebuild it.
+FROM deps AS builder
+COPY packages/config/ packages/config/
+COPY packages/contracts/ packages/contracts/
+COPY apps/web/ apps/web/
 ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL NEXT_OUTPUT_STANDALONE=true NEXT_TELEMETRY_DISABLED=1
-RUN pnpm exec turbo run build --filter=@just4kids/web
+RUN --mount=type=cache,id=just4kids-next,target=/repo/apps/web/.next/cache \
+    pnpm --filter "@just4kids/web..." run build
 
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app

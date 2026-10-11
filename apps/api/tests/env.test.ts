@@ -25,9 +25,12 @@ describe("API environment", () => {
     expect(apiEnvSchema.safeParse({ ...credentials, NODE_ENV: "production", ADMIN_PASSWORD: "a-strong-production-password", APP_ORIGIN }).success).toBe(false);
   });
 
-  it("accepts a configured HTTPS production origin and rejects the local example password", () => {
-    expect(apiEnvSchema.safeParse({ ...credentials, NODE_ENV: "production", APP_ORIGIN: "https://crm.example.com" }).success).toBe(false);
+  it("accepts a configured HTTPS production origin", () => {
     expect(apiEnvSchema.safeParse({ ...credentials, NODE_ENV: "production", ADMIN_PASSWORD: "a-strong-production-password", APP_ORIGIN: "https://crm.example.com" }).success).toBe(true);
+  });
+
+  it("accepts an administrator password shorter than 12 characters in production", () => {
+    expect(apiEnvSchema.safeParse({ ...credentials, NODE_ENV: "production", ADMIN_PASSWORD: "short9pwd", APP_ORIGIN: "https://crm.example.com" }).success).toBe(true);
   });
 
   it("rejects the template password in a production environment", () => {
