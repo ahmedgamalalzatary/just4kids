@@ -72,7 +72,9 @@ function revisionChanges(revision: BookingRevision): string[] {
   }
   if (before.employee.id !== after.employee.id) changes.push(`الحلاق: من ${before.employee.displayName} (${before.employee.branchName}) إلى ${after.employee.displayName} (${after.employee.branchName})`);
   if (formatAddress(before.address) !== formatAddress(after.address) || before.address.instructions !== after.address.instructions) changes.push(`العنوان: ${formatAddress(after.address)}`);
-  if (before.adultCount !== after.adultCount || before.childCount !== after.childCount) changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل إلى ${after.adultCount} بالغ و${after.childCount} طفل`);
+  if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
+    changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل (${before.specialChildCount} احتياج خاص) إلى ${after.adultCount} بالغ و${after.childCount} طفل (${after.specialChildCount} احتياج خاص)`);
+  }
   if (before.invoice.total !== after.invoice.total) changes.push(`الإجمالي: من ${formatKwd(before.invoice.total)} إلى ${formatKwd(after.invoice.total)}`);
   return changes;
 }

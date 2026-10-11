@@ -15,16 +15,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBranches, useCreateSalonEntry, useSalonReport, useUpdateSalonEntry } from "@/lib/api/hooks";
 import type { SalonEntry } from "@/lib/api/types";
-import { formatDate } from "@/lib/kuwait-time";
+import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { salonTotal } from "@/lib/salon";
 import { cn } from "@/lib/utils";
 
 const amountPattern = /^(0|[1-9][0-9]*)\.\d{3}$/;
-function localDate() { return new Date().toLocaleDateString("en-CA"); }
 
 type Form = { branchId: string; date: string; childCount: string; cash: string; link: string; knet: string };
-const blank = (): Form => ({ branchId: "", date: localDate(), childCount: "0", cash: "0.000", link: "0.000", knet: "0.000" });
+const blank = (): Form => ({ branchId: "", date: kuwaitNow().date, childCount: "0", cash: "0.000", link: "0.000", knet: "0.000" });
 
 /** Creates or edits one branch's daily salon entry. The total is computed from the three methods. */
 function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpenChange: (open: boolean) => void }) {
@@ -44,8 +43,16 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
     if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("أدخل المبالغ بثلاث خانات عشرية، مثل 5.000"); return; }
     setProblem(null);
     const done = { onSuccess: () => { toast.success(entry ? "تم حفظ الإدخال" : "تمت إضافة الإدخال"); close(false); } };
-    if (entry) update.mutate({ id: entry.id, date: form.date, childCount, cash: form.cash, link: form.link, knet: form.knet }, done);
-    else create.mutate({ branchId: form.branchId, date: form.date, childCount, cash: form.cash, link: form.link, knet: form.knet }, done);
+    if (!entry) { create.mutate({ branchId: form.branchId, date: form.date, childCount, cash: form.cash, link: form.link, knet: form.knet }, done); return; }
+    // Send only changed fields with the loaded version so a concurrent edit is rejected rather than overwritten.
+    const patch: { date?: string; childCount?: number; cash?: string; link?: string; knet?: string } = {};
+    if (form.date !== entry.date) patch.date = form.date;
+    if (childCount !== entry.childCount) patch.childCount = childCount;
+    if (form.cash !== entry.cash) patch.cash = form.cash;
+    if (form.link !== entry.link) patch.link = form.link;
+    if (form.knet !== entry.knet) patch.knet = form.knet;
+    if (Object.keys(patch).length === 0) { close(false); return; }
+    update.mutate({ id: entry.id, expectedVersion: entry.version, ...patch }, done);
   };
   return (
     <Dialog open onOpenChange={close}>
@@ -74,7 +81,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
             <Field label="رابط الدفع (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
             <Field label="كي نت (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
           </div>
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">الإجمالي: <Ltr>{formatKwd(salonTotal(form.cash, form.link, form.knet))}</Ltr></div>
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">الإجمالي: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(salonTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>

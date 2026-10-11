@@ -5,9 +5,13 @@
 # Persistent data lives in two Docker named volumes and must both be backed up:
 #   - db-data      MySQL data (accounts, branches, bookings, invoices, reports)
 #   - uploads-data Barber photos, served by the API at /employees/:id/photo
-# Back both up to the VPS before any restore or host migration, for example:
+# Back both up to the VPS before any restore or host migration. Stop the stack first so MySQL is not
+# writing while its data directory is archived; a live tar of db-data can restore inconsistently.
+#   docker compose --env-file .env.production stop
 #   docker run --rm -v just4kids_db-data:/data -v "$PWD:/backup" alpine tar czf /backup/db-data.tgz -C /data .
 #   docker run --rm -v just4kids_uploads-data:/data -v "$PWD:/backup" alpine tar czf /backup/uploads-data.tgz -C /data .
+#   docker compose --env-file .env.production start
+# (Alternatively take a logical dump: docker compose exec db mysqldump -u root -p"$DB_ROOT_PASSWORD" just4kids > backup.sql.)
 # Restore with the same commands in reverse (extract into the volume) while the stack is stopped.
 set -euo pipefail
 cd "$(dirname "$0")/.."

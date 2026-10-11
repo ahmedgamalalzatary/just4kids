@@ -92,6 +92,10 @@ describe("salon daily work", () => {
     expect((await createEntry({ branchId: randomUUID(), date: "2099-07-01" })).status).toBe(404);
     expect((await createEntry({ branchId, date: "2099-07-09", cash: "-1.000" })).status).toBe(400);
     expect((await createEntry({ branchId, date: "2099-07-09", total: "1.000" })).status).toBe(400);
+    // Individually valid amounts whose sum overflows the DECIMAL(24,3) total are refused.
+    const overflowing = await createEntry({ branchId, date: "2099-07-09", cash: "999999999999999999999.999", link: "999999999999999999999.999", knet: "999999999999999999999.999" });
+    expect(overflowing.status).toBe(400);
+    expect(overflowing.body.error.code).toBe("SALON_TOTAL_TOO_LARGE");
     const second = await createEntry({ branchId, date: "2099-07-02", knet: "3.000" });
     expect(second.status).toBe(201);
     expect(second.body).toMatchObject({ childCount: 0, cash: "0.000", link: "0.000", knet: "3.000", total: "3.000" });
@@ -106,19 +110,22 @@ describe("salon daily work", () => {
     expect((await list({ from: "2099-07-03", to: "2099-07-04" })).body.entries).toEqual([]);
     expect((await list({ from: crudRange.to, to: crudRange.from })).status).toBe(400);
   });
-  it("edits an entry, recomputes the total, and keeps create/update history", async () => {
+  it("edits an entry, recomputes the total, and keeps versioned create/update history", async () => {
     const entry = (await list({ from: "2099-07-02", to: "2099-07-02" })).body.entries[0];
-    const updated = await write("patch", `/salon/${entry.id}`, { childCount: 2, cash: "4.000", knet: "0.000" });
+    expect(entry.version).toBe(0);
+    const updated = await write("patch", `/salon/${entry.id}`, { expectedVersion: entry.version, childCount: 2, cash: "4.000", knet: "0.000" });
     expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ childCount: 2, cash: "4.000", link: "0.000", knet: "0.000", total: "4.000" });
+    expect(updated.body).toMatchObject({ version: 1, childCount: 2, cash: "4.000", link: "0.000", knet: "0.000", total: "4.000" });
     const history = await request(app).get(`/salon/${entry.id}/history`).set("Cookie", admin.cookie);
     expect(history.status).toBe(200);
     expect(history.body.events).toHaveLength(2);
     expect(history.body.events[0].before).toBeNull();
     expect(history.body.events[0].after).toMatchObject({ childCount: 0, knet: "3.000", total: "3.000" });
     expect(history.body.events[1]).toMatchObject({ before: { childCount: 0, total: "3.000" }, after: { childCount: 2, total: "4.000" } });
-    expect((await write("patch", `/salon/${entry.id}`, { childCount: 2 })).status).toBe(409);
-    expect((await write("patch", `/salon/${randomUUID()}`, { childCount: 2 })).status).toBe(404);
+    // A stale version is refused, and a no-op edit at the current version is reported as unchanged.
+    expect((await write("patch", `/salon/${entry.id}`, { expectedVersion: 0, cash: "9.000" })).status).toBe(409);
+    expect((await write("patch", `/salon/${entry.id}`, { expectedVersion: 1, childCount: 2 })).status).toBe(409);
+    expect((await write("patch", `/salon/${randomUUID()}`, { expectedVersion: 0, childCount: 2 })).status).toBe(404);
     expect((await write("patch", `/salon/${entry.id}`, {})).status).toBe(400);
   });
 });

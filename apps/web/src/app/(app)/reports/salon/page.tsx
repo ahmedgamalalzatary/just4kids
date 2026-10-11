@@ -3,7 +3,7 @@
 import { Coins } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
-import { useReportFilters } from "@/components/reports";
+import { SalonScope, useReportFilters } from "@/components/reports";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSalonReport } from "@/lib/api/hooks";
@@ -19,6 +19,7 @@ function SalonReportScreen() {
   const { entries, totals } = report.data;
   return (
     <div className={cn("flex flex-col gap-6", report.isPlaceholderData && "opacity-60")}>
+      <SalonScope />
       <Card>
         <CardHeader>
           <div>

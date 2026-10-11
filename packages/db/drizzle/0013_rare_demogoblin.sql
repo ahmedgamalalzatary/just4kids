@@ -1,0 +1,1 @@
+ALTER TABLE `salon_entries` ADD `version` int DEFAULT 0 NOT NULL;

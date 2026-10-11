@@ -33,7 +33,7 @@ export function PaymentBadge({ paymentStatus, invoiceStatus, className }: { paym
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
       <span className={cn(chip, paymentStatus === "paid" ? "bg-status-completed-soft text-status-completed" : "border border-border text-muted-foreground")}>
-        {paymentStatus === "paid" ? "مدفوع نقداً" : "غير مدفوع"}
+        {paymentStatus === "paid" ? "مدفوع" : "غير مدفوع"}
       </span>
       {invoiceStatus === "cancelled" ? <span className={cn(chip, "bg-status-cancelled-soft text-status-cancelled line-through decoration-1")}>فاتورة ملغاة</span> : null}
     </span>

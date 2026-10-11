@@ -3,7 +3,7 @@
 import { ChartColumn } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
-import { useReportFilters } from "@/components/reports";
+import { SalonScope, useReportFilters } from "@/components/reports";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useComprehensiveReport } from "@/lib/api/hooks";
@@ -40,6 +40,7 @@ function ComprehensiveScreen() {
   const empty = barbers.length === 0 && totals.collected.count === 0;
   return (
     <div className={cn("flex flex-col gap-6", report.isPlaceholderData && "opacity-60")}>
+      <SalonScope />
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Summary label="إجمالي التحصيل (حلاقون + الصالون)" value={formatKwd(totals.collected.total)} />

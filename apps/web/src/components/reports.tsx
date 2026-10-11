@@ -166,11 +166,16 @@ export function ReportFilterBar() {
 
 /** From/to/branch filter for the administrator-only salon and comprehensive reports. */
 export function SalonFilterBar() {
+  const { filters, isAdmin, search } = useReportFilters();
+  // Rebuild the form whenever the address changes, matching ReportFilterBar.
+  return <SalonFilterForm key={search} from={filters.from} to={filters.to} branchId={filters.branchId} isAdmin={isAdmin} />;
+}
+
+function SalonFilterForm({ from, to, branchId, isAdmin }: { from: string; to: string; branchId: string; isAdmin: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { filters, isAdmin } = useReportFilters();
   const branches = useBranches(isAdmin);
-  const [draft, setDraft] = useState({ from: filters.from, to: filters.to, branchId: filters.branchId });
+  const [draft, setDraft] = useState({ from, to, branchId });
   const error = rangeError(draft.from, draft.to);
   const apply = (next: { from: string; to: string; branchId: string }) => router.replace(`${pathname}${reportSearch({ ...emptyReportFilters, ...next })}`, { scroll: false });
   const set = <Key extends keyof typeof draft>(key: Key) => (value: string) => setDraft(current => ({ ...current, [key]: value }));
@@ -191,6 +196,16 @@ export function SalonFilterBar() {
       </CardContent>
     </Card>
   );
+}
+
+/** Print-visible period and branch scope for the salon and comprehensive reports. */
+export function SalonScope() {
+  const { filters, isAdmin } = useReportFilters();
+  const branches = useBranches(isAdmin);
+  const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
+    : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
+  const branch = filters.branchId ? branches.data?.find(item => item.id === filters.branchId)?.name ?? "…" : "كل الفروع";
+  return <p className="text-sm text-muted-foreground">الفترة: {range} — الفرع: {branch} (بتوقيت الكويت).</p>;
 }
 
 /** The report name, date basis, and applied filters, shown on screen and on paper. */

@@ -35,14 +35,14 @@ const amount = z.string().regex(/^(0|[1-9][0-9]{0,20})\.[0-9]{3}$/);
 export const invoiceResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), reference: z.string().min(1).max(40), issuedAt: z.iso.datetime(), currency: z.literal("KWD"),
   status: z.enum(["issued", "cancelled"]), paymentStatus: z.enum(["unpaid", "paid"]),
-  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount, adultUnitPrice: kwdPriceSchema, childUnitPrice: kwdPriceSchema,
+  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), adultUnitPrice: kwdPriceSchema, childUnitPrice: kwdPriceSchema,
   adultAmount: amount, childAmount: amount, total: amount,
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema,
 });
 export const bookingResponseSchema = z.strictObject({
   id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
-  timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount,
+  timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0),
   source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceResponseSchema,
 });

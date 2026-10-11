@@ -17,19 +17,20 @@ export const salonEntryCreateSchema = z.strictObject({
   knet: cashAmountSchema.default("0.000"),
 });
 export const salonEntryUpdateSchema = z.strictObject({
+  expectedVersion: count,
   date: isoDate.optional(),
   childCount: count.optional(),
   cash: cashAmountSchema.optional(),
   link: cashAmountSchema.optional(),
   knet: cashAmountSchema.optional(),
-}).refine(value => Object.keys(value).length > 0);
+}).refine(value => Object.keys(value).some(key => key !== "expectedVersion"));
 
 export const salonEntrySnapshotSchema = z.strictObject({
   branchId: z.uuid(), date: isoDate, childCount: count,
   cash: cashAmountSchema, link: cashAmountSchema, knet: cashAmountSchema, total: cashAmountSchema,
 });
 export const salonEntryResponseSchema = salonEntrySnapshotSchema.extend({
-  id: z.uuid(), branchName: z.string().min(1).max(120), enteredBy: z.uuid(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
+  id: z.uuid(), version: count, branchName: z.string().min(1).max(120), enteredBy: z.uuid(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
 export const salonEntryEventSchema = z.strictObject({
   id: z.uuid(), entryId: z.uuid(), actorAccountId: z.uuid(), occurredAt: z.iso.datetime(),

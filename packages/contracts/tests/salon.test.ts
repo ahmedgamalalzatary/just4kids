@@ -4,7 +4,7 @@ import { comprehensiveReportResponseSchema, salonEntryCreateSchema, salonEntryEv
 const id = "11111111-1111-4111-8111-111111111111";
 const branchId = "22222222-2222-4222-8222-222222222222";
 const snapshot = { branchId, date: "2026-10-11", childCount: 3, cash: "5.000", link: "1.000", knet: "2.000", total: "8.000" };
-const entry = { id, branchName: "الفرع الرئيسي", enteredBy: id, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", ...snapshot };
+const entry = { id, version: 0, branchName: "الفرع الرئيسي", enteredBy: id, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", ...snapshot };
 const money = (count: number, total: string) => ({ count, total });
 
 describe("salon work contracts", () => {
@@ -16,15 +16,16 @@ describe("salon work contracts", () => {
       expect(salonEntryCreateSchema.safeParse(body).success).toBe(false);
     }
   });
-  it("edits a subset of an entry but rejects an empty change or a supplied total", () => {
-    expect(salonEntryUpdateSchema.safeParse({ childCount: 4 }).success).toBe(true);
-    expect(salonEntryUpdateSchema.safeParse({ cash: "1.000", knet: "2.000" }).success).toBe(true);
-    expect(salonEntryUpdateSchema.safeParse({}).success).toBe(false);
-    expect(salonEntryUpdateSchema.safeParse({ total: "1.000" }).success).toBe(false);
-    expect(salonEntryUpdateSchema.safeParse({ branchId }).success).toBe(false);
+  it("edits a subset of an entry with its version, rejecting an empty change or a supplied total", () => {
+    expect(salonEntryUpdateSchema.safeParse({ expectedVersion: 0, childCount: 4 }).success).toBe(true);
+    expect(salonEntryUpdateSchema.safeParse({ expectedVersion: 1, cash: "1.000", knet: "2.000" }).success).toBe(true);
+    expect(salonEntryUpdateSchema.safeParse({ childCount: 4 }).success).toBe(false);
+    expect(salonEntryUpdateSchema.safeParse({ expectedVersion: 0 }).success).toBe(false);
+    expect(salonEntryUpdateSchema.safeParse({ expectedVersion: 0, total: "1.000" }).success).toBe(false);
+    expect(salonEntryUpdateSchema.safeParse({ expectedVersion: 0, branchId }).success).toBe(false);
   });
   it("carries the entry and its before/after history", () => {
-    expect(salonEntryResponseSchema.parse(entry)).toMatchObject({ id, childCount: 3, total: "8.000" });
+    expect(salonEntryResponseSchema.parse(entry)).toMatchObject({ id, version: 0, childCount: 3, total: "8.000" });
     expect(salonEntryResponseSchema.safeParse({ ...entry, total: "9.000" }).success).toBe(true);
     const event = { id, entryId: id, actorAccountId: id, occurredAt: "2026-10-11T00:00:00.000Z", before: null, after: snapshot };
     expect(salonEntryEventSchema.parse(event).after.total).toBe("8.000");

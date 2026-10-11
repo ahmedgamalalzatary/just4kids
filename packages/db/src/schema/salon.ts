@@ -12,6 +12,7 @@ export const salonEntries = mysqlTable("salon_entries", {
   link: decimal("link", { precision: 24, scale: 3 }).notNull().default("0.000"),
   knet: decimal("knet", { precision: 24, scale: 3 }).notNull().default("0.000"),
   total: decimal("total", { precision: 24, scale: 3 }).notNull().default("0.000"),
+  version: int("version").notNull().default(0),
   enteredBy: varchar("entered_by", { length: 36 }).notNull(),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { mode: "date", fsp: 3 }).notNull(),

@@ -19,6 +19,14 @@ sharp.concurrency(1);
 export function createEmployeePhotoService(options: { uploadsDir: string; repository: EmployeeRepository }) {
   const photosDir = resolve(options.uploadsDir, "employee-photos");
   const photoPath = (id: string) => resolve(photosDir, `${id}.jpg`);
+  // Serialize upload/removal per employee so an interleaved file write and photoUpdatedAt update cannot desync.
+  const locks = new Map<string, Promise<unknown>>();
+  function withLock<T>(id: string, action: () => Promise<T>): Promise<T> {
+    const previous = locks.get(id) ?? Promise.resolve();
+    const next = previous.then(action, action);
+    locks.set(id, next.then(() => undefined, () => undefined));
+    return next;
+  }
 
   async function requireEmployee(id: string) {
     if (!await options.repository.get(id)) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
@@ -43,19 +51,23 @@ export function createEmployeePhotoService(options: { uploadsDir: string; reposi
         encoded = await sharp(body, { limitInputPixels: MAX_INPUT_PIXELS }).rotate()
           .resize(PHOTO_EDGE, PHOTO_EDGE, { fit: "cover", position: "centre" }).jpeg({ quality: 82 }).toBuffer();
       } catch { throw unsupported(); }
-      await mkdir(photosDir, { recursive: true });
-      const path = photoPath(id);
-      const temporary = `${path}.${randomUUID()}.tmp`;
-      await writeFile(temporary, encoded);
-      await rename(temporary, path);
-      // Version the address so a replaced photo is not served from a browser's image cache.
-      await options.repository.setPhotoUpdatedAt(id, new Date());
+      await withLock(id, async () => {
+        await mkdir(photosDir, { recursive: true });
+        const path = photoPath(id);
+        const temporary = `${path}.${randomUUID()}.tmp`;
+        await writeFile(temporary, encoded);
+        await rename(temporary, path);
+        // Version the address so a replaced photo is not served from a browser's image cache.
+        await options.repository.setPhotoUpdatedAt(id, new Date());
+      });
     },
 
     async remove(id: string): Promise<void> {
       await requireEmployee(id);
-      try { await unlink(photoPath(id)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-      await options.repository.setPhotoUpdatedAt(id, null);
+      await withLock(id, async () => {
+        try { await unlink(photoPath(id)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        await options.repository.setPhotoUpdatedAt(id, null);
+      });
     },
   };
 }

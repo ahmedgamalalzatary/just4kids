@@ -1,11 +1,12 @@
 import { salonEntryCreateSchema, salonEntryEventSchema, salonEntryResponseSchema, salonEntryUpdateSchema, salonQuerySchema } from "@just4kids/contracts";
+import { fils, money } from "../bookings/booking.repository.js";
 import type { SalonRepository } from "./salon.repository.js";
 
 type EntryRow = NonNullable<Awaited<ReturnType<SalonRepository["get"]>>>;
 
 function serializeEntry({ row, branchName }: EntryRow) {
   return salonEntryResponseSchema.parse({
-    id: row.id, branchId: row.branchId, branchName, date: row.date, childCount: row.childCount,
+    id: row.id, version: row.version, branchId: row.branchId, branchName, date: row.date, childCount: row.childCount,
     cash: row.cash, link: row.link, knet: row.knet, total: row.total, enteredBy: row.enteredBy,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
   });
@@ -15,11 +16,16 @@ export function createSalonService(repository: SalonRepository) {
   return {
     async report(queryInput: unknown) {
       const query = salonQuerySchema.parse(queryInput);
-      const [rows, totals] = await Promise.all([repository.list(query), repository.totals(query)]);
-      return {
-        timeZone: "Asia/Kuwait" as const, from: query.from ?? null, to: query.to ?? null,
-        entries: rows.map(serializeEntry), totals,
-      };
+      const entries = (await repository.list(query)).map(serializeEntry);
+      // Totals are derived from the returned rows so the table and its totals always describe the same read.
+      const totals = entries.reduce((accumulator, entry) => ({
+        childCount: accumulator.childCount + entry.childCount,
+        cash: money(fils(accumulator.cash) + fils(entry.cash)),
+        link: money(fils(accumulator.link) + fils(entry.link)),
+        knet: money(fils(accumulator.knet) + fils(entry.knet)),
+        total: money(fils(accumulator.total) + fils(entry.total)),
+      }), { childCount: 0, cash: "0.000", link: "0.000", knet: "0.000", total: "0.000" });
+      return { timeZone: "Asia/Kuwait" as const, from: query.from ?? null, to: query.to ?? null, entries, totals };
     },
     async create(body: unknown, actorId: string) {
       const input = salonEntryCreateSchema.parse(body);
