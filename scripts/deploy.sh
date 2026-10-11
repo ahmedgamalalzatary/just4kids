@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Production deploy: create .env.production on first run, then build and start the stack.
 # Usage: scripts/deploy.sh [+965XXXXXXXX]   (phone required only on the first run)
+#
+# Persistent data lives in two Docker named volumes and must both be backed up:
+#   - db-data      MySQL data (accounts, branches, bookings, invoices, reports)
+#   - uploads-data Barber photos, served by the API at /employees/:id/photo
+# Back both up to the VPS before any restore or host migration, for example:
+#   docker run --rm -v just4kids_db-data:/data -v "$PWD:/backup" alpine tar czf /backup/db-data.tgz -C /data .
+#   docker run --rm -v just4kids_uploads-data:/data -v "$PWD:/backup" alpine tar czf /backup/uploads-data.tgz -C /data .
+# Restore with the same commands in reverse (extract into the volume) while the stack is stopped.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

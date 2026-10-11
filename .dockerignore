@@ -5,6 +5,7 @@
 **/.turbo
 **/.vitest
 **/coverage
+**/uploads
 **/tests
 **/*.test.ts
 **/*.test.tsx

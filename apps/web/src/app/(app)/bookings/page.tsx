@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarDays, Plus } from "lucide-react";
+import { EmployeeAvatar } from "@/components/avatar";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Pagination } from "@/components/pagination";
 import { PaymentBadge, VisitStatusBadge } from "@/components/status";
@@ -35,8 +36,9 @@ function BookingRow({ booking, showBarber }: { booking: Booking; showBarber: boo
         </div>
         <div className="min-w-0">
           <p className="truncate font-medium">{booking.client.name}</p>
-          <p className="truncate text-sm text-muted-foreground">
-            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}` : ""}
+          <p className="flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+            {showBarber ? <EmployeeAvatar employeeId={booking.employee.id} name={booking.employee.displayName} className="size-5" /> : null}
+            <span className="truncate">{booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}` : ""}</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">

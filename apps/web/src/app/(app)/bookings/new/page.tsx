@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Check, ChevronRight, Loader2, MapPin, Minus, Plus, Search, UserPlus, UserRound, X } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
+import { EmployeeAvatar } from "@/components/avatar";
 import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
@@ -186,8 +187,11 @@ function NewBookingScreen() {
                     const selected = option.id === employeeId;
                     return (
                       <button key={option.id} type="button" role="radio" aria-checked={selected} onClick={() => setEmployeeId(option.id)}
-                        className={cn("flex flex-col items-start rounded-md border px-3 py-3 text-start transition-colors", selected ? "border-primary bg-accent" : "border-border hover:bg-muted/50")}>
-                        <span className="font-medium">{option.displayName}</span>
+                        className={cn("flex flex-col items-start gap-1 rounded-md border px-3 py-3 text-start transition-colors", selected ? "border-primary bg-accent" : "border-border hover:bg-muted/50")}>
+                        <span className="flex items-center gap-2">
+                          <EmployeeAvatar employeeId={option.id} name={option.displayName} className="size-8" />
+                          <span className="font-medium">{option.displayName}</span>
+                        </span>
                         <span className="text-xs text-muted-foreground">{option.branch.name}، {option.branch.location}</span>
                       </button>
                     );

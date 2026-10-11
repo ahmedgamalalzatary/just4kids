@@ -76,6 +76,10 @@ export function createEmployeeRepository(connection: ReturnType<typeof createDat
       return found ? this.get(id) : undefined;
     },
 
+    async setPhotoUpdatedAt(id: string, value: Date | null): Promise<void> {
+      await db.update(employees).set({ photoUpdatedAt: value, updatedAt: new Date() }).where(eq(employees.accountId, id));
+    },
+
     async resetPassword(id: string, passwordHash: string): Promise<boolean> {
       return db.transaction(async transaction => {
         const [account] = await transaction.select().from(accounts).where(and(eq(accounts.id, id), eq(accounts.role, "employee"))).for("update");

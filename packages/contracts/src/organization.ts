@@ -42,6 +42,7 @@ export const employeeResponseSchema = z.strictObject({
   branchId: z.uuid(),
   branch: z.strictObject({ id: z.uuid(), name: label, location }),
   enabled: z.boolean(),
+  photoUpdatedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

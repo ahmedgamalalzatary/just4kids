@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { ChevronRight, KeyRound } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
+import { EmployeeAvatar } from "@/components/avatar";
 import { BranchSelect } from "@/components/branch-select";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, PageHeader } from "@/components/page";
@@ -19,9 +20,52 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useBranches, useEmployee, useResetEmployeePassword, useSchedule, useUpdateEmployee } from "@/lib/api/hooks";
+import { useBranches, useEmployee, useRemoveEmployeePhoto, useResetEmployeePassword, useSchedule, useUpdateEmployee, useUploadEmployeePhoto } from "@/lib/api/hooks";
 import type { Branch, Employee } from "@/lib/api/types";
 import { employeeEditFormSchema, passwordResetFormSchema } from "@/lib/forms";
+
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+
+function PhotoCard({ employee }: { employee: Employee }) {
+  const upload = useUploadEmployeePhoto();
+  const remove = useRemoveEmployeePhoto();
+  const input = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pending = upload.isPending || remove.isPending;
+
+  const choose = (file: File | undefined) => {
+    if (!file) return;
+    if (!PHOTO_TYPES.includes(file.type)) { setError("صيغة الصورة غير مدعومة، استخدم JPEG أو PNG أو WEBP."); return; }
+    if (file.size > PHOTO_MAX_BYTES) { setError("حجم الصورة يتجاوز 2 ميغابايت."); return; }
+    setError(null);
+    upload.mutate({ id: employee.id, file }, { onSuccess: () => toast.success("تم حفظ صورة الحلاق") });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>صورة الحلاق</CardTitle>
+          <CardDescription>تُقصّ الصورة وتُحفظ بقياس مربّع، وتظهر في الحجوزات بصورتها الحالية.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-4">
+        <EmployeeAvatar employeeId={employee.id} name={employee.displayName} version={employee.photoUpdatedAt} className="size-20" />
+        <div className="flex min-w-0 flex-col gap-2">
+          <input ref={input} type="file" accept={PHOTO_TYPES.join(",")} className="sr-only" onChange={event => { choose(event.target.files?.[0]); event.target.value = ""; }} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => input.current?.click()} disabled={pending}>{upload.isPending ? "جارٍ الرفع..." : "رفع صورة أو استبدالها"}</Button>
+            <Button type="button" variant="ghost" onClick={() => { setError(null); remove.mutate({ id: employee.id }, { onSuccess: () => toast.success("تم حذف الصورة") }); }} disabled={pending}>حذف الصورة</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">JPEG أو PNG أو WEBP، حتى 2 ميغابايت.</p>
+          {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
+          <FormAlert error={upload.error ?? remove.error} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ProfileCard({ employee, branches }: { employee: Employee; branches: Branch[] }) {
   const update = useUpdateEmployee();
@@ -112,6 +156,7 @@ function EmployeeScreen({ id }: { id: string }) {
         actions={<Button variant="outline" onClick={() => setResetOpen(true)}><KeyRound aria-hidden />تغيير كلمة المرور</Button>}
       />
       <div className="flex flex-col gap-6">
+        <PhotoCard employee={employee.data} />
         <ProfileCard employee={employee.data} branches={branches.data} />
         {schedule.isPending ? <LoadingRows rows={3} /> : schedule.isError ? <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} /> : (
           <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr] xl:items-start">

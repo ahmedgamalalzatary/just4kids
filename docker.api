@@ -28,6 +28,7 @@ FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4000
 COPY --from=builder --chown=node:node /output/api ./
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
 USER node
 EXPOSE 4000
 CMD ["node", "dist/index.js"]

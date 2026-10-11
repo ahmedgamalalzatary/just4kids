@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `photo_updated_at` datetime(3);

@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { ChevronLeft, Plus, Scissors } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
+import { EmployeeAvatar } from "@/components/avatar";
 import { BranchSelect } from "@/components/branch-select";
 import { Field, FormAlert } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
@@ -70,7 +71,7 @@ function EmployeesScreen() {
             {employees.data.map(employee => (
               <li key={employee.id}>
                 <Link href={`/employees/${employee.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/50">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary font-semibold text-secondary-foreground" aria-hidden>{employee.displayName.charAt(0)}</span>
+                  <EmployeeAvatar employeeId={employee.id} name={employee.displayName} version={employee.photoUpdatedAt} />
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {employee.displayName}

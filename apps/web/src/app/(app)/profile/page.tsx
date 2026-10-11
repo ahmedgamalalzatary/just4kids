@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { EmployeeAvatar } from "@/components/avatar";
 import { Field, FormAlert } from "@/components/field";
 import { Detail, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,13 @@ export default function ProfilePage() {
         <div className="grid max-w-3xl gap-6">
           <Card>
             <CardHeader><CardTitle>اسمك</CardTitle></CardHeader>
-            <CardContent><NameForm employee={me.data} /></CardContent>
+            <CardContent>
+              <div className="mb-4 flex items-center gap-3">
+                <EmployeeAvatar employeeId={me.data.id} name={me.data.displayName} version={me.data.photoUpdatedAt} className="size-16" />
+                <p className="text-sm text-muted-foreground">صورة حسابك يديرها المدير.</p>
+              </div>
+              <NameForm employee={me.data} />
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>

@@ -5,6 +5,7 @@ next-env.d.ts
 .turbo/
 coverage/
 .vitest/
+uploads/
 .playwright-mcp/
 *.tsbuildinfo
 *.log
@@ -15,3 +16,4 @@ coverage/
 !.env.production.example
 .DS_Store
 Thumbs.db
+old-just4kids-ui

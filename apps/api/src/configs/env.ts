@@ -9,6 +9,7 @@ export const apiEnvSchema = z.object({
   ADMIN_PHONE: phoneSchema,
   ADMIN_PASSWORD: passwordSchema,
   AUTH_SECRET: z.string().regex(/^[a-f0-9]{64}$/, "AUTH_SECRET must contain 32 random bytes encoded as hex"),
+  UPLOADS_DIR: z.string().trim().min(1).default("uploads"),
   APP_ORIGIN: z.url().default("http://localhost:3000").refine(value => new URL(value).origin === value, "APP_ORIGIN must be an origin without path, credentials, or trailing slash"),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === "production") {

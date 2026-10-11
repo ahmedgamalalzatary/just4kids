@@ -44,6 +44,9 @@ services:
       HOST: 0.0.0.0
       PORT: 4000
       DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL in the production env file}
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads-data:/app/uploads
     expose:
       - '4000'
     ports:
@@ -87,3 +90,4 @@ services:
 
 volumes:
   db-data:
+  uploads-data:

@@ -56,3 +56,36 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export function errorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : fallbackMessage;
 }
+
+/** Sends a binary body (barber photo upload) to the same-origin API with the session CSRF header. */
+export async function apiUpload(path: string, body: Blob, options: { method?: "PUT" | "POST" | "DELETE"; csrfToken?: string | undefined; signal?: AbortSignal | undefined } = {}): Promise<void> {
+  const headers = new Headers({ Accept: "application/json" });
+  if (options.csrfToken) headers.set("X-CSRF-Token", options.csrfToken);
+
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: options.method ?? "PUT",
+      headers,
+      credentials: "same-origin",
+      cache: "no-store",
+      body,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(0, "NETWORK_ERROR", fallbackMessage);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    let payload: unknown;
+    try { payload = text ? JSON.parse(text) : undefined; } catch { payload = undefined; }
+    const error = (payload as { error?: { code?: unknown; message?: unknown } } | undefined)?.error;
+    throw new ApiError(
+      response.status,
+      typeof error?.code === "string" ? error.code : "INTERNAL_ERROR",
+      typeof error?.message === "string" ? error.message : fallbackMessage,
+    );
+  }
+}

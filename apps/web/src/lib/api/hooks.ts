@@ -6,7 +6,7 @@ import type {
   EmployeeAdminUpdate, EmployeeCreate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
 import type { ReportFilters } from "@/lib/reports";
-import { apiRequest } from "./client";
+import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
   Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientSummary, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
@@ -80,6 +80,18 @@ export function useResetEmployeePassword() {
 export function useUpdateMyName() {
   return useApiMutation((input: { displayName: string }, csrfToken) => apiRequest<Employee>("/employees/me", { method: "PATCH", body: input, csrfToken }), {
     invalidate: () => [keys.myEmployee, keys.reports],
+  });
+}
+
+export function useUploadEmployeePhoto() {
+  return useApiMutation(({ id, file }: { id: string; file: File }, csrfToken) => apiUpload(`/employees/${id}/photo`, file, { method: "PUT", csrfToken }), {
+    invalidate: (_output, input) => [keys.employee(input.id), keys.employees, keys.myEmployee],
+  });
+}
+
+export function useRemoveEmployeePhoto() {
+  return useApiMutation(({ id }: { id: string }, csrfToken) => apiUpload(`/employees/${id}/photo`, new Blob(), { method: "DELETE", csrfToken }), {
+    invalidate: (_output, input) => [keys.employee(input.id), keys.employees, keys.myEmployee],
   });
 }
 

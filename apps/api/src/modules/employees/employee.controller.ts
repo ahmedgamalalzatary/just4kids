@@ -4,13 +4,14 @@ import type { AuthModule } from "../auth/index.js";
 import type { Authenticated } from "../auth/auth.service.js";
 import { deny } from "../../lib/security.js";
 import type { EmployeeService } from "./employee.service.js";
+import type { EmployeePhotoService } from "./employee-photo.service.js";
 
 function handleError(error: unknown, response: Response, next: NextFunction) {
   if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات الموظف غير صالحة"); return; }
   next(error);
 }
 
-export function createEmployeeController(service: EmployeeService, auth: AuthModule) {
+export function createEmployeeController(service: EmployeeService, auth: AuthModule, photos: EmployeePhotoService) {
   const list: RequestHandler = async (_request, response, next) => {
     try { response.json({ employees: await service.list() }); } catch (error) { next(error); }
   };
@@ -58,5 +59,21 @@ export function createEmployeeController(service: EmployeeService, auth: AuthMod
       response.status(204).end();
     } catch (error) { handleError(error, response, next); }
   };
-  return { list, get, me, create, updateOwn, updateByAdministrator, resetPassword };
+  const getPhoto: RequestHandler = async (request, response, next) => {
+    try {
+      const path = await photos.read(String(request.params.id));
+      if (!path) { deny(response, 404, "PHOTO_NOT_FOUND", "لا توجد صورة لهذا الحلاق"); return; }
+      response.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+      response.sendFile(path, { cacheControl: false, dotfiles: "deny" }, error => { if (error && !response.headersSent) next(error); });
+    } catch (error) { next(error); }
+  };
+  const uploadPhoto: RequestHandler = async (request, response, next) => {
+    try { await photos.save(String(request.params.id), request.body); response.status(204).end(); }
+    catch (error) { next(error); }
+  };
+  const removePhoto: RequestHandler = async (request, response, next) => {
+    try { await photos.remove(String(request.params.id)); response.status(204).end(); }
+    catch (error) { next(error); }
+  };
+  return { list, get, me, create, updateOwn, updateByAdministrator, resetPassword, getPhoto, uploadPhoto, removePhoto };
 }

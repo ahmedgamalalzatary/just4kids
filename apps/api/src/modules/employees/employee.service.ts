@@ -13,6 +13,7 @@ function serialize(row: Record) {
     branchId: row.employee.branchId,
     branch: { id: row.branch.id, name: row.branch.name, location: row.branch.location },
     enabled: row.account.enabled,
+    photoUpdatedAt: row.employee.photoUpdatedAt ? row.employee.photoUpdatedAt.toISOString() : null,
     createdAt: row.employee.createdAt.toISOString(),
     updatedAt: row.employee.updatedAt.toISOString(),
   });

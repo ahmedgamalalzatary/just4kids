@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ChevronRight, FileText, MapPin, Pencil, Phone, RotateCcw } from "lucide-react";
+import { EmployeeAvatar } from "@/components/avatar";
 import { CorrectionDialog, RecordPaymentButton, VisitActions } from "@/components/booking-actions";
 import { BookingEditDialog } from "@/components/booking-edit-dialog";
 import { BookingHistory } from "@/components/booking-history";
@@ -97,7 +98,12 @@ function BookingScreen({ id }: { id: string }) {
                   {data.address.instructions ? <span className="mt-1 block text-muted-foreground">{data.address.instructions}</span> : null}
                   {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"><MapPin className="size-3.5" aria-hidden />فتح الموقع على الخريطة</a> : null}
                 </Detail>
-                <Detail label="الحلاق">{data.employee.displayName}<span className="block text-xs text-muted-foreground">{data.employee.branchName}</span></Detail>
+                <Detail label="الحلاق">
+                  <span className="flex items-center gap-2">
+                    <EmployeeAvatar employeeId={data.employee.id} name={data.employee.displayName} className="size-8" />
+                    <span>{data.employee.displayName}<span className="block text-xs text-muted-foreground">{data.employee.branchName}</span></span>
+                  </span>
+                </Detail>
                 <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null].filter(Boolean).join("، ")}</Detail>
                 <Detail label="المصدر"><SourceLabel source={data.source} /></Detail>
                 <Detail label="تاريخ الحجز">{formatDateTime(data.createdAt)}</Detail>
