@@ -59,16 +59,23 @@ export function createReportService(repository: ReportRepository) {
     },
     async branches(queryInput: unknown, actor: Account) {
       const query = scope(branchReportQuerySchema.parse(queryInput), actor);
-      const work = new Map((await repository.performance(query, ["branchId"])).map(row => [row.branchId, row]));
+      type Performance = NonNullable<Parameters<typeof shapePerformance>[0]>;
+      const work = new Map<string | null, Performance>((await repository.performance(query, ["branchId"])).map(row => [row.branchId, row]));
       const split = await repository.performance(query, ["branchId", "employeeId"]);
       const names = new Map((await repository.employees(query.employeeId)).map(person => [person.employeeId, person.displayName]));
       // Administrators compare every branch; an employee sees only branches holding their own matching work.
       const places = (await repository.branches(query.branchId)).filter(place => actor.role === "admin" || work.has(place.branchId));
+      const unassigned = work.get(null);
+      // Branches are optional now; work on branchless reservations is grouped under a "no branch" row.
+      const rows = [
+        ...places.map(place => ({ branchId: place.branchId as string | null, branchName: place.branchName as string, info: work.get(place.branchId) })),
+        ...(unassigned ? [{ branchId: null, branchName: "بدون فرع", info: unassigned }] : []),
+      ];
       return branchReportResponseSchema.parse({
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
-        branches: places.map(place => ({
-          ...place, ...shapePerformance(work.get(place.branchId)),
-          employees: split.filter(row => row.branchId === place.branchId).map(row => ({ employeeId: row.employeeId, displayName: names.get(row.employeeId) ?? "", ...shapePerformance(row) }))
+        branches: rows.map(row => ({
+          branchId: row.branchId, branchName: row.branchName, ...shapePerformance(row.info),
+          employees: split.filter(item => item.branchId === row.branchId).map(item => ({ employeeId: item.employeeId, displayName: names.get(item.employeeId) ?? "", ...shapePerformance(item) }))
             .sort((left, right) => left.displayName.localeCompare(right.displayName, "ar") || left.employeeId.localeCompare(right.employeeId)),
         })),
       });
@@ -124,8 +131,8 @@ export function createReportService(repository: ReportRepository) {
           return {
             id: invoice.id, bookingId: booking.id, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD",
             status: invoice.status, paymentStatus: invoice.paymentStatus,
-            adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, adultUnitPrice: invoice.adultUnitPrice, childUnitPrice: invoice.childUnitPrice,
-            adultAmount: invoice.adultAmount, childAmount: invoice.childAmount, total: invoice.total,
+            adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount,
+            amountCash: invoice.amountCash, amountLink: invoice.amountLink, total: invoice.total,
             date: booking.date, startTime: booking.startTime, endTime: booking.endTime, visitStatus: booking.visitStatus, source: booking.source,
             editCount: row.editCount, correctionCount: row.correctionCount,
             cash: cash ? { amount: cash.amount, status: cash.status, method: cash.method, recordedAt: cash.recordedAt.toISOString(), recordedBy: cash.recordedBy } : null,

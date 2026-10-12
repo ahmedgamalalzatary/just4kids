@@ -61,7 +61,7 @@ export default function ProfilePage() {
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <Detail label="رقم الهاتف"><Ltr>{me.data.phone}</Ltr></Detail>
-                <Detail label="الفرع">{me.data.branch.name}<span className="block text-xs text-muted-foreground">{me.data.branch.location}</span></Detail>
+                <Detail label="الفرع">{me.data.branch ? <>{me.data.branch.name}<span className="block text-xs text-muted-foreground">{me.data.branch.location}</span></> : "بدون فرع"}</Detail>
               </dl>
             </CardContent>
           </Card>

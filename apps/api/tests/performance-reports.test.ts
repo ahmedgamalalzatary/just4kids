@@ -75,7 +75,7 @@ beforeAll(async () => {
       employeeSnapshot: { id: fixture.employeeId, displayName: "قديم", branchId: fixture.branchId, branchName: "قديم", branchLocation: "حولي" }, createdAt: new Date("2096-04-01T08:00:00Z"),
     });
     const adultAmount = price.adult * fixture.adult, childAmount = price.child * fixture.child;
-    await connection.db.insert(invoices).values({ id: invoiceId, bookingId: id, adultUnitPrice: `${price.adult}.000`, childUnitPrice: `${price.child}.000`, adultAmount: `${adultAmount}.000`, childAmount: `${childAmount}.000`, total: `${adultAmount + childAmount}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.cash?.status === "active" ? "paid" : "unpaid", issuedAt: now });
+    await connection.db.insert(invoices).values({ id: invoiceId, bookingId: id, amountCash: `${adultAmount}.000`, amountLink: `${childAmount}.000`, total: `${adultAmount + childAmount}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.cash?.status === "active" ? "paid" : "unpaid", issuedAt: now });
     if (fixture.cash) await connection.db.insert(cashPayments).values({ id: randomUUID(), bookingId: id, invoiceId, originalAmount: fixture.cash.original, amount: fixture.cash.amount, status: fixture.cash.status, recordedBy: fixture.employeeId, recordedAt: now, bookingAtReceipt: {} });
   }
   // A revised invoice is still one invoice and must not be counted twice.

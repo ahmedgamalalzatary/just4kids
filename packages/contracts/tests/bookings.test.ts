@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bookingCreateSchema, bookingEditSchema, visitTransitionSchema, visitCorrectionSchema } from "../src/index.js";
 
-const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0, specialChildCount: 0 };
+const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0, specialChildCount: 0, amountCash: "5.000", amountLink: "0.000" };
 describe("booking contracts", () => {
   it("accepts partial booking edits with a required version", () => {
     expect(bookingEditSchema).toBeDefined();

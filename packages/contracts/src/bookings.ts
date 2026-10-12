@@ -29,7 +29,9 @@ export type VisitCorrection = z.infer<typeof visitCorrectionSchema>;
 export const bookingCreateSchema = z.strictObject({
   clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
-  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: notes.optional(),
+  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0),
+  // The administrator types the visit price as cash + link at booking time; there is no branch-derived price.
+  amountCash: kwdPriceSchema, amountLink: kwdPriceSchema, notes: notes.optional(),
 }).superRefine((value, context) => {
   if (!eligibilityQuerySchema.safeParse({ date: value.date, startTime: value.startTime, endTime: value.endTime }).success) context.addIssue({ code: "custom", message: "Invalid booking window" });
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
@@ -42,17 +44,17 @@ export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: tru
   blueNumber: addressResponseSchema.shape.blueNumber.default(null),
 });
 export const bookingClientSnapshotSchema = z.strictObject({ name: z.string().min(1).max(120), phone: phoneSchema });
-export const bookingEmployeeSnapshotSchema = z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120), branchId: z.uuid(), branchName: z.string().min(1).max(120), branchLocation: z.string().min(1).max(500) });
+export const bookingEmployeeSnapshotSchema = z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120), branchId: z.uuid().nullable().default(null), branchName: z.string().min(1).max(120).nullable().default(null), branchLocation: z.string().min(1).max(500).nullable().default(null) });
 const amount = z.string().regex(/^(0|[1-9][0-9]{0,20})\.[0-9]{3}$/);
 export const invoiceResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), reference: z.string().min(1).max(40), issuedAt: z.iso.datetime(), currency: z.literal("KWD"),
   status: z.enum(["issued", "cancelled"]), paymentStatus: z.enum(["unpaid", "paid"]),
-  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null), adultUnitPrice: kwdPriceSchema, childUnitPrice: kwdPriceSchema,
-  adultAmount: amount, childAmount: amount, total: amount,
+  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
+  amountCash: amount, amountLink: amount, total: amount,
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema,
 });
 export const bookingResponseSchema = z.strictObject({
-  id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid(),
+  id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid().nullable(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
   seenByBarberAt: z.iso.datetime().nullable().default(null),

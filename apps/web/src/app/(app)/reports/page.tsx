@@ -33,7 +33,7 @@ function BookingRow({ booking, showBarber }: { booking: ReservationReport["booki
         <div className="min-w-0">
           <p className="truncate font-medium">{booking.client.name}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName} (${booking.employee.branchName})` : ""}
+            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}${booking.employee.branchName ? ` (${booking.employee.branchName})` : ""}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={booking.source} />

@@ -28,8 +28,8 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Branches and employees
 
-- A branch is the business location an employee works for.
-- Each branch owns its employees, adult/child prices, haircut durations, and settings.
+- A branch is a business location used to group money and reports. Confirmed 2026-10-12 (S10): a barber may stand alone with no branch; branch assignment is optional and display-only, and employees are no longer owned by a branch.
+- Each branch keeps its adult/child prices and descriptive haircut durations for reporting, but bookings are no longer priced from them.
 - For the first branch-management slice, branch details are name and location/address, with adult/child prices and descriptive haircut durations. No additional branch settings are required in this slice.
 - Administrator controls employee working days, working hours, and available times.
 - Clients choose a barber, not a branch. Display each barber's branch to help clients estimate travel.
@@ -65,7 +65,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Bookings must fit the employee's working availability and cannot overlap another blocking booking.
 - Recheck availability at commit time and protect against simultaneous bookings of the same employee.
 - Failed rescheduling preserves the original booking/window.
-- Confirmed reservation edits (2026-10-02): administrator-only edits may change address, adult/child counts, window, and assigned barber only while the visit is booked and its original start is strictly in the future in Kuwait. A changed window must also start strictly in the future, without an extra cutoff. Edits retain the reservation/reference and invoice identity, actor/time/reason when supplied, and complete previous/new values. Paid amount changes require the explicit cash reconciliation below; edits preserving the paid total require no cash adjustment. Client rescheduling policy remains pending.
+- Confirmed reservation edits (2026-10-02; amended 2026-10-12, S10): administrator-only edits may change address, adult/child counts, window, and assigned barber only while the visit is booked and its original start is strictly in the future in Kuwait. A changed window must also start strictly in the future, without an extra cutoff. Edits retain the reservation/reference and invoice identity, actor/time/reason when supplied, and complete previous/new values. An edit never changes the amount. Client rescheduling policy remains pending.
 - Keep cancelled/no-show records for history. Arrival means the barber reached the client's address.
 - Visit states: booked, arrived, completed, cancelled, no-show. Payment and invoice states are separate.
 - Confirmed visit workflow (2026-10-02): booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion actions are allowed at or after the reserved start; no-show is allowed at or after the reserved end. Cancellation is allowed from booked or arrived, without an additional timing cutoff. Completed/cancelled/no-show states are final for employees.
@@ -91,14 +91,14 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Prices, invoices, and cash
 
-- Adult/child prices and descriptive durations are editable per branch by administrator.
+- Adult/child prices and descriptive durations remain editable per branch for reporting, but do not price bookings (S10).
 - Initial KWD prices are exact to three decimal places (1 dinar = 1,000 fils), following the [Central Bank of Kuwait's currency description](https://www.cbk.gov.kw/en/banknotes-and-coins/banknotes/introduction).
-- New booking total: `adult count × adult price + child count × child price`, using the assigned barber's branch.
+- Confirmed booking price (2026-10-12, S10): the administrator types each booking's price as cash + link; the initial invoice total is their exact sum in KWD. There is no branch-derived price, and an edit never changes the amount.
 - Generate one combined invoice when booked, including manual bookings.
-- Confirmed initial invoice fields (2026-10-02): booking reference, issue date, client and address, barber and branch, adult/child quantities and unit prices, line amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
+- Confirmed initial invoice fields (2026-10-02; amended 2026-10-12, S10): booking reference, issue date, client and address, barber and (optional) branch, adult/child quantities, the typed cash and link amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
 - Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.
 - Changing barber/branch or counts updates the existing invoice to match; retain revision history.
-- Confirmed edit pricing (2026-10-02): count edits and reassignment within the reservation's recorded branch preserve its agreed adult/child unit prices. Reassignment to a different branch uses that branch's current adult/child prices. A current employee's branch transfer alone does not change a reservation's historical branch, snapshots, or prices.
+- Confirmed edit pricing (2026-10-12, S10): a reservation edit never changes the agreed amount. The typed cash and link amounts are preserved across count, window, address, and barber/branch changes, and no cash reconciliation is required.
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.

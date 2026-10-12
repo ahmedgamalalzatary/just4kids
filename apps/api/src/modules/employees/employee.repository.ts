@@ -15,24 +15,24 @@ export function createEmployeeRepository(connection: ReturnType<typeof createDat
     async list() {
       return db.select({ account: accounts, employee: employees, branch: branches }).from(employees)
         .innerJoin(accounts, eq(employees.accountId, accounts.id))
-        .innerJoin(branches, eq(employees.branchId, branches.id))
+        .leftJoin(branches, eq(employees.branchId, branches.id))
         .orderBy(asc(employees.displayName), asc(accounts.id));
     },
 
     async get(id: string) {
       const [row] = await db.select({ account: accounts, employee: employees, branch: branches }).from(employees)
         .innerJoin(accounts, eq(employees.accountId, accounts.id))
-        .innerJoin(branches, eq(employees.branchId, branches.id))
+        .leftJoin(branches, eq(employees.branchId, branches.id))
         .where(and(eq(accounts.id, id), eq(accounts.role, "employee")));
       return row;
     },
 
-    async create(input: { displayName: string; phone: string; branchId: string; passwordHash: string }) {
+    async create(input: { displayName: string; phone: string; branchId?: string | undefined; passwordHash: string }) {
       const id = randomUUID();
       const now = new Date();
       await db.transaction(async transaction => {
         await transaction.insert(accounts).values({ id, phone: input.phone, role: "employee", passwordHash: input.passwordHash, createdAt: now, updatedAt: now });
-        await transaction.insert(employees).values({ accountId: id, branchId: input.branchId, displayName: input.displayName, createdAt: now, updatedAt: now });
+        await transaction.insert(employees).values({ accountId: id, branchId: input.branchId ?? null, displayName: input.displayName, createdAt: now, updatedAt: now });
       });
       return this.get(id);
     },

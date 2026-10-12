@@ -21,7 +21,7 @@ export const branches = mysqlTable("branches", {
 
 export const employees = mysqlTable("employees", {
   accountId: varchar("account_id", { length: 36 }).primaryKey().references(() => accounts.id, { onDelete: "restrict" }),
-  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "restrict" }),
+  branchId: varchar("branch_id", { length: 36 }).references(() => branches.id, { onDelete: "restrict" }),
   displayName: varchar("display_name", { length: 120 }).notNull(),
   photoUpdatedAt: datetime("photo_updated_at", { mode: "date", fsp: 3 }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),

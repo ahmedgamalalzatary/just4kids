@@ -10,7 +10,7 @@ const booking = {
   date: "2099-03-10", startTime: "09:00", endTime: "09:20",
   adultCount: 1, childCount: 0, specialChildCount: 0, source: "manual", visitStatus: "booked", visitVersion: 1,
   timeZone: "Asia/Kuwait", createdAt: "2026-10-11T00:00:00.000Z", client, address, employee,
-  invoice: { id: "77777777-7777-4777-8777-777777777777", bookingId: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", issuedAt: "2026-10-11T00:00:00.000Z", status: "issued", paymentStatus: "unpaid", currency: "KWD", adultCount: 1, childCount: 0, specialChildCount: 0, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "5.000", childAmount: "0.000", total: "5.000", client, address, employee },
+  invoice: { id: "77777777-7777-4777-8777-777777777777", bookingId: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", issuedAt: "2026-10-11T00:00:00.000Z", status: "issued", paymentStatus: "unpaid", currency: "KWD", adultCount: 1, childCount: 0, specialChildCount: 0, amountCash: "5.000", amountLink: "0.000", total: "5.000", client, address, employee },
 };
 const payment = {
   id: "88888888-8888-4888-8888-888888888888", bookingId: booking.id, invoiceId: booking.invoice.id, originalAmount: "5.000", amount: "5.000",

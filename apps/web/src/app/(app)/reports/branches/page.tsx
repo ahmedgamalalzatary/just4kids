@@ -24,7 +24,7 @@ export default function BranchReportPage() {
   return (
     <div className={cn("flex flex-col gap-6", report.isPlaceholderData && "opacity-60")}>
       {data.branches.map(branch => (
-        <Card key={branch.branchId}>
+        <Card key={branch.branchId ?? "none"}>
           <CardHeader>
             <div>
               <CardTitle>{branch.branchName}</CardTitle>
@@ -32,7 +32,7 @@ export default function BranchReportPage() {
             </div>
             <CardAction data-print-hidden>
               <Button variant="outline" size="sm" asChild>
-                <Link href={reservationsHref(filters, isAdmin ? { branchId: branch.branchId } : {})}>عرض الحجوزات</Link>
+                <Link href={reservationsHref(filters, isAdmin && branch.branchId ? { branchId: branch.branchId } : {})}>عرض الحجوزات</Link>
               </Button>
             </CardAction>
           </CardHeader>
@@ -55,7 +55,7 @@ export default function BranchReportPage() {
                   {branch.employees.map(employee => (
                     <TableRow key={employee.employeeId}>
                       <TableCell className="ps-5 font-medium">
-                        {isAdmin ? <Link className="underline-offset-4 hover:underline" href={reservationsHref(filters, { branchId: branch.branchId, employeeId: employee.employeeId })}>{employee.displayName}</Link> : employee.displayName}
+                        {isAdmin ? <Link className="underline-offset-4 hover:underline" href={reservationsHref(filters, { ...(branch.branchId ? { branchId: branch.branchId } : {}), employeeId: employee.employeeId })}>{employee.displayName}</Link> : employee.displayName}
                       </TableCell>
                       <TableCell data-numeric>{employee.work.bookings}</TableCell>
                       <TableCell data-numeric>{employee.work.completedVisits}</TableCell>

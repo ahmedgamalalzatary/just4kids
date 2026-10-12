@@ -347,7 +347,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Done | [ ] |
 | S8 | Default visit length | G16 | S2 | Q4 | No | XS | Blocked | [ ] |
 | S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
-| S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Blocked | [ ] |
+| S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Done | [ ] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Blocked | [ ] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
@@ -523,7 +523,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S10 — Barbers without branches + price source (G1)
 
-- **Blocked by:** Q1 (and plan it together with S11).
+- **Decisions:** Q1 answered 2026-10-12 — the administrator types the booking price as cash + link; there is no branch price. Built with S11's money-entry decision in view; the product contract records both.
 - **Goal:** barbers no longer belong to a branch; branches remain for money and reports.
 - **Start:** S1 verified; Q1 and Q2 answered; contract updated; a full-repository baseline is green.
 - **Work:**
@@ -543,7 +543,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   1. Add a barber with no branch, then book with them: the price matches Q1.
   2. An old booking still shows its original branch and price.
   3. The reports' totals did not change for past dates.
-- Evidence:
+- Evidence: 2026-10-12. Contracts: `employees.branchId` optional and `branch` nullable; `bookings.branchId` nullable; the employee snapshot's branch fields default to null; `bookingCreateSchema` gains required `amountCash`/`amountLink`; the invoice replaces adult/child unit-price line items with `amountCash`/`amountLink`/`total`; report branch ids are nullable. DB: migration `0019_equal_maggott` makes `employees.branch_id` and `bookings.branch_id` nullable and swaps the invoice columns (SQL + snapshot + journal hand-written because drizzle-kit's rename prompt is not scriptable here). API: booking creation prices from the typed cash/link; a reservation edit never changes the amount and rejects any reconciliation; the employee repository left-joins branches; the reports left-join branches and add a «بدون فرع» group. Web: the employee form's branch is optional («بدون فرع» option), the booking form takes cash/link and shows their sum, the booking detail/invoice/reports show cash/link, and the edit dialog drops the price preview and reconciliation. Tests: `apps/api/tests/bookings.test.ts`, `booking-edits.test.ts`, `payments.test.ts`, `booking-special-children.test.ts`, reports tests, `packages/contracts/tests/payments.test.ts`, `apps/web/tests/booking.test.ts`, `money.test.ts`. Not yet browser-verified. S11 (daily barber collections) is still to do.
 
 ### S11 — Daily barber collections (G3)
 

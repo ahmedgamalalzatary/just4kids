@@ -30,7 +30,7 @@ function write(method: "post" | "patch", path: string, body: object, session = a
 function edit(patch: object, version = 0, session = admin) { return write("patch", `/bookings/${booking.id}`, { expectedVersion: version, ...patch }, session); }
 function detail(session = admin) { return request(app).get(`/bookings/${booking.id}`).set("Cookie", session.cookie); }
 function revisions(session = admin) { return request(app).get(`/bookings/${booking.id}/revisions`).set("Cookie", session.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
@@ -114,35 +114,32 @@ describe("reservation edits and invoice revisions", () => {
     try {
       const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });
       expect(updated.status).toBe(200);
-      expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" }, invoice: { id: booking.invoice.id, issuedAt: booking.invoice.issuedAt, adultUnitPrice: "5.125", total: "8.126" } });
+      expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" }, invoice: { id: booking.invoice.id, issuedAt: booking.invoice.issuedAt, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
       const history = await revisions(); expect(history.status).toBe(200); expect(history.body.revisions).toHaveLength(1);
       expect(history.body.revisions[0]).toMatchObject({ version: 1, actorAccountId: admin.id, reason: "requested move", before, after: updated.body });
     } finally { await connection.db.update(branches).set({ adultPrice: "5.125" }).where(eq(branches.id, branchId)); }
   });
-  it("recalculates counts and same-branch assignment with booked unit prices", async () => {
-    await connection.db.update(branches).set({ adultPrice: "99.000" }).where(eq(branches.id, branchId));
-    try {
-      const updated = await edit({ adultCount: 3, childCount: 0, employeeId: sameId });
-      expect(updated.status).toBe(200);
-      expect(updated.body).toMatchObject({ employeeId: sameId, branchId, invoice: { id: booking.invoice.id, adultUnitPrice: "5.125", adultAmount: "15.375", childAmount: "0.000", total: "15.375" } });
-    } finally { await connection.db.update(branches).set({ adultPrice: "5.125" }).where(eq(branches.id, branchId)); }
+  it("keeps the agreed typed amount for count edits and same-branch assignment", async () => {
+    const updated = await edit({ adultCount: 3, childCount: 0, employeeId: sameId });
+    expect(updated.status).toBe(200);
+    expect(updated.body).toMatchObject({ employeeId: sameId, branchId, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
   });
-  it("uses current new-branch prices and changes employee ownership without another invoice", async () => {
+  it("changes employee ownership and branch without another invoice", async () => {
     const changed = await edit({ employeeId: otherId, adultCount: 2 }); expect(changed.status).toBe(200);
-    expect(changed.body).toMatchObject({ employeeId: otherId, branchId: otherBranchId, employee: { id: otherId, branchName: "edit-second" }, invoice: { id: booking.invoice.id, adultUnitPrice: "9.000", childUnitPrice: "7.000", total: "25.000" } });
+    expect(changed.body).toMatchObject({ employeeId: otherId, branchId: otherBranchId, employee: { id: otherId, branchName: "edit-second" }, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
     for (const suffix of ["", "/invoice", "/history", "/revisions"]) {
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", employee.cookie)).status).toBe(403);
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", other.cookie)).status).toBe(200);
     }
     const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM invoices WHERE booking_id = ?", [booking.id]); expect(rows).toMatchObject([{ n: 1 }]);
   });
-  it("preserves snapshots/prices for count edits after the current barber transfers branches", async () => {
+  it("preserves snapshots and the typed amount for count edits after the current barber transfers branches", async () => {
     const before = (await detail()).body;
     await connection.db.update(employees).set({ branchId: otherBranchId }).where(eq(employees.accountId, employeeId));
     try {
       const changed = await edit({ adultCount: 2 }); expect(changed.status).toBe(200);
       expect(changed.body.employee).toEqual(before.employee); expect(changed.body.branchId).toBe(branchId);
-      expect(changed.body.invoice).toMatchObject({ adultUnitPrice: "5.125", total: "13.251" });
+      expect(changed.body.invoice).toMatchObject({ amountCash: "8.126", amountLink: "0.000", total: "8.126" });
     } finally { await connection.db.update(employees).set({ branchId }).where(eq(employees.accountId, employeeId)); }
   });
   it("denies employees, unauthenticated changes, missing CSRF, and caller-controlled prices", async () => {

@@ -96,7 +96,7 @@ describe("client active/stopped status", () => {
   it("blocks new bookings for a stopped client while leaving existing bookings untouched", async () => {
     const client = await createClient(`+965${randomInt(62000000, 62999999)}`);
     const addressId = (await request(app).get(`/clients/${client.id}`).set("Cookie", admin.cookie)).body.addresses[0].id;
-    const booking = { clientId: client.id, addressId, employeeId, date: "2099-03-10", startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 0 };
+    const booking = { clientId: client.id, addressId, employeeId, date: "2099-03-10", startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 0, amountCash: "5.000", amountLink: "0.000" };
     const created = await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(booking);
     expect(created.status).toBe(201);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedPricing, reconciliationFor, specialChildrenProblem, windowProblem } from "@/lib/booking";
+import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 
 const now = new Date("2026-10-10T07:00:00.000Z"); // 10:00 in Kuwait
 
@@ -24,28 +24,5 @@ describe("special-needs child count", () => {
     expect(specialChildrenProblem(0, 0)).toBeNull();
     expect(specialChildrenProblem(1, 0)).toBeNull();
     expect(specialChildrenProblem(1, 2)).toBe("عدد الأطفال ذوي الاحتياجات الخاصة لا يزيد عن عدد الأطفال");
-  });
-});
-
-describe("edited booking price", () => {
-  const booking = { branchId: "branch-a", invoice: { adultUnitPrice: "5.000", childUnitPrice: "3.000", total: "8.000" } };
-  const branches = [{ id: "branch-a", adultPrice: "9.000", childPrice: "9.000" }, { id: "branch-b", adultPrice: "6.000", childPrice: "4.000" }];
-
-  it("keeps agreed prices within the recorded branch even if branch prices changed", () => {
-    expect(editedPricing(booking, { adultCount: 2, childCount: 1, branchId: "branch-a" }, branches)).toEqual({ adultUnitPrice: "5.000", childUnitPrice: "3.000", total: "13.000" });
-  });
-
-  it("uses the destination branch's current prices after moving to another branch", () => {
-    expect(editedPricing(booking, { adultCount: 1, childCount: 1, branchId: "branch-b" }, branches)).toEqual({ adultUnitPrice: "6.000", childUnitPrice: "4.000", total: "10.000" });
-  });
-
-  it("returns null when the destination branch prices are not loaded", () => {
-    expect(editedPricing(booking, { adultCount: 1, childCount: 1, branchId: "branch-c" }, branches)).toBeNull();
-  });
-
-  it("describes the cash difference a paid edit needs", () => {
-    expect(reconciliationFor("8.000", "10.000")).toEqual({ action: "extra_cash", amount: "2.000" });
-    expect(reconciliationFor("8.000", "6.000")).toEqual({ action: "refund", amount: "2.000" });
-    expect(reconciliationFor("8.000", "8.000")).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
-import { useBranches, useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule, useSendToBarber } from "@/lib/api/hooks";
+import { useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule, useSendToBarber } from "@/lib/api/hooks";
 import type { Booking, Employee } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
@@ -69,7 +69,7 @@ function BarberPicker({ onPick }: { onPick: (id: string) => void }) {
           className="flex flex-col items-center gap-2 rounded-lg border border-border px-3 py-4 text-center transition-colors hover:border-primary hover:bg-accent">
           <EmployeeAvatar employeeId={employee.id} name={employee.displayName} version={employee.photoUpdatedAt} className="size-16 text-xl" />
           <span className="font-medium">{employee.displayName}</span>
-          <span className="text-xs text-muted-foreground">{employee.branch.name}</span>
+          <span className="text-xs text-muted-foreground">{employee.branch ? employee.branch.name : "بدون فرع"}</span>
         </button>
       ))}
     </div>
@@ -203,29 +203,32 @@ function NewBookingScreen() {
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
   const [notes, setNotes] = useState("");
+  const [amountCash, setAmountCash] = useState("");
+  const [amountLink, setAmountLink] = useState("");
   const [created, setCreated] = useState<Booking | null>(null);
 
   const employees = useEmployees();
   const client = useClient(clientId);
-  const branches = useBranches();
   const create = useCreateBooking();
   const send = useSendToBarber();
 
   const barber = employees.data?.find(employee => employee.id === barberId) ?? null;
-  const branch = barber ? branches.data?.find(candidate => candidate.id === barber.branchId) : undefined;
   const address = client.data?.addresses.find(candidate => candidate.id === addressId)
     ?? (client.data?.addresses.length === 1 ? client.data.addresses[0] : undefined);
   const haircuts = adultCount + childCount;
   const specialProblem = specialChildrenProblem(childCount, specialChildCount);
-  const total = branch ? invoiceTotal({ adultCount, childCount, adultUnitPrice: branch.adultPrice, childUnitPrice: branch.childPrice }) : null;
-  const ready = Boolean(barber?.enabled && slot && client.data && address && haircuts > 0 && !specialProblem);
+  // The administrator types the visit price; there is no branch-derived price.
+  const validPrice = (value: string) => /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,3})?$/.test(value);
+  const pricesReady = validPrice(amountCash) && validPrice(amountLink);
+  const total = pricesReady ? invoiceTotal({ amountCash, amountLink }) : null;
+  const ready = Boolean(barber?.enabled && slot && client.data && address && haircuts > 0 && !specialProblem && pricesReady);
 
   const pickBarber = (id: string | null) => { setBarberId(id); setSlot(null); };
   const pickClient = (id: string | null) => { setClientId(id); setAddressId(null); };
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const submit = () => {
     if (!ready || !barber || !slot || !client.data || !address) return;
-    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
+    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, amountCash, amountLink, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
       onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
       onError: error => {
         // Someone else took the time (or the hours changed): reload the pills and ask for another time.
@@ -262,7 +265,7 @@ function NewBookingScreen() {
                   <EmployeeAvatar employeeId={barber.id} name={barber.displayName} version={barber.photoUpdatedAt} className="size-14 text-lg" />
                   <div>
                     <p className="text-lg font-semibold">{barber.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{barber.branch.name}، {barber.branch.location}</p>
+                    <p className="text-sm text-muted-foreground">{barber.branch ? `${barber.branch.name}، ${barber.branch.location}` : "بدون فرع"}</p>
                     {!barber.enabled ? <p className="text-sm text-destructive">هذا الحلاق موقوف، اختر حلاقاً آخر.</p> : null}
                   </div>
                 </div>
@@ -340,18 +343,23 @@ function NewBookingScreen() {
           <Card>
             <h2 className="border-b border-border px-5 py-4 text-base font-semibold">ملخص الحجز</h2>
             <dl className="flex flex-col gap-3 px-5 py-4 text-sm">
-              <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? `${barber.displayName}، ${barber.branch.name}` : "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? `${barber.displayName}${barber.branch ? `، ${barber.branch.name}` : ""}` : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">الموعد</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">العميل</dt><dd>{client.data?.name ?? "—"}</dd></div>
             </dl>
             <div className="border-t border-border px-5 py-4 text-sm">
-              {branch && total ? (
-                <dl className="flex flex-col gap-1.5">
-                  {childCount > 0 ? <div className="flex justify-between gap-2"><dt>{childCount} × طفل</dt><dd><Ltr>{formatKwd(invoiceTotal({ adultCount: 0, childCount, adultUnitPrice: "0", childUnitPrice: branch.childPrice }))}</Ltr></dd></div> : null}
-                  {adultCount > 0 ? <div className="flex justify-between gap-2"><dt>{adultCount} × بالغ</dt><dd><Ltr>{formatKwd(invoiceTotal({ adultCount, childCount: 0, adultUnitPrice: branch.adultPrice, childUnitPrice: "0" }))}</Ltr></dd></div> : null}
-                  <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{formatKwd(total)}</Ltr></dd></div>
-                </dl>
-              ) : <p className="text-muted-foreground">يظهر السعر بعد اختيار الحلاق، حسب أسعار فرعه.</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">نقدي (د.ك)</span>
+                  <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountCash} onChange={event => setAmountCash(event.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">رابط (د.ك)</span>
+                  <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountLink} onChange={event => setAmountLink(event.target.value)} />
+                </label>
+              </div>
+              {(amountCash !== "" || amountLink !== "") && !pricesReady ? <p className="mt-2 text-xs text-destructive">اكتب المبلغ بالدينار، حتى 3 خانات عشرية.</p> : null}
+              <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
               <FormAlert error={create.error} />

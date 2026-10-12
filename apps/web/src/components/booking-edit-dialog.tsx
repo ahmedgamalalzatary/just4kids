@@ -11,10 +11,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useBranches, useClient, useEditBooking, useEmployees } from "@/lib/api/hooks";
+import { useClient, useEditBooking, useEmployees } from "@/lib/api/hooks";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
-import { editedPricing, reconciliationFor, specialChildrenProblem, windowProblem } from "@/lib/booking";
+import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 import { kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 
@@ -36,7 +36,6 @@ function Stepper({ label, value, onChange, max = 99 }: { label: string; value: n
 function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void }) {
   const client = useClient(booking.clientId);
   const employees = useEmployees();
-  const branches = useBranches();
   const edit = useEditBooking();
   const [addressId, setAddressId] = useState(KEEP_ADDRESS);
   const [employeeId, setEmployeeId] = useState(booking.employeeId);
@@ -48,13 +47,11 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const [specialChildCount, setSpecialChildCount] = useState(booking.specialChildCount);
   const [notes, setNotes] = useState(booking.notes ?? "");
   const [reason, setReason] = useState("");
-  const [cashReason, setCashReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
 
-  if (client.isPending || employees.isPending || branches.isPending) return <LoadingRows rows={4} />;
-  if (client.isError || employees.isError || branches.isError) return <FormAlert error={client.error ?? employees.error ?? branches.error} />;
+  if (client.isPending || employees.isPending) return <LoadingRows rows={4} />;
+  if (client.isError || employees.isError) return <FormAlert error={client.error ?? employees.error} />;
 
-  const selectedEmployee = employees.data.find(employee => employee.id === employeeId);
   const timingChanged = date !== booking.date || startTime !== booking.startTime || endTime !== booking.endTime;
   const countsChanged = adultCount !== booking.adultCount || childCount !== booking.childCount || specialChildCount !== booking.specialChildCount;
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
@@ -62,10 +59,6 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const addressChanged = addressId !== KEEP_ADDRESS;
   const notesChanged = notes !== (booking.notes ?? "");
   const changed = timingChanged || countsChanged || barberChanged || addressChanged || notesChanged;
-  // A reassigned booking takes the new barber's current branch; otherwise it keeps its recorded branch.
-  const branchId = barberChanged ? selectedEmployee?.branchId ?? booking.branchId : booking.branchId;
-  const pricing = editedPricing(booking, { adultCount, childCount, branchId }, branches.data);
-  const reconciliation = booking.invoice.paymentStatus === "paid" && pricing ? reconciliationFor(booking.invoice.total, pricing.total) : null;
 
   const submit = () => {
     if (!changed) { setProblem("لم تغيّر شيئاً بعد"); return; }
@@ -73,7 +66,6 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
     if (adultCount + childCount === 0) { setProblem("حلاقة واحدة على الأقل"); return; }
     const specialProblem = specialChildrenProblem(childCount, specialChildCount);
     if (specialProblem) { setProblem(specialProblem); return; }
-    if (reconciliation && !cashReason.trim()) { setProblem("اكتب سبب فرق النقد"); return; }
     setProblem(null);
     const input: BookingEdit & { id: string } = {
       id: booking.id,
@@ -84,7 +76,6 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
       ...(timingChanged ? { date, startTime, endTime } : {}),
       ...(countsChanged ? { adultCount, childCount, specialChildCount } : {}),
       ...(notesChanged ? { notes: notes.trim() } : {}),
-      ...(reconciliation ? { reconciliation: { ...reconciliation, reason: cashReason.trim() } } : {}),
     };
     edit.mutate(input, { onSuccess: () => { toast.success("تم تعديل الحجز"); onDone(); } });
   };
@@ -106,7 +97,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {employees.data.filter(employee => employee.enabled || employee.id === booking.employeeId).map(employee => (
-                <SelectItem key={employee.id} value={employee.id}>{employee.displayName}، {employee.branch.name}</SelectItem>
+                <SelectItem key={employee.id} value={employee.id}>{employee.displayName}{employee.branch ? `، ${employee.branch.name}` : ""}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -122,28 +113,17 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           <Stepper label="منهم ذوو احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
         </div>
         <div className="rounded-md bg-muted px-4 py-3 text-sm">
-          {pricing ? (
-            <p className="flex flex-wrap justify-between gap-2">
-              <span>الإجمالي بعد التعديل</span>
-              <span><Ltr className="font-semibold">{formatKwd(pricing.total)}</Ltr>{pricing.total !== booking.invoice.total ? <span className="ms-2 text-muted-foreground">(كان <Ltr>{formatKwd(booking.invoice.total)}</Ltr>)</span> : null}</span>
-            </p>
-          ) : <p>تعذر حساب السعر لفرع الحلاق المختار.</p>}
+          <p className="flex flex-wrap justify-between gap-2">
+            <span>الإجمالي المتفق عليه</span>
+            <span><Ltr className="font-semibold">{formatKwd(booking.invoice.total)}</Ltr></span>
+          </p>
         </div>
-        {reconciliation ? (
-          <div className="flex flex-col gap-3 rounded-md border border-sun bg-sun/10 p-4">
-            <p className="text-sm font-medium">
-              {reconciliation.action === "extra_cash" ? "الحجز مدفوع: سجّل استلام مبلغ إضافي قدره " : "الحجز مدفوع: سجّل إرجاع مبلغ قدره "}
-              <Ltr>{formatKwd(reconciliation.amount)}</Ltr> للعميل.
-            </p>
-            <Field label="سبب فرق النقد"><Textarea rows={2} value={cashReason} onChange={event => setCashReason(event.target.value)} maxLength={1000} /></Field>
-          </div>
-        ) : null}
         <Field label="ملاحظات" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
         <Field label="سبب التعديل" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={edit.error} />
       </div>
-      <DialogFooter><Button onClick={submit} disabled={edit.isPending || !pricing}>حفظ التعديل</Button></DialogFooter>
+      <DialogFooter><Button onClick={submit} disabled={edit.isPending}>حفظ التعديل</Button></DialogFooter>
     </>
   );
 }
@@ -154,7 +134,7 @@ export function BookingEditDialog({ booking, open, onOpenChange }: { booking: Bo
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>تعديل الحجز <Ltr>{booking.reference}</Ltr></DialogTitle>
-          <DialogDescription>يحتفظ الحجز برقمه وفاتورته، ويُحفظ كل تعديل في السجل. لا يتغير السعر المتفق عليه إلا بتغيير العدد أو بالنقل إلى فرع آخر.</DialogDescription>
+          <DialogDescription>يحتفظ الحجز برقمه وفاتورته، ويُحفظ كل تعديل في السجل. لا يتغير السعر المتفق عليه.</DialogDescription>
         </DialogHeader>
         {open ? <EditForm booking={booking} onDone={() => onOpenChange(false)} /> : null}
       </DialogContent>

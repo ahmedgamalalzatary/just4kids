@@ -28,7 +28,7 @@ async function signIn(phone: string, password: string): Promise<Session> {
   return { cookie: (response.headers["set-cookie"] as unknown as string[]).find(value => value.startsWith("j4k_session="))!.split(";")[0]!, csrf: response.body.csrfToken as string };
 }
 function postBooking(body: object) {
-  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", ...body });
+  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", amountCash: "9.000", amountLink: "0.000", ...body });
 }
 function report(path: string, session: Session) {
   return request(app).get(path).set("Cookie", session.cookie);
@@ -68,7 +68,7 @@ describe("special-needs children on bookings", () => {
     expect(created.status).toBe(201);
     bookingId = created.body.id;
     expect(created.body.specialChildCount).toBe(2);
-    expect(created.body.invoice).toMatchObject({ specialChildCount: 2, childCount: 3, childUnitPrice: "3.000", childAmount: "9.000", total: "9.000" });
+    expect(created.body.invoice).toMatchObject({ specialChildCount: 2, childCount: 3, amountCash: "9.000", amountLink: "0.000", total: "9.000" });
   });
 
   it("defaults the count to zero and rejects counts outside 0..childCount", async () => {

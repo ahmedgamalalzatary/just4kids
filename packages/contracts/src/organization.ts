@@ -24,13 +24,13 @@ export const branchResponseSchema = branchCreateSchema.extend({ id: z.uuid(), cr
 export const employeeCreateSchema = z.strictObject({
   displayName: label,
   phone: phoneSchema,
-  branchId: z.uuid(),
+  branchId: z.uuid().optional(),
   password: passwordSchema,
 });
 export const employeeAdminUpdateSchema = z.strictObject({
   displayName: label.optional(),
   phone: phoneSchema.optional(),
-  branchId: z.uuid().optional(),
+  branchId: z.uuid().nullable().optional(),
   enabled: z.boolean().optional(),
   accessUntil: z.iso.date().nullable().optional(),
 }).refine(value => Object.keys(value).length > 0);
@@ -40,8 +40,8 @@ export const employeeResponseSchema = z.strictObject({
   id: z.uuid(),
   displayName: label,
   phone: phoneSchema,
-  branchId: z.uuid(),
-  branch: z.strictObject({ id: z.uuid(), name: label, location }),
+  branchId: z.uuid().nullable(),
+  branch: z.strictObject({ id: z.uuid(), name: label, location }).nullable(),
   enabled: z.boolean(),
   accessUntil: z.iso.date().nullable(),
   photoUpdatedAt: z.iso.datetime().nullable(),

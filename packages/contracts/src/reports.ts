@@ -39,8 +39,8 @@ export const haircutReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   totals: z.strictObject(haircutMeasures),
   byDate: z.array(z.strictObject({ date: eligibilityQuerySchema.shape.date, ...haircutMeasures })),
-  byBranch: z.array(z.strictObject({ branchId: z.uuid(), branchName: z.string(), ...haircutMeasures })),
-  byEmployee: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), branchId: z.uuid(), branchName: z.string(), ...haircutMeasures })),
+  byBranch: z.array(z.strictObject({ branchId: z.uuid().nullable(), branchName: z.string(), ...haircutMeasures })),
+  byEmployee: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), branchId: z.uuid().nullable(), branchName: z.string().nullable(), ...haircutMeasures })),
 });
 export type ReportDateBasis = z.infer<typeof reportDateBasisSchema>;
 export type HaircutReportQuery = z.infer<typeof haircutReportQuerySchema>;
@@ -71,7 +71,7 @@ const performance = {
 export const employeeReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   employees: z.array(z.strictObject({
-    employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(), branchId: z.uuid(), branchName: z.string(),
+    employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(), branchId: z.uuid().nullable(), branchName: z.string().nullable(),
     // Scheduled working minutes from weekly hours and dated exceptions for each day from `from` to `to`; null without a visit-date range.
     availableMinutes: total.nullable(), ...performance,
   })),
@@ -79,7 +79,7 @@ export const employeeReportResponseSchema = z.strictObject({
 export const branchReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   branches: z.array(z.strictObject({
-    branchId: z.uuid(), branchName: z.string(), ...performance,
+    branchId: z.uuid().nullable(), branchName: z.string(), ...performance,
     employees: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), ...performance })),
   })),
 });

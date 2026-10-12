@@ -121,10 +121,10 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       const day = sql<string>`DATE_FORMAT(${reportDay(query)}, '%Y-%m-%d')`;
       const [totals] = await db.select(measures).from(bookings).where(where);
       const byDate = await db.select({ date: day, ...measures }).from(bookings).where(where).groupBy(day).orderBy(asc(day));
-      const byBranch = await db.select({ branchId: bookings.branchId, branchName: branches.name, ...measures }).from(bookings).innerJoin(branches, eq(branches.id, bookings.branchId))
+      const byBranch = await db.select({ branchId: bookings.branchId, branchName: sql<string>`COALESCE(${branches.name}, 'بدون فرع')`, ...measures }).from(bookings).leftJoin(branches, eq(branches.id, bookings.branchId))
         .where(where).groupBy(bookings.branchId, branches.name).orderBy(asc(branches.name), asc(bookings.branchId));
       const byEmployee = await db.select({ employeeId: bookings.employeeId, displayName: employees.displayName, branchId: bookings.branchId, branchName: branches.name, ...measures }).from(bookings)
-        .innerJoin(employees, eq(employees.accountId, bookings.employeeId)).innerJoin(branches, eq(branches.id, bookings.branchId))
+        .innerJoin(employees, eq(employees.accountId, bookings.employeeId)).leftJoin(branches, eq(branches.id, bookings.branchId))
         .where(where).groupBy(bookings.employeeId, employees.displayName, bookings.branchId, branches.name)
         .orderBy(asc(employees.displayName), asc(bookings.employeeId), asc(branches.name), asc(bookings.branchId));
       return {
@@ -144,7 +144,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
     },
     async employees(employeeId: string | undefined) {
       return db.select({ employeeId: employees.accountId, displayName: employees.displayName, enabled: accounts.enabled, branchId: employees.branchId, branchName: branches.name }).from(employees)
-        .innerJoin(accounts, eq(accounts.id, employees.accountId)).innerJoin(branches, eq(branches.id, employees.branchId))
+        .innerJoin(accounts, eq(accounts.id, employees.accountId)).leftJoin(branches, eq(branches.id, employees.branchId))
         .where(employeeId ? eq(employees.accountId, employeeId) : undefined).orderBy(asc(employees.displayName), asc(employees.accountId));
     },
     async branches(branchId: string | undefined) {

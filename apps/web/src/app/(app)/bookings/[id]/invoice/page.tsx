@@ -29,8 +29,8 @@ export default function InvoicePage() {
   if (invoice.isError) return <>{toolbar}<ErrorState error={invoice.error} onRetry={() => invoice.refetch()} /></>;
   const data = invoice.data;
   const lines = [
-    data.adultCount > 0 ? { label: "حلاقة بالغ", count: data.adultCount, unit: data.adultUnitPrice, amount: data.adultAmount } : null,
-    data.childCount > 0 ? { label: "حلاقة طفل", count: data.childCount, unit: data.childUnitPrice, amount: data.childAmount } : null,
+    data.amountCash !== "0.000" ? { label: "نقدي", amount: data.amountCash } : null,
+    data.amountLink !== "0.000" ? { label: "رابط", amount: data.amountLink } : null,
   ].filter(line => line !== null);
 
   return (
@@ -76,9 +76,7 @@ export default function InvoicePage() {
         <table className="mt-6 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="py-2 text-start font-medium">الخدمة</th>
-              <th className="py-2 text-center font-medium">العدد</th>
-              <th className="py-2 text-end font-medium">سعر الوحدة</th>
+              <th className="py-2 text-start font-medium">البيان</th>
               <th className="py-2 text-end font-medium">المبلغ</th>
             </tr>
           </thead>
@@ -86,15 +84,13 @@ export default function InvoicePage() {
             {lines.map(line => (
               <tr key={line.label} className="border-b border-border">
                 <td className="py-3">{line.label}</td>
-                <td className="py-3 text-center" data-numeric>{line.count}</td>
-                <td className="py-3 text-end"><Ltr>{formatKwd(line.unit)}</Ltr></td>
                 <td className="py-3 text-end"><Ltr>{formatKwd(line.amount)}</Ltr></td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3} className="pt-4 text-base font-semibold">الإجمالي</td>
+              <td className="pt-4 text-base font-semibold">الإجمالي</td>
               <td className="pt-4 text-end text-base font-semibold"><Ltr>{formatKwd(data.total)}</Ltr></td>
             </tr>
           </tfoot>

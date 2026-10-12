@@ -11,7 +11,7 @@ function serialize(row: Record) {
     displayName: row.employee.displayName,
     phone: row.account.phone,
     branchId: row.employee.branchId,
-    branch: { id: row.branch.id, name: row.branch.name, location: row.branch.location },
+    branch: row.branch ? { id: row.branch.id, name: row.branch.name, location: row.branch.location } : null,
     enabled: row.account.enabled,
     accessUntil: row.account.accessUntil,
     photoUpdatedAt: row.employee.photoUpdatedAt ? row.employee.photoUpdatedAt.toISOString() : null,
@@ -36,7 +36,7 @@ export function createEmployeeService(repository: EmployeeRepository) {
 
     async create(body: unknown) {
       const input = employeeCreateSchema.parse(body);
-      if (!await repository.branchExists(input.branchId)) throw new HttpError(404, "BRANCH_NOT_FOUND", "الفرع غير موجود");
+      if (input.branchId && !await repository.branchExists(input.branchId)) throw new HttpError(404, "BRANCH_NOT_FOUND", "الفرع غير موجود");
       try {
         const row = await repository.create({ displayName: input.displayName, phone: input.phone, branchId: input.branchId, passwordHash: await hashPassword(input.password) });
         if (!row) throw new Error("Created employee missing from database");

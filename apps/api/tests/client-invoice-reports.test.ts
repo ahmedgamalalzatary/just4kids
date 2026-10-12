@@ -72,7 +72,7 @@ beforeAll(async () => {
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم", branchId: fixture.branchId, branchName, branchLocation: "حولي" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
     });
     const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;
-    await connection.db.insert(invoices).values({ id: invoiceIds[index]!, bookingId: id, adultUnitPrice: `${price.adult}.000`, childUnitPrice: `${price.child}.000`, adultAmount: `${adultAmount}.000`, childAmount: `${childAmount}.000`, total: `${invoiceTotals[index]}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.cash ? "paid" : "unpaid", issuedAt: new Date(`2098-04-2${index}T08:00:00Z`) });
+    await connection.db.insert(invoices).values({ id: invoiceIds[index]!, bookingId: id, amountCash: `${adultAmount}.000`, amountLink: `${childAmount}.000`, total: `${invoiceTotals[index]}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.cash ? "paid" : "unpaid", issuedAt: new Date(`2098-04-2${index}T08:00:00Z`) });
     if (fixture.cash) await connection.db.insert(cashPayments).values({ id: randomUUID(), bookingId: id, invoiceId: invoiceIds[index]!, originalAmount: fixture.cash, amount: fixture.cash, status: "active", recordedBy: fixture.employeeId, recordedAt: now, bookingAtReceipt: {} });
     for (let version = 1; version <= (fixture.edits ?? 0); version++) {
       await connection.db.insert(bookingRevisions).values({ id: randomUUID(), bookingId: id, version, actorAccountId: adminAccount!.id, reason: null, occurredAt: now, before: {}, after: {} });
@@ -171,7 +171,7 @@ describe("invoice and cash report", () => {
     const first = response.body.invoices.find((row: { bookingId: string }) => row.bookingId === ids[0]);
     expect(first).toMatchObject({
       id: invoiceIds[0], reference: references[0], status: "issued", paymentStatus: "paid", currency: "KWD",
-      adultCount: 2, childCount: 1, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "10.000", childAmount: "3.000", total: "13.000",
+      adultCount: 2, childCount: 1, amountCash: "10.000", amountLink: "3.000", total: "13.000",
       client: { name: "نورة العملاء", phone: "+96555000004" }, employee: { id: barberX, branchId: branchOne }, visitStatus: "completed", editCount: 2, correctionCount: 0,
       cash: { amount: "13.000", status: "active", method: "cash" },
     });

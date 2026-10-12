@@ -31,7 +31,7 @@ function correction(status: string, version: number, reason = "تصحيح حال
 function at(time: string) { vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T${time}:00+03:00`)); }
 async function detail() { return (await request(app).get(`/bookings/${booking.id}`).set("Cookie", admin.cookie)).body; }
 async function history() { return request(app).get(`/bookings/${booking.id}/history`).set("Cookie", employee.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");

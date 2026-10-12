@@ -66,7 +66,7 @@ beforeAll(async () => {
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم", branchId: fixture.branchId, branchName: branch.name, branchLocation: branch.location }, createdAt: new Date(fixture.createdAt),
     });
     const adultAmount = fixture.adult * branch.adult, childAmount = fixture.child * branch.child;
-    await connection.db.insert(invoices).values({ id: randomUUID(), bookingId: id, adultUnitPrice: `${branch.adult}.000`, childUnitPrice: `${branch.child}.000`, adultAmount: `${adultAmount}.000`, childAmount: `${childAmount}.000`, total: `${adultAmount + childAmount}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.paid ? "paid" : "unpaid", issuedAt: new Date(fixture.createdAt) });
+    await connection.db.insert(invoices).values({ id: randomUUID(), bookingId: id, amountCash: `${adultAmount}.000`, amountLink: `${childAmount}.000`, total: `${adultAmount + childAmount}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.paid ? "paid" : "unpaid", issuedAt: new Date(fixture.createdAt) });
   }
   const revision = (bookingId: string, version: number) => ({ id: randomUUID(), bookingId, version, actorAccountId: adminAccount!.id, reason: null, occurredAt: now, before: {}, after: {} });
   await connection.db.insert(bookingRevisions).values([revision(ids[0]!, 1), revision(ids[0]!, 2), revision(ids[4]!, 1)]);

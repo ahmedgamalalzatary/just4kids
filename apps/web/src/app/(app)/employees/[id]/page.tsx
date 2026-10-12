@@ -71,13 +71,15 @@ function ProfileCard({ employee, branches }: { employee: Employee; branches: Bra
   const update = useUpdateEmployee();
   const form = useForm({
     resolver: zodResolver(employeeEditFormSchema),
-    values: { displayName: employee.displayName, phone: employee.phone, branchId: employee.branchId, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
+    values: { displayName: employee.displayName, phone: employee.phone, branchId: employee.branchId ?? "", enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
   });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
     // Send only what changed, so an unchanged phone or branch is never rewritten.
-    const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => employee[key as keyof typeof values] !== value));
+    const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => (employee[key as keyof typeof values] ?? "") !== value));
     if (Object.keys(changes).length === 0) return;
+    // An emptied branch clears the assignment; the API stores null.
+    if ("branchId" in changes) changes.branchId = changes.branchId || null;
     update.mutate({ id: employee.id, ...changes }, { onSuccess: () => toast.success("تم حفظ بيانات الحلاق") });
   });
 
@@ -93,8 +95,8 @@ function ProfileCard({ employee, branches }: { employee: Employee; branches: Bra
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="رقم الهاتف" error={errors.phone?.message} hint="يستخدمه الحلاق لتسجيل الدخول."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
-          <Field label="الفرع" error={errors.branchId?.message}>
-            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value} onChange={field.onChange} />} />
+          <Field label="الفرع" optional error={errors.branchId?.message}>
+            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value ?? ""} onChange={field.onChange} />} />
           </Field>
           <div className="flex items-center gap-3 self-end pb-2">
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />
@@ -155,7 +157,7 @@ function EmployeeScreen({ id }: { id: string }) {
       <PageHeader
         back={back}
         title={<span className="flex flex-wrap items-center gap-3">{employee.data.displayName}{employee.data.enabled ? null : <Badge variant="muted">موقوف</Badge>}</span>}
-        description={employee.data.branch.name}
+        description={employee.data.branch?.name ?? "بدون فرع"}
         actions={<Button variant="outline" onClick={() => setResetOpen(true)}><KeyRound aria-hidden />تغيير كلمة المرور</Button>}
       />
       <div className="flex flex-col gap-6">

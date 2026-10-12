@@ -134,6 +134,13 @@
       "when": 1791828123740,
       "tag": "0018_greedy_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1791830400000,
+      "tag": "0019_equal_maggott",
+      "breakpoints": true
     }
   ]
 }

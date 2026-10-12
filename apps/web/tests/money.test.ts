@@ -19,8 +19,8 @@ describe("money", () => {
     expect(formatKwd("8.5")).toBe("8.500 د.ك");
   });
 
-  it("computes the invoice total from counts and unit prices", () => {
-    expect(invoiceTotal({ adultCount: 2, childCount: 3, adultUnitPrice: "5.250", childUnitPrice: "3.125" })).toBe("19.875");
-    expect(invoiceTotal({ adultCount: 0, childCount: 1, adultUnitPrice: "5.000", childUnitPrice: "0.001" })).toBe("0.001");
+  it("computes the invoice total from the typed cash and link", () => {
+    expect(invoiceTotal({ amountCash: "5.250", amountLink: "3.125" })).toBe("8.375");
+    expect(invoiceTotal({ amountCash: "0.000", amountLink: "0.001" })).toBe("0.001");
   });
 });

@@ -50,7 +50,7 @@ beforeAll(async () => {
     clientSnapshot: { name: "عميل الصالون", phone: "+96555000006" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
     employeeSnapshot: { id: employeeId, displayName: "حلاق الصالون", branchId, branchName: "فرع الصالون", branchLocation: "حولي" }, createdAt: now,
   });
-  await connection.db.insert(invoices).values({ id: invoiceId, bookingId, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "5.000", childAmount: "3.000", total: "8.000", status: "issued", paymentStatus: "paid", issuedAt: now });
+  await connection.db.insert(invoices).values({ id: invoiceId, bookingId, amountCash: "5.000", amountLink: "3.000", total: "8.000", status: "issued", paymentStatus: "paid", issuedAt: now });
   await connection.db.insert(cashPayments).values({ id: paymentId, bookingId, invoiceId, originalAmount: "8.000", amount: "8.000", method: "link", status: "active", recordedBy: employeeId, recordedAt: now, bookingAtReceipt: {} });
   const reportEntry1 = randomUUID(), reportEntry2 = randomUUID();
   await connection.db.insert(salonEntries).values([

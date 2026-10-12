@@ -45,8 +45,8 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const barber = await lockEmployee(transaction, input.employeeId);
         if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
         if (!barber.account.enabled) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح");
-        const [branch] = await transaction.select().from(branches).where(eq(branches.id, barber.employee.branchId)).for("update");
-        if (!branch) throw new HttpError(404, "BRANCH_NOT_FOUND", "الفرع غير موجود");
+        // A barber may stand alone; the branch is kept only for money and reports when one is assigned.
+        const [branch] = barber.employee.branchId ? await transaction.select().from(branches).where(eq(branches.id, barber.employee.branchId)).for("update") : [];
         const [client] = await transaction.select().from(clients).where(eq(clients.id, input.clientId)).for("update");
         if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "العميل غير موجود");
         if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "هذا العميل موقوف، لا يمكن إنشاء حجز جديد");
@@ -59,13 +59,13 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const now = new Date(), id = randomUUID();
         const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
         const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
+        const { amountCash, amountLink, ...details } = input;
         const booking = {
-          id, reference, ...input, notes: input.notes ?? null, seenByBarberAt: null, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+          id, reference, ...details, notes: input.notes ?? null, seenByBarberAt: null, branchId: barber.employee.branchId ?? null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
           clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
-          employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName, branchId: branch.id, branchName: branch.name, branchLocation: branch.location }, createdAt: now,
+          employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName, branchId: barber.employee.branchId ?? null, branchName: branch?.name ?? null, branchLocation: branch?.location ?? null }, createdAt: now,
         };
-        const adultAmount = fils(branch.adultPrice) * BigInt(input.adultCount), childAmount = fils(branch.childPrice) * BigInt(input.childCount);
-        const invoice = { id: randomUUID(), bookingId: id, adultUnitPrice: branch.adultPrice, childUnitPrice: branch.childPrice, adultAmount: money(adultAmount), childAmount: money(childAmount), total: money(adultAmount + childAmount), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
+        const invoice = { id: randomUUID(), bookingId: id, amountCash, amountLink, total: money(fils(amountCash) + fils(amountLink)), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
         await transaction.insert(bookings).values(booking);
         await transaction.insert(invoices).values(invoice);
         await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: now });

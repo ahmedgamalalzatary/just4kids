@@ -22,7 +22,7 @@ const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; accountId: string };
 let admin: Session, employee: Session, other: Session;
 let bookingId: string;
-const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0 };
+const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0, amountCash: "15.375", amountLink: "0.000" };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -84,7 +84,7 @@ describe("manual bookings and initial invoices", () => {
     const response = await post(input);
     expect(response.status).toBe(201);
     bookingId = response.body.id;
-    expect(response.body).toMatchObject({ source: "manual", visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0, invoice: { currency: "KWD", status: "issued", paymentStatus: "unpaid", adultUnitPrice: "5.125", adultAmount: "15.375", childAmount: "0.000", total: "15.375" } });
+    expect(response.body).toMatchObject({ source: "manual", visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0, invoice: { currency: "KWD", status: "issued", paymentStatus: "unpaid", amountCash: "15.375", amountLink: "0.000", total: "15.375" } });
     expect(response.body.reference).toMatch(/^J4K-/);
     expect(response.body.invoice.bookingId).toBe(bookingId);
     const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM invoices WHERE booking_id = ?", [bookingId]);
@@ -130,7 +130,7 @@ describe("manual bookings and initial invoices", () => {
     expect((await post({ ...input, clientId: randomUUID() })).status).toBe(404);
   });
   it("rejects overlapping concurrent bookings while accepting adjacent windows", async () => {
-    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 }), post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 })]);
+    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" }), post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" })]);
     expect(results.map(result => result.status).sort()).toEqual([201, 409]);
     expect(results.find(result => result.status === 201)!.body.invoice.total).toBe("8.126");
     expect((await post({ ...input, startTime: "10:20", endTime: "10:40" })).status).toBe(201);
@@ -183,13 +183,10 @@ describe("manual bookings and initial invoices", () => {
     expect([[201, 409], [409, 200]]).toContainEqual([created.status, closed.status]);
   });
   it("keeps large KWD totals exact and enforces one invoice in MySQL", async () => {
-    await connection.db.update(branches).set({ adultPrice: "999999999.999", childPrice: "999999999.999" }).where(eq(branches.id, branchId));
-    try {
-      const created = await post({ ...input, startTime: "21:00", endTime: "21:20", adultCount: 2147483647, childCount: 2147483647 });
-      expect(created.status).toBe(201);
-      expect(created.body.invoice.total).toBe("4294967293995705032.706");
-      await expect(connection.pool.execute("INSERT INTO invoices (id, booking_id, adult_unit_price, child_unit_price, adult_amount, child_amount, total, status, payment_status, issued_at) SELECT UUID(), booking_id, adult_unit_price, child_unit_price, adult_amount, child_amount, total, status, payment_status, issued_at FROM invoices WHERE booking_id = ?", [created.body.id])).rejects.toMatchObject({ code: "ER_DUP_ENTRY" });
-    } finally { await connection.db.update(branches).set({ adultPrice: "5.125", childPrice: "3.001" }).where(eq(branches.id, branchId)); }
+    const created = await post({ ...input, startTime: "21:00", endTime: "21:20", amountCash: "999999999.999", amountLink: "999999999.999" });
+    expect(created.status).toBe(201);
+    expect(created.body.invoice.total).toBe("1999999999.998");
+    await expect(connection.pool.execute("INSERT INTO invoices (id, booking_id, amount_cash, amount_link, total, status, payment_status, issued_at) SELECT UUID(), booking_id, amount_cash, amount_link, total, status, payment_status, issued_at FROM invoices WHERE booking_id = ?", [created.body.id])).rejects.toMatchObject({ code: "ER_DUP_ENTRY" });
   });
   it("preserves address, client, employee/branch, and price snapshots after current records change", async () => {
     const before = (await request(app).get(`/bookings/${bookingId}`).set("Cookie", admin.cookie)).body;

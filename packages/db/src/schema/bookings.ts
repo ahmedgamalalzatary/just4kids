@@ -6,14 +6,14 @@ import { clients, clientAddresses } from "./clients.js";
 
 // Snapshot types are structural so the server-only database package does not depend on contracts.
 type ClientSnapshot = { name: string; phone: string };
-type EmployeeSnapshot = { id: string; displayName: string; branchId: string; branchName: string; branchLocation: string };
+type EmployeeSnapshot = { id: string; displayName: string; branchId?: string | null; branchName?: string | null; branchLocation?: string | null };
 type AddressSnapshot = { area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue?: string | null; gate?: string | null; blueNumber?: string | null; floor: string | null; apartment: string | null; instructions: string | null; mapsUrl: string | null; latitude: string | null; longitude: string | null };
 export const bookings = mysqlTable("bookings", {
   id: varchar("id", { length: 36 }).primaryKey(), reference: varchar("reference", { length: 40 }).notNull(),
   clientId: varchar("client_id", { length: 36 }).notNull().references(() => clients.id, { onDelete: "restrict" }),
   addressId: varchar("address_id", { length: 36 }).notNull().references(() => clientAddresses.id, { onDelete: "restrict" }),
   employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.accountId, { onDelete: "restrict" }),
-  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "restrict" }),
+  branchId: varchar("branch_id", { length: 36 }).references(() => branches.id, { onDelete: "restrict" }),
   createdBy: varchar("created_by", { length: 36 }).notNull().references(() => accounts.id, { onDelete: "restrict" }),
   date: date("date", { mode: "string" }).notNull(), startTime: varchar("start_time", { length: 5 }).notNull(), endTime: varchar("end_time", { length: 5 }).notNull(),
   adultCount: int("adult_count").notNull(), childCount: int("child_count").notNull(), specialChildCount: int("special_child_count").notNull().default(0),
@@ -29,8 +29,7 @@ export const bookings = mysqlTable("bookings", {
 ]);
 export const invoices = mysqlTable("invoices", {
   id: varchar("id", { length: 36 }).primaryKey(), bookingId: varchar("booking_id", { length: 36 }).notNull().references(() => bookings.id, { onDelete: "restrict" }),
-  adultUnitPrice: decimal("adult_unit_price", { precision: 12, scale: 3 }).notNull(), childUnitPrice: decimal("child_unit_price", { precision: 12, scale: 3 }).notNull(),
-  adultAmount: decimal("adult_amount", { precision: 24, scale: 3 }).notNull(), childAmount: decimal("child_amount", { precision: 24, scale: 3 }).notNull(), total: decimal("total", { precision: 24, scale: 3 }).notNull(),
+  amountCash: decimal("amount_cash", { precision: 24, scale: 3 }).notNull(), amountLink: decimal("amount_link", { precision: 24, scale: 3 }).notNull(), total: decimal("total", { precision: 24, scale: 3 }).notNull(),
   status: mysqlEnum("status", ["issued", "cancelled"]).notNull().default("issued"), paymentStatus: mysqlEnum("payment_status", ["unpaid", "paid"]).notNull().default("unpaid"),
   issuedAt: datetime("issued_at", { mode: "date", fsp: 3 }).notNull(),
-}, table => [uniqueIndex("invoices_booking_unique").on(table.bookingId), check("invoice_amounts_valid", sql`${table.adultUnitPrice} >= 0 AND ${table.childUnitPrice} >= 0 AND ${table.adultAmount} >= 0 AND ${table.childAmount} >= 0 AND ${table.total} = ${table.adultAmount} + ${table.childAmount}`)]);
+}, table => [uniqueIndex("invoices_booking_unique").on(table.bookingId), check("invoice_amounts_valid", sql`${table.amountCash} >= 0 AND ${table.amountLink} >= 0 AND ${table.total} = ${table.amountCash} + ${table.amountLink}`)]);

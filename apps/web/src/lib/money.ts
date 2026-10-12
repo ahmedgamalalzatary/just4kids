@@ -17,6 +17,6 @@ export function formatKwd(amount: string): string {
   return `${fromFils(toFils(amount))} د.ك`;
 }
 
-export function invoiceTotal(input: { adultCount: number; childCount: number; adultUnitPrice: string; childUnitPrice: string }): string {
-  return fromFils(BigInt(input.adultCount) * toFils(input.adultUnitPrice) + BigInt(input.childCount) * toFils(input.childUnitPrice));
+export function invoiceTotal(input: { amountCash: string; amountLink: string }): string {
+  return fromFils(toFils(input.amountCash) + toFils(input.amountLink));
 }

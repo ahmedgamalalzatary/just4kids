@@ -33,8 +33,8 @@ function InvoiceSummary({ booking }: { booking: Booking }) {
       <CardContent className="flex flex-col gap-3 text-sm">
         <PaymentBadge paymentStatus={invoice.paymentStatus} invoiceStatus={invoice.status} />
         <dl className="flex flex-col gap-1.5">
-          {invoice.adultCount > 0 ? <div className="flex justify-between gap-2"><dt>{invoice.adultCount} × بالغ، <Ltr>{formatKwd(invoice.adultUnitPrice)}</Ltr></dt><dd><Ltr>{formatKwd(invoice.adultAmount)}</Ltr></dd></div> : null}
-          {invoice.childCount > 0 ? <div className="flex justify-between gap-2"><dt>{invoice.childCount} × طفل، <Ltr>{formatKwd(invoice.childUnitPrice)}</Ltr></dt><dd><Ltr>{formatKwd(invoice.childAmount)}</Ltr></dd></div> : null}
+          {invoice.amountCash !== "0.000" ? <div className="flex justify-between gap-2"><dt>نقدي</dt><dd><Ltr>{formatKwd(invoice.amountCash)}</Ltr></dd></div> : null}
+          {invoice.amountLink !== "0.000" ? <div className="flex justify-between gap-2"><dt>رابط</dt><dd><Ltr>{formatKwd(invoice.amountLink)}</Ltr></dd></div> : null}
           <div className="mt-1 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
             <dt>الإجمالي</dt>
             <dd className={invoice.status === "cancelled" ? "text-muted-foreground line-through" : undefined}><Ltr>{formatKwd(invoice.total)}</Ltr></dd>

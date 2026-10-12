@@ -17,7 +17,7 @@ import type { ReportFilters } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
 function lineItems(invoice: InvoiceReport["invoices"][number]) {
-  return [invoice.adultCount ? `${invoice.adultCount} بالغ × ${invoice.adultUnitPrice}` : null, invoice.childCount ? `${invoice.childCount} طفل × ${invoice.childUnitPrice}` : null]
+  return [invoice.amountCash !== "0.000" ? `نقدي ${invoice.amountCash}` : null, invoice.amountLink !== "0.000" ? `رابط ${invoice.amountLink}` : null]
     .filter(Boolean).join("، ");
 }
 
@@ -37,7 +37,7 @@ function InvoiceRow({ invoice, showBarber }: { invoice: InvoiceReport["invoices"
         <div className="min-w-0">
           <p className="truncate font-medium">{invoice.client.name}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {invoice.address.area}، {lineItems(invoice)}{showBarber ? `، مع ${invoice.employee.displayName} (${invoice.employee.branchName})` : ""}
+            {invoice.address.area}، {lineItems(invoice)}{showBarber ? `، مع ${invoice.employee.displayName}${invoice.employee.branchName ? ` (${invoice.employee.branchName})` : ""}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={invoice.source} />

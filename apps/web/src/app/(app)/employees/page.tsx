@@ -26,7 +26,7 @@ function CreateEmployeeDialog({ branches, open, onOpenChange }: { branches: Bran
   const create = useCreateEmployee();
   const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", phone: "", branchId: "", password: "" } });
   const errors = form.formState.errors;
-  const submit = form.handleSubmit(values => create.mutate(values, {
+  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, phone: values.phone, password: values.password, ...(values.branchId ? { branchId: values.branchId } : {}) }, {
     onSuccess: employee => { toast.success("تمت إضافة الحلاق"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
   }));
 
@@ -40,8 +40,8 @@ function CreateEmployeeDialog({ branches, open, onOpenChange }: { branches: Bran
         <form id="employee-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
           <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="رقم الهاتف" error={errors.phone?.message} hint="بالصيغة الدولية، مثل ‎+96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
-          <Field label="الفرع" error={errors.branchId?.message}>
-            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value} onChange={field.onChange} />} />
+          <Field label="الفرع" optional error={errors.branchId?.message}>
+            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value ?? ""} onChange={field.onChange} />} />
           </Field>
           <Field label="كلمة المرور" error={errors.password?.message} hint="8 أحرف على الأقل."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>
@@ -56,13 +56,11 @@ function EmployeesScreen() {
   const employees = useEmployees();
   const branches = useBranches();
   const [open, setOpen] = useState(false);
-  const noBranches = branches.data?.length === 0;
-  const addButton = <Button onClick={() => setOpen(true)} disabled={!branches.data || noBranches}><Plus aria-hidden />إضافة حلاق</Button>;
+  const addButton = <Button onClick={() => setOpen(true)}><Plus aria-hidden />إضافة حلاق</Button>;
 
   return (
     <>
-      <PageHeader title="الحلاقون" description="حسابات الحلاقين وفروعهم وساعات عملهم." actions={addButton} />
-      {noBranches ? <p className="mb-4 text-sm text-muted-foreground">أضف فرعاً أولاً من <Link href="/branches" className="text-primary underline-offset-4 hover:underline">صفحة الفروع</Link>، ثم أضف الحلاقين.</p> : null}
+      <PageHeader title="الحلاقون" description="حسابات الحلاقين وساعات عملهم." actions={addButton} />
       <Card>
         {employees.isPending ? <LoadingRows /> : employees.isError ? <ErrorState error={employees.error} onRetry={() => employees.refetch()} /> : employees.data.length === 0 ? (
           <EmptyState icon={Scissors} title="لا يوجد حلاقون بعد" description="أضف حلاقاً ليظهر في الحجوزات بعد تحديد ساعات عمله." />
@@ -77,7 +75,7 @@ function EmployeesScreen() {
                       {employee.displayName}
                       {employee.enabled ? null : <Badge variant="muted">موقوف</Badge>}
                     </p>
-                    <p className="text-sm text-muted-foreground">{employee.branch.name}، <Ltr>{employee.phone}</Ltr></p>
+                    <p className="text-sm text-muted-foreground">{employee.branch?.name ?? "بدون فرع"}، <Ltr>{employee.phone}</Ltr></p>
                   </div>
                   <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
                 </Link>
