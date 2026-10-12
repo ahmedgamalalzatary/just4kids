@@ -342,7 +342,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Ready | [ ] |
 | S3 | Admin locks a single half-hour | G4 (item 6) | S2 | Q11 | Yes | M | Blocked | [ ] |
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Done | [ ] |
-| S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Ready | [ ] |
+| S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Done | [ ] |
 | S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Done | [ ] |
 | S8 | Default visit length | G16 | S2 | Q4 | No | XS | Blocked | [ ] |
@@ -462,7 +462,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 - **How to verify:**
   1. Add a client typing `51100056`: it is saved as `+965 5110 0056`.
   2. Add an address with an avenue, gate and blue number: all three show on a booking and in the WhatsApp message.
-- Evidence:
+- Evidence: 2026-10-12. Contracts: `avenue`/`gate`/`blueNumber` are optional inputs (`optionalPart`); the address response and the booking snapshot carry them as required-nullable. DB: `0015_legal_xavin.sql` adds the three `varchar(120)` columns to `client_addresses` (renumbered from S5's original `0014` because S4 had already taken `0014`). API: the client repository and the booking create/edit snapshots map the three fields. Web: `AddressFields` inputs, `formatAddress` appends «جادة / بوابة / الرقم الأزرق» so the booking view, invoice and WhatsApp text include them, and `normalizePhone` (via the shared `phoneField`) turns a bare eight-digit Kuwaiti number into `+965…` in the client, employee and login inputs. Tests (red → green): contracts +1 optional-extras case; `apps/api/tests/clients.test.ts` round-trips the three fields and clears the blue number; `apps/web/tests/address.test.ts` +2 and the new `phone.test.ts` cover the display and the phone helper; `day.test.ts` asserts the WhatsApp text contains «جادة 3»، «بوابة 12»، «الرقم الأزرق 5». Green on the merged S4+S5 tree: API 20 files/169 tests, web+contracts 26 files/158 tests, `pnpm lint`, `pnpm typecheck`, `pnpm build`. Not yet verified in the browser.
 
 ### S6 — Areas list (G8)
 
@@ -716,19 +716,18 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-After S0, these three are safe together:
+S1 is **Done** (commit `81e6a0c`); lane D now waits on Q1 and Q2 for S10/S11. These two are safe together:
 
 | Worktree | Slice | Why it is safe |
 |---|---|---|
-| 1 | S1 — payments admin-only | No migration; API route + one button |
-| 2 | S2 — blue pills | No migration; web only (`lib/day.ts`, booking page) |
-| 3 | S4 **or** S5 (one of them) | Holds the only migration slot |
+| 1 | S2 — blue pills | No migration; web only (`lib/day.ts`, booking page) |
+| 2 | S5 — address extras and 8-digit phone typing | Holds the only migration slot; S4 is the alternative |
 
 Then, as each merges:
 
-- When S4 merges: start S5 (migration slot is free), and S7 if lane B is free.
-- When S2 merges: S8 as soon as Q4 is answered.
-- When S7 merges: S12 (no migration, can run beside any other worktree).
+- When S5 merges: start S6, then S9 (after Q6); the migration slot frees for S4.
+- When S2 merges: S3 (after Q11) and S8 (after Q4).
+- When S4 merges: start S7, then S12.
 - **S10 and S11 run alone.** They change pricing, bookings and reports across the repo, so start them from a freshly merged `main` with no other open worktrees, and run the full `pnpm check` before and after.
 - **S16 runs last** (before S17). It adds roles that need a permission check on every endpoint, including ones the other slices add.
 

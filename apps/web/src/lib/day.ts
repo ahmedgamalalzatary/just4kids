@@ -57,7 +57,7 @@ function covered(intervals: Interval[], startTime: string, endTime: string): boo
 export function buildSlots<T extends Visit>({ date, schedule, bookings, duration, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; duration: number; now?: Date }): Slot<T>[] {
   const intervals = workingIntervals(schedule, date);
   const scheduledStarts = [...schedule.days, ...schedule.exceptions].flatMap(entry => entry.intervals.map(interval => minuteOfDay(interval.startTime)));
-  const firstMinute = Math.min(minuteOfDay(DAY_START), ...scheduledStarts);
+  const firstMinute = Math.floor(Math.min(minuteOfDay(DAY_START), ...scheduledStarts) / SLOT_MINUTES) * SLOT_MINUTES;
   const lastMinute = minuteOfDay(DAY_END);
   const starts: number[] = [];
   for (let minute = firstMinute; minute + SLOT_MINUTES <= lastMinute; minute += SLOT_MINUTES) starts.push(minute);

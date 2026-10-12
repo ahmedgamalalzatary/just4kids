@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paymentRecordSchema, paymentUndoSchema, cashReconciliationSchema, bookingEditSchema, paymentMethodSchema, paymentResponseSchema, paymentEventResponseSchema } from "../src/index.js";
+import { paymentRecordSchema, paymentUndoSchema, cashReconciliationSchema, bookingEditSchema, bookingResponseSchema, bookingRevisionResponseSchema, paymentMethodSchema, paymentResponseSchema, paymentEventResponseSchema } from "../src/index.js";
 
 const client = { name: "مريم", phone: "+96555550101" };
 const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
@@ -18,6 +18,18 @@ const payment = {
 };
 
 describe("payment method contracts", () => {
+  it("reads legacy address snapshots in bookings, invoices, revisions, and receipts", () => {
+    const legacyAddress = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
+    const legacyBooking = { ...booking, address: legacyAddress, invoice: { ...booking.invoice, address: legacyAddress } };
+    const normalizedAddress = { ...legacyAddress, avenue: null, gate: null, blueNumber: null };
+    const parsed = bookingResponseSchema.parse(legacyBooking);
+    expect(parsed.address).toEqual(normalizedAddress);
+    expect(parsed.invoice.address).toEqual(normalizedAddress);
+    const revision = bookingRevisionResponseSchema.parse({ id: payment.id, bookingId: booking.id, version: 1, actorAccountId: booking.employeeId, reason: null, occurredAt: payment.recordedAt, before: legacyBooking, after: legacyBooking });
+    expect(revision.before.address).toEqual(normalizedAddress);
+    expect(revision.after.invoice.address).toEqual(normalizedAddress);
+    expect(paymentResponseSchema.parse({ ...payment, bookingAtReceipt: legacyBooking }).bookingAtReceipt.address).toEqual(normalizedAddress);
+  });
   it("requires a version and an explicit payment method", () => {
     expect(paymentMethodSchema.parse("link")).toBe("link");
     expect(paymentRecordSchema.parse({ expectedVersion: 1, method: "link" })).toEqual({ expectedVersion: 1, method: "link" });

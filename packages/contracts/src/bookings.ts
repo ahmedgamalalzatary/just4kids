@@ -35,7 +35,12 @@ export const bookingCreateSchema = z.strictObject({
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
   if (value.specialChildCount > value.childCount) context.addIssue({ code: "custom", path: ["specialChildCount"], message: "Special-needs children cannot exceed the child count" });
 });
-export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: true, clientId: true, createdAt: true, updatedAt: true });
+// Historical JSON snapshots predate these optional address details; current client-address responses stay strict.
+export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: true, clientId: true, createdAt: true, updatedAt: true }).extend({
+  avenue: addressResponseSchema.shape.avenue.default(null),
+  gate: addressResponseSchema.shape.gate.default(null),
+  blueNumber: addressResponseSchema.shape.blueNumber.default(null),
+});
 export const bookingClientSnapshotSchema = z.strictObject({ name: z.string().min(1).max(120), phone: phoneSchema });
 export const bookingEmployeeSnapshotSchema = z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120), branchId: z.uuid(), branchName: z.string().min(1).max(120), branchLocation: z.string().min(1).max(500) });
 const amount = z.string().regex(/^(0|[1-9][0-9]{0,20})\.[0-9]{3}$/);

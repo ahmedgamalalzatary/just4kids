@@ -24,8 +24,8 @@ export function createBookingRepository(connection: ReturnType<typeof createData
   return {
     get,
     // Marks the booking as opened by its barber once; the conditional update keeps a concurrent first view from overwriting the time.
-    async markSeenByBarber(id: string, at: Date) {
-      await db.update(bookings).set({ seenByBarberAt: at }).where(and(eq(bookings.id, id), isNull(bookings.seenByBarberAt)));
+    async markSeenByBarber(id: string, employeeId: string, at: Date) {
+      await db.update(bookings).set({ seenByBarberAt: at }).where(and(eq(bookings.id, id), eq(bookings.employeeId, employeeId), isNull(bookings.seenByBarberAt)));
     },
     async list(actor: Account, query: BookingListQuery) {
       // Employees only ever see their own bookings, whatever barber filter they send.

@@ -9,6 +9,16 @@ const visit = (startTime: string, endTime: string, visitStatus: "booked" | "arri
 const early = new Date("2099-01-01T00:00:00+03:00");
 
 describe("buildSlots", () => {
+  it.each(["08:15", "08:45"])("keeps on-the-hour pills when another weekday or exception starts at %s", startTime => {
+    for (const offGridSchedule of [
+      { ...schedule, days: [...schedule.days, { dayOfWeek: 2, intervals: [{ startTime, endTime: "11:00" }] }] },
+      { ...schedule, exceptions: [{ date: "2099-01-06", intervals: [{ startTime, endTime: "11:00" }] }] },
+    ]) {
+      const slots = buildSlots({ date, schedule: offGridSchedule, bookings: [], duration: 30, now: early });
+      expect(slots[0]!.startTime).toBe(startTime === "08:15" ? "08:00" : "08:30");
+      expect(slots.filter(slot => slot.state === "free").map(slot => slot.startTime)).toEqual(["09:00", "09:30", "10:00", "10:30"]);
+    }
+  });
   it("builds 30-minute pills over the whole day (09:00–23:30) and marks overlapping blocking visits as booked", () => {
     const slots = buildSlots({ date, schedule, bookings: [visit("09:30", "10:00"), visit("10:00", "10:30", "cancelled")], duration: 30, now: early });
     expect(slots).toHaveLength(30);

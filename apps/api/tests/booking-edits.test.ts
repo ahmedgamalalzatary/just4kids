@@ -9,6 +9,8 @@ import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { hashPassword } from "../src/lib/password.js";
+import { createBookingRepository } from "../src/modules/bookings/booking.repository.js";
+import { createBookingService } from "../src/modules/bookings/booking.service.js";
 
 const origin = "http://localhost:3000";
 const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DATABASE_URL, ADMIN_PHONE: "+96555551234", ADMIN_PASSWORD: "admin1234", AUTH_SECRET: "a".repeat(64), APP_ORIGIN: origin });
@@ -76,6 +78,36 @@ afterAll(async () => {
   await connection.pool.end();
 });
 describe("reservation edits and invoice revisions", () => {
+  it("loads and edits legacy bookings without the newer address fields", async () => {
+    await connection.pool.execute("UPDATE bookings SET address_snapshot = JSON_REMOVE(address_snapshot, '$.avenue', '$.gate', '$.blueNumber') WHERE id = ?", [booking.id]);
+    const loaded = await detail();
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
+    const invoice = await request(app).get(`/bookings/${booking.id}/invoice`).set("Cookie", admin.cookie);
+    expect(invoice.status).toBe(200);
+    expect(invoice.body.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
+    expect((await edit({ adultCount: 2 })).status).toBe(200);
+    await connection.pool.execute("UPDATE booking_revisions SET `before` = JSON_REMOVE(`before`, '$.address.avenue', '$.address.gate', '$.address.blueNumber', '$.invoice.address.avenue', '$.invoice.address.gate', '$.invoice.address.blueNumber') WHERE booking_id = ?", [booking.id]);
+    const history = await revisions();
+    expect(history.status).toBe(200);
+    expect(history.body.revisions[0].before.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
+  });
+  it("does not let a former barber's pending view clear the new barber's notification", async () => {
+    const repository = createBookingRepository(connection);
+    const service = createBookingService({
+      ...repository,
+      async markSeenByBarber(...args) {
+        const reassigned = await edit({ employeeId: otherId });
+        expect(reassigned.status).toBe(200);
+        return repository.markSeenByBarber(...args);
+      },
+    });
+    await service.get(booking.id, { id: employeeId, role: "employee", phone });
+    const current = await detail();
+    expect(current.body.employeeId).toBe(otherId);
+    expect(current.body.seenByBarberAt).toBeNull();
+    expect((await detail(other)).body.seenByBarberAt).not.toBeNull();
+  });
   it("moves the window/address while preserving agreed prices, identity, and before/after history", async () => {
     const before = (await detail()).body;
     await connection.db.update(branches).set({ adultPrice: "99.000" }).where(eq(branches.id, branchId));

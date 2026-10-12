@@ -24,7 +24,7 @@ export function createBookingService(repository: BookingRepository) {
       // The assigned barber opening the booking clears their "new booking" marker; the administrator never does.
       if (actor.role === "employee" && row.booking.seenByBarberAt === null) {
         const seenByBarberAt = new Date();
-        await repository.markSeenByBarber(id, seenByBarberAt);
+        await repository.markSeenByBarber(id, actor.id, seenByBarberAt);
         return serializeBooking({ booking: { ...row.booking, seenByBarberAt }, invoice: row.invoice });
       }
       return serializeBooking(row);
