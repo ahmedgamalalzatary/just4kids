@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookings, branches, cashPayments, clientAddresses, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, loginAttempts } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookings, branches, cashPayments, clientAddresses, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -80,11 +80,17 @@ beforeAll(async () => {
   }
   // A revised invoice is still one invoice and must not be counted twice.
   await connection.db.insert(bookingRevisions).values({ id: randomUUID(), bookingId: ids[4]!, version: 1, actorAccountId: adminAccount!.id, reason: null, occurredAt: now, before: {}, after: {} });
+  // The barber report reads these administrator-entered daily collections, not the per-booking receipts above.
+  await connection.db.insert(barberCollections).values([
+    { id: randomUUID(), employeeId: barberA, date: "2096-04-06", normalChildren: 3, specialChildren: 0, cash: "18.000", link: "0.000", knet: "0.000", total: "18.000", version: 0, enteredBy: adminAccount!.id, createdAt: now, updatedAt: now },
+    { id: randomUUID(), employeeId: barberB, date: "2096-04-07", normalChildren: 2, specialChildren: 0, cash: "8.000", link: "0.000", knet: "0.000", total: "8.000", version: 0, enteredBy: adminAccount!.id, createdAt: now, updatedAt: now },
+  ]);
   await connection.db.update(employees).set({ branchId: branchTwo }).where(eq(employees.accountId, barberA));
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
   sessionA = await signIn(phones[barberA]!, "employee-password-123");
 });
 afterAll(async () => {
+  await connection.db.delete(barberCollections).where(inArray(barberCollections.employeeId, barbers));
   await connection.db.delete(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
   await connection.db.delete(cashPayments).where(inArray(cashPayments.bookingId, ids));
   await connection.db.delete(invoices).where(inArray(invoices.bookingId, ids));
@@ -112,7 +118,7 @@ describe("barber performance report", () => {
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId!));
     expect(rows).toEqual([
       { employeeId: barberA, displayName: "أداء أ", enabled: true, branchId: branchTwo, branchName: "أداء الفرع الثاني", availableMinutes: 960, work: barberAWork,
-        invoices: { issued: money(2, "21.000"), cancelled: money(1, "5.000"), outstanding: money(1, "8.000") }, cash: collected(2, "18.000") },
+        invoices: { issued: money(2, "21.000"), cancelled: money(1, "5.000"), outstanding: money(1, "8.000") }, cash: collected(1, "18.000") },
       { employeeId: barberB, displayName: "أداء ب", enabled: true, branchId: branchOne, branchName: "أداء الفرع الأول", availableMinutes: 600,
         work: { bookings: 2, reserved: quantities(2, 1), completed: quantities(0, 0), open: quantities(1, 1), cancelled: quantities(0, 0), noShow: quantities(1, 0), completedVisits: 0, reservedMinutes: 120 },
         invoices: { issued: money(2, "13.000"), cancelled: money(0, "0.000"), outstanding: money(1, "5.000") }, cash: collected(1, "8.000") },
@@ -131,7 +137,7 @@ describe("barber performance report", () => {
     const response = await report("employees", { ...range, branchId: branchOne });
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId!));
     expect(rows.map((row: Row) => row.employeeId)).toEqual([barberA, barberB]);
-    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: collected(2, "18.000") });
+    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: collected(1, "18.000") });
   });
   it("shows a barber only their own row and denies another barber", async () => {
     const own = await report("employees", range, sessionA);

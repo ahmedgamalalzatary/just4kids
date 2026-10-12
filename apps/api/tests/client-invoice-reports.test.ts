@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -81,11 +81,14 @@ beforeAll(async () => {
       await connection.db.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version, fromStatus: "cancelled", toStatus: "cancelled", actorType: "admin", actorAccountId: adminAccount!.id, reason: "تصحيح تقرير", correction: true, previousInvoiceStatus: "cancelled", invoiceStatus: "cancelled", occurredAt: now });
     }
   }
+  // The invoice/cash report's cash summary reads these daily collections, not the per-booking receipts above.
+  await connection.db.insert(barberCollections).values({ id: randomUUID(), employeeId: barberX, date: "2098-05-01", normalChildren: 2, specialChildren: 0, cash: "19.000", link: "0.000", knet: "0.000", total: "19.000", version: 0, enteredBy: adminAccount!.id, createdAt: now, updatedAt: now });
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
   sessionX = await signIn(phones[barberX]!, "employee-password-123");
   sessionY = await signIn(phones[barberY]!, "employee-password-123");
 });
 afterAll(async () => {
+  await connection.db.delete(barberCollections).where(inArray(barberCollections.employeeId, [barberX, barberY, barberZ]));
   await connection.db.delete(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
   await connection.db.delete(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, ids));
   await connection.db.delete(cashPayments).where(inArray(cashPayments.bookingId, ids));
@@ -160,7 +163,7 @@ describe("invoice and cash report", () => {
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait", total: 5, limit: 20, offset: 0 });
     expect(response.body.summary).toEqual({
       invoices: { issued: money(4, "43.000"), cancelled: money(1, "6.000"), outstanding: money(3, "30.000") },
-      cash: collected(2, "19.000"), editedBookings: 1, edits: 2, correctedBookings: 1, corrections: 1,
+      cash: collected(1, "19.000"), editedBookings: 1, edits: 2, correctedBookings: 1, corrections: 1,
     });
   });
   it("lists invoice line items with visit, cash, edit, and correction details, keeping paid cancelled invoices visible", async () => {
@@ -197,7 +200,7 @@ describe("invoice and cash report", () => {
     expect(bookedDay.body.dateBasis).toBe("created_date");
     expect(bookedDay.body.invoices.map((row: { bookingId: string }) => row.bookingId)).toEqual([ids[2]]);
     const page = await report("invoices", { ...range, limit: "2", offset: "2" });
-    expect(page.body).toMatchObject({ total: 5, limit: 2, offset: 2, summary: { cash: collected(2, "19.000") } });
+    expect(page.body).toMatchObject({ total: 5, limit: 2, offset: 2, summary: { cash: collected(1, "19.000") } });
     expect(page.body.invoices).toHaveLength(2);
   });
   it("limits a barber to their own invoices and denies another barber's filter", async () => {

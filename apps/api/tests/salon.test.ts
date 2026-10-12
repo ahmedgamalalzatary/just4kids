@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts, salonEntries, salonEntryEvents } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts, salonEntries, salonEntryEvents } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -58,10 +58,13 @@ beforeAll(async () => {
     { id: reportEntry2, branchId, date: "2099-06-02", childCount: 0, cash: "0.000", link: "0.000", knet: "3.000", total: "3.000", enteredBy: employeeId, createdAt: now, updatedAt: now },
   ]);
   entryIds.push(reportEntry1, reportEntry2);
+  // The comprehensive report reads this barber's daily collection for June, not the per-booking receipt above.
+  await connection.db.insert(barberCollections).values({ id: randomUUID(), employeeId, date: "2099-06-01", normalChildren: 2, specialChildren: 1, cash: "7.000", link: "4.000", knet: "0.000", total: "11.000", version: 0, enteredBy: adminAccount!.id, createdAt: now, updatedAt: now });
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
   employee = await signIn((await connection.db.select({ phone: accounts.phone }).from(accounts).where(eq(accounts.id, employeeId)))[0]!.phone, "employee-password-123");
 });
 afterAll(async () => {
+  await connection.db.delete(barberCollections).where(eq(barberCollections.employeeId, employeeId));
   await connection.db.delete(salonEntryEvents).where(inArray(salonEntryEvents.entryId, entryIds));
   await connection.db.delete(salonEntries).where(inArray(salonEntries.id, entryIds));
   await connection.db.delete(cashPayments).where(eq(cashPayments.id, paymentId));
@@ -136,10 +139,10 @@ describe("comprehensive collections report", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ timeZone: "Asia/Kuwait" });
     expect(response.body.barbers).toEqual([
-      { employeeId, displayName: "حلاق الصالون", enabled: true, cash: { count: 0, total: "0.000" }, link: { count: 1, total: "8.000" }, knet: { count: 0, total: "0.000" }, collected: { count: 1, total: "8.000" }, share: 42.1 },
+      { employeeId, displayName: "حلاق الصالون", enabled: true, cash: { count: 1, total: "7.000" }, link: { count: 1, total: "4.000" }, knet: { count: 0, total: "0.000" }, collected: { count: 1, total: "11.000" }, share: 50 },
     ]);
-    expect(response.body.salon).toEqual({ cash: { count: 1, total: "5.000" }, link: { count: 1, total: "1.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 2, total: "11.000" }, share: 57.9 });
-    expect(response.body.totals).toEqual({ cash: { count: 1, total: "5.000" }, link: { count: 2, total: "9.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 3, total: "19.000" } });
+    expect(response.body.salon).toEqual({ cash: { count: 1, total: "5.000" }, link: { count: 1, total: "1.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 2, total: "11.000" }, share: 50 });
+    expect(response.body.totals).toEqual({ cash: { count: 2, total: "12.000" }, link: { count: 2, total: "5.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 3, total: "22.000" } });
   });
   it("requires the administrator", async () => {
     expect((await request(app).get("/reports/comprehensive").query({ ...reportRange, branchId })).status).toBe(401);

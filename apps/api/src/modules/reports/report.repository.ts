@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
 import type { ClientReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery, SalonQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
@@ -41,6 +41,18 @@ const cashMethodMeasures = {
   byMethodCashCount: cashMethodCount("cash"), byMethodCashTotal: cashMethodTotal("cash"),
   byMethodLinkCount: cashMethodCount("link"), byMethodLinkTotal: cashMethodTotal("link"),
   byMethodKnetCount: cashMethodCount("knet"), byMethodKnetTotal: cashMethodTotal("knet"),
+};
+// The barber and comprehensive reports read the administrator's daily collections, not per-booking receipts.
+const collectionWhere = (query: { from?: string | undefined; to?: string | undefined; employeeId?: string | undefined }) => and(
+  query.from ? gte(barberCollections.date, query.from) : undefined,
+  query.to ? lte(barberCollections.date, query.to) : undefined,
+  query.employeeId ? eq(barberCollections.employeeId, query.employeeId) : undefined,
+);
+const collectionMeasures = {
+  cashCount: total(sql`${barberCollections.cash} > 0`), cashTotal: exact(sql`${barberCollections.cash}`),
+  linkCount: total(sql`${barberCollections.link} > 0`), linkTotal: exact(sql`${barberCollections.link}`),
+  knetCount: total(sql`${barberCollections.knet} > 0`), knetTotal: exact(sql`${barberCollections.knet}`),
+  count: count(), total: exact(sql`${barberCollections.total}`),
 };
 const performanceMeasures = {
   ...measures,
@@ -142,6 +154,16 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         .innerJoin(invoices, eq(invoices.bookingId, bookings.id)).leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
         .where(filter(query)).groupBy(...groups) as unknown as Promise<({ [Name in Key]: string } & PerformanceRow)[]>;
     },
+    /** The administrator's daily collections for the period, totalled per barber. */
+    async collectionSums(query: HaircutReportQuery) {
+      return db.select({ employeeId: barberCollections.employeeId, ...collectionMeasures }).from(barberCollections)
+        .where(collectionWhere(query)).groupBy(barberCollections.employeeId);
+    },
+    /** The period's total daily collections, without the per-barber split. */
+    async collectionTotals(query: { from?: string | undefined; to?: string | undefined; employeeId?: string | undefined }) {
+      const [row] = await db.select(collectionMeasures).from(barberCollections).where(collectionWhere(query));
+      return row!;
+    },
     async employees(employeeId: string | undefined) {
       return db.select({ employeeId: employees.accountId, displayName: employees.displayName, enabled: accounts.enabled, branchId: employees.branchId, branchName: branches.name }).from(employees)
         .innerJoin(accounts, eq(accounts.id, employees.accountId)).leftJoin(branches, eq(branches.id, employees.branchId))
@@ -167,12 +189,10 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
     },
     /** Barber per-method collections joined with the shop's salon entries for the same period. */
     async comprehensive(query: SalonQuery) {
-      const bookingFilter: HaircutReportQuery = { dateBasis: "visit_date", q: "", from: query.from, to: query.to, branchId: query.branchId };
-      const barbers = await db.select({ employeeId: bookings.employeeId, displayName: employees.displayName, enabled: accounts.enabled, ...performanceMeasures }).from(bookings)
-        .innerJoin(employees, eq(employees.accountId, bookings.employeeId)).innerJoin(accounts, eq(accounts.id, bookings.employeeId))
-        .innerJoin(invoices, eq(invoices.bookingId, bookings.id)).leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
-        .where(filter(bookingFilter)).groupBy(bookings.employeeId, employees.displayName, accounts.enabled)
-        .orderBy(asc(employees.displayName), asc(bookings.employeeId)) as unknown as ({ employeeId: string; displayName: string; enabled: boolean } & PerformanceRow)[];
+      const barbers = await db.select({ employeeId: barberCollections.employeeId, displayName: employees.displayName, enabled: accounts.enabled, ...collectionMeasures }).from(barberCollections)
+        .innerJoin(employees, eq(employees.accountId, barberCollections.employeeId)).innerJoin(accounts, eq(accounts.id, barberCollections.employeeId))
+        .where(collectionWhere(query)).groupBy(barberCollections.employeeId, employees.displayName, accounts.enabled)
+        .orderBy(asc(employees.displayName), asc(barberCollections.employeeId));
       const [salon] = await db.select({
         cashCount: total(sql`${salonEntries.cash} > 0`), cashTotal: exact(sql`${salonEntries.cash}`),
         linkCount: total(sql`${salonEntries.link} > 0`), linkTotal: exact(sql`${salonEntries.link}`),
@@ -191,12 +211,9 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       const [summary] = await db.select({
         issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
         outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
-        cashCount: total(sql`${cashPayments.id} IS NOT NULL`), cashTotal: exact(sql`${cashPayments.amount}`),
-        ...cashMethodMeasures,
         editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
         bookings: count(),
       }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
-        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
         .where(conditions);
       const order = query.dateBasis === "visit_date" ? [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)] : [desc(bookings.createdAt), desc(bookings.id)];
       const rows = await db.select({ booking: bookings, invoice: invoices, cash: cashPayments, editCount, correctionCount }).from(bookings)

@@ -13,6 +13,19 @@ function scope<Query extends HaircutReportQuery>(query: Query, actor: Account): 
   return { ...query, employeeId: actor.id };
 }
 
+type CollectionRow = { cashCount: number; cashTotal: string; linkCount: number; linkTotal: string; knetCount: number; knetTotal: string; count: number; total: string };
+// The barber and comprehensive money measures come from the administrator's daily collections.
+function collectionCash(row: CollectionRow | undefined) {
+  return {
+    count: row?.count ?? 0, total: row?.total ?? "0.000",
+    byMethod: {
+      cash: { count: row?.cashCount ?? 0, total: row?.cashTotal ?? "0.000" },
+      link: { count: row?.linkCount ?? 0, total: row?.linkTotal ?? "0.000" },
+      knet: { count: row?.knetCount ?? 0, total: row?.knetTotal ?? "0.000" },
+    },
+  };
+}
+
 export function createReportService(repository: ReportRepository) {
   return {
     async reservations(queryInput: unknown, actor: Account) {
@@ -36,6 +49,7 @@ export function createReportService(repository: ReportRepository) {
     async employees(queryInput: unknown, actor: Account) {
       const query = scope(employeeReportQuerySchema.parse(queryInput), actor);
       const work = new Map((await repository.performance(query, ["employeeId"])).map(row => [row.employeeId, row]));
+      const collected = new Map((await repository.collectionSums(query)).map(row => [row.employeeId, row]));
       // With a branch filter, list barbers currently in that branch and any barber whose recorded work there matches.
       const people = (await repository.employees(query.employeeId)).filter(person => !query.branchId || person.branchId === query.branchId || work.has(person.employeeId));
       const range = query.dateBasis === "visit_date" && query.from && query.to ? { from: query.from, to: query.to } : undefined;
@@ -53,7 +67,7 @@ export function createReportService(repository: ReportRepository) {
             }
             availableMinutes = scheduledMinutes(range.from, range.to, schedules.weekly.filter(interval => interval.employeeId === person.employeeId), exceptions);
           }
-          return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)) };
+          return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)), cash: collectionCash(collected.get(person.employeeId)) };
         }),
       });
     },
@@ -92,10 +106,11 @@ export function createReportService(repository: ReportRepository) {
       const query = comprehensiveReportQuerySchema.parse(queryInput);
       const { barbers, salon } = await repository.comprehensive(query);
       const addMoney = (left: { count: number; total: string }, right: { count: number; total: string }) => ({ count: left.count + right.count, total: money(fils(left.total) + fils(right.total)) });
-      const shaped = barbers.map(row => {
-        const cash = shapePerformance(row).cash;
-        return { employeeId: row.employeeId, displayName: row.displayName, enabled: row.enabled, cash: cash.byMethod.cash, link: cash.byMethod.link, knet: cash.byMethod.knet, collected: { count: cash.count, total: cash.total } };
-      });
+      const shaped = barbers.map(row => ({
+        employeeId: row.employeeId, displayName: row.displayName, enabled: row.enabled,
+        cash: { count: row.cashCount, total: row.cashTotal }, link: { count: row.linkCount, total: row.linkTotal },
+        knet: { count: row.knetCount, total: row.knetTotal }, collected: { count: row.count, total: row.total },
+      }));
       const salonRow = { cash: { count: salon.cashCount, total: salon.cashTotal }, link: { count: salon.linkCount, total: salon.linkTotal }, knet: { count: salon.knetCount, total: salon.knetTotal }, collected: { count: salon.count, total: salon.total } };
       const zero = { cash: { count: 0, total: "0.000" }, link: { count: 0, total: "0.000" }, knet: { count: 0, total: "0.000" }, collected: { count: 0, total: "0.000" } };
       const totals = [...shaped, salonRow].reduce((accumulator, row) => ({ cash: addMoney(accumulator.cash, row.cash), link: addMoney(accumulator.link, row.link), knet: addMoney(accumulator.knet, row.knet), collected: addMoney(accumulator.collected, row.collected) }), zero);
@@ -111,18 +126,12 @@ export function createReportService(repository: ReportRepository) {
     async invoices(queryInput: unknown, actor: Account) {
       const query = scope(invoiceReportQuerySchema.parse(queryInput), actor);
       const { summary, rows } = await repository.invoiceList(query);
+      const collected = await repository.collectionTotals(query);
       return invoiceReportResponseSchema.parse({
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
         summary: {
           invoices: { issued: { count: summary.issuedCount, total: summary.issuedTotal }, cancelled: { count: summary.cancelledCount, total: summary.cancelledTotal }, outstanding: { count: summary.outstandingCount, total: summary.outstandingTotal } },
-          cash: {
-            count: summary.cashCount, total: summary.cashTotal,
-            byMethod: {
-              cash: { count: summary.byMethodCashCount, total: summary.byMethodCashTotal },
-              link: { count: summary.byMethodLinkCount, total: summary.byMethodLinkTotal },
-              knet: { count: summary.byMethodKnetCount, total: summary.byMethodKnetTotal },
-            },
-          },
+          cash: collectionCash(collected),
           editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
         },
         invoices: rows.map(row => {
