@@ -46,6 +46,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const [adultCount, setAdultCount] = useState(booking.adultCount);
   const [childCount, setChildCount] = useState(booking.childCount);
   const [specialChildCount, setSpecialChildCount] = useState(booking.specialChildCount);
+  const [notes, setNotes] = useState(booking.notes ?? "");
   const [reason, setReason] = useState("");
   const [cashReason, setCashReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -59,7 +60,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const barberChanged = employeeId !== booking.employeeId;
   const addressChanged = addressId !== KEEP_ADDRESS;
-  const changed = timingChanged || countsChanged || barberChanged || addressChanged;
+  const notesChanged = notes !== (booking.notes ?? "");
+  const changed = timingChanged || countsChanged || barberChanged || addressChanged || notesChanged;
   // A reassigned booking takes the new barber's current branch; otherwise it keeps its recorded branch.
   const branchId = barberChanged ? selectedEmployee?.branchId ?? booking.branchId : booking.branchId;
   const pricing = editedPricing(booking, { adultCount, childCount, branchId }, branches.data);
@@ -81,6 +83,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
       ...(barberChanged ? { employeeId } : {}),
       ...(timingChanged ? { date, startTime, endTime } : {}),
       ...(countsChanged ? { adultCount, childCount, specialChildCount } : {}),
+      ...(notesChanged ? { notes: notes.trim() } : {}),
       ...(reconciliation ? { reconciliation: { ...reconciliation, reason: cashReason.trim() } } : {}),
     };
     edit.mutate(input, { onSuccess: () => { toast.success("تم تعديل الحجز"); onDone(); } });
@@ -135,6 +138,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
             <Field label="سبب فرق النقد"><Textarea rows={2} value={cashReason} onChange={event => setCashReason(event.target.value)} maxLength={1000} /></Field>
           </div>
         ) : null}
+        <Field label="ملاحظات" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
         <Field label="سبب التعديل" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={edit.error} />

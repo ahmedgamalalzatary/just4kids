@@ -75,6 +75,7 @@ function revisionChanges(revision: BookingRevision): string[] {
   if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
     changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل (${before.specialChildCount} احتياج خاص) إلى ${after.adultCount} بالغ و${after.childCount} طفل (${after.specialChildCount} احتياج خاص)`);
   }
+  if (before.notes !== after.notes) changes.push(`الملاحظات: من «${before.notes ?? "لا شيء"}» إلى «${after.notes ?? "لا شيء"}»`);
   if (before.invoice.total !== after.invoice.total) changes.push(`الإجمالي: من ${formatKwd(before.invoice.total)} إلى ${formatKwd(after.invoice.total)}`);
   return changes;
 }

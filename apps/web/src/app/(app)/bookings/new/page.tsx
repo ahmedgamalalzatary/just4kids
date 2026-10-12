@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import { useBranches, useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule } from "@/lib/api/hooks";
 import type { Booking, Employee } from "@/lib/api/types";
@@ -184,6 +185,7 @@ function NewBookingScreen() {
   const [adultCount, setAdultCount] = useState(0);
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
+  const [notes, setNotes] = useState("");
 
   const employees = useEmployees();
   const client = useClient(clientId);
@@ -204,7 +206,7 @@ function NewBookingScreen() {
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const submit = () => {
     if (!ready || !barber || !slot || !client.data || !address) return;
-    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount }, {
+    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
       onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); router.push(`/bookings/${booking.id}`); },
       onError: error => {
         // Someone else took the time (or the hours changed): reload the pills and ask for another time.
@@ -303,6 +305,7 @@ function NewBookingScreen() {
             </div>
             {haircuts === 0 ? <p className="mt-2 text-xs text-destructive">حلاقة واحدة على الأقل.</p> : null}
             {specialProblem ? <p className="mt-2 text-xs text-destructive">{specialProblem}</p> : null}
+            <Field label="ملاحظات" optional className="mt-4"><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
           </Step>
         </div>
 

@@ -37,4 +37,13 @@ describe("booking contracts", () => {
     expect(bookingEditSchema.parse({ expectedVersion: 0, specialChildCount: 2 }).specialChildCount).toBe(2);
     expect(bookingEditSchema.safeParse({ expectedVersion: 0, specialChildCount: -1 }).success).toBe(false);
   });
+  it("accepts optional booking notes trimmed and capped at 1000 characters, with blank normalizing to null", () => {
+    expect(bookingCreateSchema.parse({ ...input, notes: "  اتصل قبل الوصول  " }).notes).toBe("اتصل قبل الوصول");
+    expect(bookingCreateSchema.parse(input).notes).toBeUndefined();
+    expect(bookingCreateSchema.parse({ ...input, notes: "   " }).notes).toBeNull();
+    expect(bookingCreateSchema.safeParse({ ...input, notes: "x".repeat(1001) }).success).toBe(false);
+    expect(bookingEditSchema.parse({ expectedVersion: 0, notes: "ملاحظة" }).notes).toBe("ملاحظة");
+    expect(bookingEditSchema.parse({ expectedVersion: 0, notes: "" }).notes).toBeNull();
+    expect(bookingEditSchema.safeParse({ expectedVersion: 0, notes: "x".repeat(1001) }).success).toBe(false);
+  });
 });

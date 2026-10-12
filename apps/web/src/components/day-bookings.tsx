@@ -90,6 +90,7 @@ export function VisitCard({ booking }: { booking: Booking }) {
         <p className="text-sm">{formatAddress(booking.address)}</p>
         {booking.address.instructions ? <p className="mt-0.5 text-sm text-muted-foreground">{booking.address.instructions}</p> : null}
         <p className="mt-1 text-sm text-muted-foreground">{haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
+        {booking.notes ? <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">ملاحظات: {booking.notes}</p> : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline"><a href={`tel:${booking.client.phone}`}><Phone aria-hidden />اتصال <Ltr>{booking.client.phone}</Ltr></a></Button>

@@ -8,9 +8,9 @@ export function serializeBooking(row: NonNullable<Awaited<ReturnType<BookingRepo
   const snapshots = { client: booking.clientSnapshot, address: booking.addressSnapshot, employee: booking.employeeSnapshot };
   return bookingResponseSchema.parse({
     id: booking.id, reference: booking.reference, clientId: booking.clientId, addressId: booking.addressId, employeeId: booking.employeeId, branchId: booking.branchId,
-    date: booking.date, startTime: booking.startTime, endTime: booking.endTime, timeZone: "Asia/Kuwait", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount,
+    date: booking.date, startTime: booking.startTime, endTime: booking.endTime, timeZone: "Asia/Kuwait", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, notes: booking.notes,
     source: booking.source, visitStatus: booking.visitStatus, visitVersion: booking.visitVersion, createdAt: booking.createdAt.toISOString(), ...snapshots,
-    invoice: { ...invoice, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, ...snapshots },
+    invoice: { ...invoice, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, notes: booking.notes, ...snapshots },
   });
 }
 export function createBookingService(repository: BookingRepository) {

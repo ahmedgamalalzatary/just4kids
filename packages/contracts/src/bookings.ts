@@ -9,6 +9,8 @@ const haircutCount = z.number().int().min(0).max(2147483647);
 export const visitStatusSchema = z.enum(["booked", "arrived", "completed", "cancelled", "no_show"]);
 const version = z.number().int().min(0).max(2147483647);
 const reason = z.string().trim().min(1).max(1000);
+// Booking notes: optional, trimmed, and stored as null when empty so callers can clear them.
+const notes = z.string().trim().max(1000).transform(value => (value.length ? value : null));
 export const visitTransitionSchema = z.strictObject({ status: z.enum(["arrived", "completed", "cancelled", "no_show"]), expectedVersion: version, reason: reason.optional() });
 export const visitCorrectionSchema = z.strictObject({ status: visitStatusSchema, expectedVersion: version, reason });
 export const visitEventResponseSchema = z.strictObject({
@@ -22,7 +24,7 @@ export type VisitCorrection = z.infer<typeof visitCorrectionSchema>;
 export const bookingCreateSchema = z.strictObject({
   clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
-  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0),
+  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: notes.optional(),
 }).superRefine((value, context) => {
   if (!eligibilityQuerySchema.safeParse({ date: value.date, startTime: value.startTime, endTime: value.endTime }).success) context.addIssue({ code: "custom", message: "Invalid booking window" });
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
@@ -35,14 +37,14 @@ const amount = z.string().regex(/^(0|[1-9][0-9]{0,20})\.[0-9]{3}$/);
 export const invoiceResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), reference: z.string().min(1).max(40), issuedAt: z.iso.datetime(), currency: z.literal("KWD"),
   status: z.enum(["issued", "cancelled"]), paymentStatus: z.enum(["unpaid", "paid"]),
-  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), adultUnitPrice: kwdPriceSchema, childUnitPrice: kwdPriceSchema,
+  adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null), adultUnitPrice: kwdPriceSchema, childUnitPrice: kwdPriceSchema,
   adultAmount: amount, childAmount: amount, total: amount,
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema,
 });
 export const bookingResponseSchema = z.strictObject({
   id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
-  timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0),
+  timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
   source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceResponseSchema,
 });
@@ -56,7 +58,7 @@ export type BookingCreate = z.infer<typeof bookingCreateSchema>;
 export const bookingEditSchema = z.strictObject({
   expectedVersion: version, reason: reason.optional(), addressId: z.uuid().optional(), employeeId: z.uuid().optional(),
   date: eligibilityQuerySchema.shape.date.optional(), startTime: eligibilityQuerySchema.shape.startTime.optional(), endTime: eligibilityQuerySchema.shape.endTime.optional(),
-  adultCount: haircutCount.optional(), childCount: haircutCount.optional(), specialChildCount: haircutCount.optional(),
+  adultCount: haircutCount.optional(), childCount: haircutCount.optional(), specialChildCount: haircutCount.optional(), notes: notes.optional(),
   reconciliation: cashReconciliationSchema.optional(),
 }).superRefine((value, context) => {
   if (!Object.entries(value).some(([key, field]) => !["expectedVersion", "reason", "reconciliation"].includes(key) && field !== undefined)) context.addIssue({ code: "custom", message: "At least one edit is required" });

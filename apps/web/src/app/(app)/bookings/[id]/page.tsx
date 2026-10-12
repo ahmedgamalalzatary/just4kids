@@ -105,6 +105,7 @@ function BookingScreen({ id }: { id: string }) {
                   </span>
                 </Detail>
                 <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null, data.specialChildCount ? `${data.specialChildCount} من ذوي الاحتياجات الخاصة` : null].filter(Boolean).join("، ")}</Detail>
+                {data.notes ? <Detail label="ملاحظات" className="sm:col-span-2">{data.notes}</Detail> : null}
                 <Detail label="المصدر"><SourceLabel source={data.source} /></Detail>
                 <Detail label="تاريخ الحجز">{formatDateTime(data.createdAt)}</Detail>
               </dl>

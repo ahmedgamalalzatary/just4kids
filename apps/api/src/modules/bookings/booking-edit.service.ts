@@ -69,7 +69,8 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
           addressSnapshot = bookingAddressSnapshotSchema.parse({ area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude });
         }
         const adultAmount = fils(adultUnitPrice) * BigInt(merged.adultCount), childAmount = fils(childUnitPrice) * BigInt(merged.childCount);
-        const nextBooking = { ...booking, ...merged, branchId, addressSnapshot, employeeSnapshot };
+        const nextNotes = input.notes === undefined ? booking.notes : input.notes;
+        const nextBooking = { ...booking, ...merged, notes: nextNotes, branchId, addressSnapshot, employeeSnapshot };
         const nextInvoice = { ...invoice, adultUnitPrice, childUnitPrice, adultAmount: money(adultAmount), childAmount: money(childAmount), total: money(adultAmount + childAmount) };
         const difference = fils(nextInvoice.total) - fils(invoice.total);
         if (activePayment && difference !== 0n) {
@@ -86,7 +87,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         const now = Date.now();
         if (Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= now) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "يمكن تعديل الحجز المستقبلي غير المبدوء فقط");
         assertFutureStart(merged);
-        await transaction.update(bookings).set({ ...merged, branchId, addressSnapshot, employeeSnapshot, visitVersion: nextBooking.visitVersion }).where(eq(bookings.id, id));
+        await transaction.update(bookings).set({ ...merged, notes: nextNotes, branchId, addressSnapshot, employeeSnapshot, visitVersion: nextBooking.visitVersion }).where(eq(bookings.id, id));
         await transaction.update(invoices).set({ adultUnitPrice, childUnitPrice, adultAmount: nextInvoice.adultAmount, childAmount: nextInvoice.childAmount, total: nextInvoice.total }).where(eq(invoices.id, invoice.id));
         const revisionId = randomUUID();
         await transaction.insert(bookingRevisions).values({ id: revisionId, bookingId: id, version: nextBooking.visitVersion, actorAccountId: actor.id, reason: input.reason ?? input.reconciliation?.reason ?? null, occurredAt: new Date(now), before, after });

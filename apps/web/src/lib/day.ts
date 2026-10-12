@@ -67,7 +67,7 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, duration
 }
 
 type ShareableBooking = {
-  reference: string; date: string; startTime: string; endTime: string; adultCount: number; childCount: number; specialChildCount: number;
+  reference: string; date: string; startTime: string; endTime: string; adultCount: number; childCount: number; specialChildCount: number; notes: string | null;
   client: { name: string; phone: string }; address: Parameters<typeof formatAddress>[0];
 };
 
@@ -91,6 +91,7 @@ export function whatsAppLink(barberPhone: string, booking: ShareableBooking): st
     booking.address.instructions ? `ملاحظات العنوان: ${booking.address.instructions}` : null,
     map ? `الموقع: ${map}` : null,
     `العدد: ${haircutSummary(booking)}`,
+    booking.notes ? `ملاحظات: ${booking.notes}` : null,
   ].filter(Boolean);
   return `https://wa.me/${barberPhone.replace(/\D/g, "")}?text=${encodeURIComponent(lines.join("\n"))}`;
 }

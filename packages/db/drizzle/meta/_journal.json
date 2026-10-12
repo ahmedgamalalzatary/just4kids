@@ -99,6 +99,13 @@
       "when": 1791719912194,
       "tag": "0013_rare_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1791823525140,
+      "tag": "0014_sturdy_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

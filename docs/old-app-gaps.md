@@ -341,7 +341,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S1 | Payments are admin-only | G2 | S0 | — | No | S | Done | [ ] |
 | S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Ready | [ ] |
 | S3 | Admin locks a single half-hour | G4 (item 6) | S2 | Q11 | Yes | M | Blocked | [ ] |
-| S4 | Booking notes | G7 | S0 | — | Yes | S | Ready | [ ] |
+| S4 | Booking notes | G7 | S0 | — | Yes | S | Done | [ ] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Ready | [ ] |
 | S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Maybe | S | Ready | [ ] |
@@ -445,7 +445,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   1. Create a booking with a note: it shows on the booking page.
   2. Log in as that barber: the note shows on the visit.
   3. Edit the note: the history shows the old and new text.
-- Evidence:
+- Evidence: 2026-10-12. New nullable `bookings.notes` varchar(1000) via migration `0014_sturdy_thunderbolt_ross.sql` (applied to test and development MySQL). Contracts: `notes` is optional on booking create/edit (trimmed, max 1000, blank normalizes to null) and a `string | null` defaulting to null on the booking and invoice responses, so existing stored snapshots (payment `bookingAtReceipt`, revision before/after) still parse. API: create stores notes; an edit sets or clears them (`nextNotes`, blank = clear) and the revision `before`/`after` carry the old and new text; the booking and invoice responses include notes, so the barber reads them on their own booking. Web: a «ملاحظات» textarea on the new-booking form and the edit dialog; the note shows on the booking detail, the barber's visit card and the invoice; the revision timeline lists the old/new note; the WhatsApp text appends `ملاحظات:`. Tests: `packages/contracts/tests/bookings.test.ts` (notes limits/normalization), `apps/api/tests/booking-edits.test.ts` (create + edit notes, barber reads them, revision before/after), `apps/web/tests/day.test.ts` (WhatsApp text includes notes). `pnpm check` green: lint, typecheck, 50 files/329 tests, build. Not yet browser-verified.
 
 ### S5 — Address extras and 8-digit phone typing (G8, G9)
 

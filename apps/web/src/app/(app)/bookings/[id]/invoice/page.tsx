@@ -99,6 +99,7 @@ export default function InvoicePage() {
             </tr>
           </tfoot>
         </table>
+        {data.notes ? <p className="mt-3 text-sm">ملاحظات: {data.notes}</p> : null}
         {data.specialChildCount > 0 ? <p className="mt-3 text-sm text-muted-foreground">يشمل {data.specialChildCount} من الأطفال ذوي الاحتياجات الخاصة، ويُحسبون بسعر الطفل.</p> : null}
         {data.status === "cancelled" ? <p className="mt-6 rounded-md border border-border px-4 py-3 text-sm">أُلغيت هذه الفاتورة مع إلغاء الزيارة، وتبقى محفوظة في السجل.</p> : null}
         <p className="mt-8 text-xs text-muted-foreground">الدفع عند الزيارة نقداً أو عبر رابط الدفع أو كي نت. جميع المبالغ بالدينار الكويتي.</p>

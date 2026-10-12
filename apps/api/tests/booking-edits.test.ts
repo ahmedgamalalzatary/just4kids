@@ -214,4 +214,20 @@ describe("reservation edits and invoice revisions", () => {
       expect((await detail()).body).toEqual(before); expect((await revisions()).body.revisions).toEqual([]);
     } finally { await connection.pool.query(`DROP TRIGGER ${trigger}`); }
   });
+  it("stores booking notes on create and edit, exposes them to the barber, and records before/after values", async () => {
+    const created = await write("post", "/bookings", { ...body(), startTime: "12:00", endTime: "12:20", notes: "  اتصل قبل الوصول  " });
+    expect(created.status).toBe(201);
+    expect(created.body.notes).toBe("اتصل قبل الوصول");
+    const id = created.body.id;
+    const barberView = await request(app).get(`/bookings/${id}`).set("Cookie", employee.cookie);
+    expect(barberView.status).toBe(200);
+    expect(barberView.body.notes).toBe("اتصل قبل الوصول");
+    const edited = await write("patch", `/bookings/${id}`, { expectedVersion: 0, notes: "لا تنسَ الباب" });
+    expect(edited.status).toBe(200);
+    expect(edited.body.notes).toBe("لا تنسَ الباب");
+    const history = await request(app).get(`/bookings/${id}/revisions`).set("Cookie", admin.cookie);
+    expect(history.body.revisions).toHaveLength(1);
+    expect(history.body.revisions[0].before.notes).toBe("اتصل قبل الوصول");
+    expect(history.body.revisions[0].after.notes).toBe("لا تنسَ الباب");
+  });
 });

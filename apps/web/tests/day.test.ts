@@ -34,13 +34,21 @@ describe("buildSlots", () => {
 describe("whatsAppLink", () => {
   it("opens a chat with the barber's number prefilled with the visit details", () => {
     const link = whatsAppLink("+96555551234", {
-      reference: "J4K-1", date, startTime: "09:00", endTime: "09:30", adultCount: 1, childCount: 2, specialChildCount: 1,
+      reference: "J4K-1", date, startTime: "09:00", endTime: "09:30", adultCount: 1, childCount: 2, specialChildCount: 1, notes: null,
       client: { name: "مريم", phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: "الباب الأزرق", mapsUrl: "https://maps.app.goo.gl/x", latitude: null, longitude: null },
     });
     const url = new URL(link);
     expect(`${url.origin}${url.pathname}`).toBe("https://wa.me/96555551234");
     const text = url.searchParams.get("text")!;
     for (const part of ["J4K-1", "مريم", "+96599990000", "حولي", "الباب الأزرق", "https://maps.app.goo.gl/x", "2 طفل", "1 احتياجات خاصة", "1 بالغ", "9:00 ص"]) expect(text).toContain(part);
+    expect(text).not.toContain("ملاحظات:");
+  });
+  it("adds the booking notes to the WhatsApp text when present", () => {
+    const link = whatsAppLink("+96555551234", {
+      reference: "J4K-2", date, startTime: "09:00", endTime: "09:30", adultCount: 1, childCount: 0, specialChildCount: 0, notes: "اتصل قبل الوصول",
+      client: { name: "مريم", phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+    });
+    expect(new URL(link).searchParams.get("text")).toContain("ملاحظات: اتصل قبل الوصول");
   });
 });
 

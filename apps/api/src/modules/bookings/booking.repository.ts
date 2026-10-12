@@ -56,7 +56,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
         const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
         const booking = {
-          id, reference, ...input, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+          id, reference, ...input, notes: input.notes ?? null, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
           clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
           employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName, branchId: branch.id, branchName: branch.name, branchLocation: branch.location }, createdAt: now,
         };
