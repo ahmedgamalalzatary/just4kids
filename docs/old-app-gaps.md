@@ -295,7 +295,7 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
 6. **Client name (G6):** may a new client be saved with only a phone number?
 7. **Areas list (G8):** do you want a fixed, searchable areas list again?
-8. **Barber login (G10):** keep phone login? Do you need an account expiry date?
+8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
 10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits?
 11. **Blue pill (G4):** should the admin lock a single half-hour directly from the pills, or is editing working hours enough?
@@ -351,7 +351,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Blocked | [ ] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
-| S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Blocked | [ ] |
+| S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Done | [ ] |
 | S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Blocked | [ ] |
 | S16 | Partner and moderator accounts | G11 | S2, S3 (if approved), S11 | Q5 | Yes | L | Blocked | [ ] |
 | S17 | Client review and production rollout | all | every other slice Verified or dropped | — | — | M | Blocked | [ ] |
@@ -603,7 +603,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   - Field on the barber page.
 - **End: Full check.**
 - **How to verify:** set yesterday's date on a test barber; their login is refused with the message. Clear the date and they can log in again.
-- Evidence:
+- Evidence: 2026-10-12. Q8 answered from the legacy app (`other/login-check.php` checked `users.expdate` and refused an expired login), so the end date is needed. Contracts: `employeeAdminUpdateSchema` accepts `accessUntil` (`YYYY-MM-DD` or `null`) and `employeeResponseSchema` returns it nullable. DB: `0017_absurd_jackal.sql` adds the nullable `access_until` date to `accounts`. API: `verifyCredentials` returns `expired` when a correct password belongs to an account past its end day, `POST /auth/login` refuses it with 403 `ACCOUNT_EXPIRED` and «حسابك منتهى الصلاحية، برجاء مراجعة الإدارة», and `findSession` drops the sessions of an expired account; the employee repository maps the field. Web: a «تاريخ انتهاء الحساب» date field on the barber page. Tests (red → green): contracts +1 (accepts a day, clears with null, rejects a malformed day); `apps/api/tests/employees.test.ts` "refuses an expired barber with a clear message and ends their existing sessions" (set yesterday → the existing session is 401, login is 403, clear the date → 200); new `apps/web/tests/employee-form.test.ts`. Green: contracts+web 27 files/162 tests, API 20 files/172 tests, `pnpm lint`, `pnpm typecheck`, `pnpm build`. Not yet verified in the browser.
 
 ### S15 — Corrections on finished visits (G17)
 

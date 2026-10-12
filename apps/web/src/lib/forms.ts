@@ -45,6 +45,7 @@ export const employeeEditFormSchema = z.object({
   phone: phoneField,
   branchId: z.string().min(1, "اختر الفرع"),
   enabled: z.boolean(),
+  accessUntil: z.string().trim().transform(value => (value === "" ? null : value)).refine(value => value === null || z.iso.date().safeParse(value).success, "اكتب تاريخاً صحيحاً"),
 });
 
 export const passwordResetFormSchema = z.object({ password: passwordField, confirm: z.string() })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchCreateSchema, employeeCreateSchema, employeeSelfUpdateSchema } from "../src/index.js";
+import { branchCreateSchema, employeeAdminUpdateSchema, employeeCreateSchema, employeeSelfUpdateSchema } from "../src/index.js";
 
 describe("branch and employee contracts", () => {
   it("normalizes KWD prices exactly to three decimal places without floating-point conversion", () => {
@@ -23,5 +23,12 @@ describe("branch and employee contracts", () => {
     expect(employeeSelfUpdateSchema.parse({ displayName: " سالم " })).toEqual({ displayName: "سالم" });
     expect(employeeSelfUpdateSchema.safeParse({ displayName: "سالم", phone: "+96555550009" }).success).toBe(false);
     expect(employeeSelfUpdateSchema.safeParse({ branchId: "3a4f26b1-b76a-47c0-976c-0d4618d9236b" }).success).toBe(false);
+  });
+
+  it("accepts an optional account expiry day on the administrator update and clears it with null", () => {
+    expect(employeeAdminUpdateSchema.parse({ accessUntil: "2026-12-31" })).toEqual({ accessUntil: "2026-12-31" });
+    expect(employeeAdminUpdateSchema.parse({ accessUntil: null })).toEqual({ accessUntil: null });
+    expect(employeeAdminUpdateSchema.safeParse({ accessUntil: "31/12/2026" }).success).toBe(false);
+    expect(employeeAdminUpdateSchema.safeParse({}).success).toBe(false);
   });
 });

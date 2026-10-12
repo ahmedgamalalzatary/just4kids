@@ -35,7 +35,7 @@ export function createAuthService(repository: AuthRepository, env: ApiEnv) {
       return equalHex(match[3] ?? "", sign(`prelogin:${payload}`)) && Number(match[2]) > Date.now() && equalHex(csrfToken ?? "", csrf(challenge));
     },
 
-    async authenticate(phone: string, password: string, ip: string, oldToken?: string): Promise<{ kind: "success"; session: Authenticated } | { kind: "invalid" } | { kind: "limited"; retryAfter: number }> {
+    async authenticate(phone: string, password: string, ip: string, oldToken?: string): Promise<{ kind: "success"; session: Authenticated } | { kind: "invalid" } | { kind: "expired" } | { kind: "limited"; retryAfter: number }> {
       const verified = await repository.verifyCredentials(phone, password, ip);
       if (verified.kind !== "valid") return verified;
       const { account } = verified;

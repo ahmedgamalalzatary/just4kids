@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, datetime, index, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { boolean, date, datetime, index, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const accounts = mysqlTable("accounts", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -8,6 +8,7 @@ export const accounts = mysqlTable("accounts", {
   adminSlot: int("admin_slot").generatedAlwaysAs(sql`CASE WHEN role = 'admin' THEN 1 ELSE NULL END`, { mode: "stored" }),
   passwordHash: varchar("password_hash", { length: 256 }).notNull(),
   enabled: boolean("enabled").notNull().default(true),
+  accessUntil: date("access_until", { mode: "string" }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { mode: "date", fsp: 3 }).notNull(),
 }, table => [uniqueIndex("accounts_phone_unique").on(table.phone), uniqueIndex("accounts_sole_admin_unique").on(table.adminSlot)]);

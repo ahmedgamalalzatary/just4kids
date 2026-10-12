@@ -27,6 +27,7 @@ export function createAuthController(service: AuthService, env: ApiEnv) {
       if (!parsed.success) { deny(response, 400, "INVALID_INPUT", "بيانات الدخول غير صالحة"); return; }
       const result = await service.authenticate(parsed.data.phone, parsed.data.password, request.ip ?? "unknown", readCookie(request, sessionCookieName));
       if (result.kind === "limited") { response.set("Retry-After", String(result.retryAfter)); deny(response, 429, "LOGIN_RATE_LIMITED", "محاولات كثيرة، حاول لاحقاً"); return; }
+      if (result.kind === "expired") { deny(response, 403, "ACCOUNT_EXPIRED", "حسابك منتهى الصلاحية، برجاء مراجعة الإدارة"); return; }
       if (result.kind === "invalid") { deny(response, 401, "INVALID_CREDENTIALS", "رقم الهاتف أو كلمة المرور غير صحيحين"); return; }
       response.clearCookie(preloginCookieName, cookieOptions);
       response.cookie(sessionCookieName, result.session.token, { ...cookieOptions, maxAge: sessionLengthMs });

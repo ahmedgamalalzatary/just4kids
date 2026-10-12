@@ -71,7 +71,7 @@ function ProfileCard({ employee, branches }: { employee: Employee; branches: Bra
   const update = useUpdateEmployee();
   const form = useForm({
     resolver: zodResolver(employeeEditFormSchema),
-    values: { displayName: employee.displayName, phone: employee.phone, branchId: employee.branchId, enabled: employee.enabled },
+    values: { displayName: employee.displayName, phone: employee.phone, branchId: employee.branchId, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
   });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
@@ -100,6 +100,9 @@ function ProfileCard({ employee, branches }: { employee: Employee; branches: Bra
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />
             <Label htmlFor="employee-enabled">الحساب مفعّل</Label>
           </div>
+          <Field label="تاريخ انتهاء الحساب" error={errors.accessUntil?.message} hint="بعد هذا التاريخ يتوقف دخول الحلاق. اتركه فارغاً لحساب بلا انتهاء.">
+            <Input {...form.register("accessUntil")} type="date" dir="ltr" className="text-start" />
+          </Field>
           <p className="text-xs text-muted-foreground sm:col-span-2">إيقاف الحساب يمنع الحلاق من الدخول ويخفيه من الحلاقين المتاحين للحجوزات الجديدة.</p>
           <div className="flex flex-col gap-3 sm:col-span-2">
             <FormAlert error={update.error} />
