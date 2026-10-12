@@ -50,6 +50,8 @@
   --status-cancelled-soft: #e9eeef;
   --status-no-show: #b4234a;
   --status-no-show-soft: #fbe5eb;
+  --status-locked: #1e40af;
+  --status-locked-soft: #dbeafe;
 }
 
 .dark {
@@ -92,6 +94,8 @@
   --status-cancelled-soft: #1f2c31;
   --status-no-show: #f191ab;
   --status-no-show-soft: #3a1621;
+  --status-locked: #93c5fd;
+  --status-locked-soft: #172554;
 }
 
 @theme inline {
@@ -154,6 +158,8 @@
   --color-status-cancelled-soft: var(--status-cancelled-soft);
   --color-status-no-show: var(--status-no-show);
   --color-status-no-show-soft: var(--status-no-show-soft);
+  --color-status-locked: var(--status-locked);
+  --color-status-locked-soft: var(--status-locked-soft);
 }
 
 @layer base {

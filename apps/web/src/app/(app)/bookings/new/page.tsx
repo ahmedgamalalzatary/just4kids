@@ -11,7 +11,7 @@ import { EmployeeAvatar } from "@/components/avatar";
 import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
-import { VisitStatusBadge } from "@/components/status";
+import { VisitStatusBadge, visitStatusLabels } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import { useBranches, useClient, useClients, useCreateBooking, useDayBookings, u
 import type { Booking, Employee } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
-import { buildSlots, durationOptions, haircutSummary, type Slot } from "@/lib/day";
+import { buildSlots, durationOptions, haircutSummary, timeWords, type Slot } from "@/lib/day";
 import { formatDate, formatDuration, formatTime, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -79,6 +79,7 @@ const slotStyles: Record<Slot<Booking>["state"], string> = {
   booked: "border-status-no-show/30 bg-status-no-show-soft text-status-no-show line-through decoration-1",
   past: "border-transparent bg-muted text-muted-foreground opacity-60",
   blocked: "border-dashed border-border text-muted-foreground opacity-60",
+  locked: "border-status-locked/30 bg-status-locked-soft text-status-locked",
 };
 
 /** The barber's day as 30-minute pills: free to pick, booked with the visit's details on tap, the rest unavailable. */
@@ -86,24 +87,35 @@ function SlotPills({ barber, date, duration, selected, onSelect }: { barber: Emp
   const schedule = useSchedule(barber.id);
   const day = useDayBookings(date, barber.id);
   const [shown, setShown] = useState<Booking | null>(null);
+  const [locked, setLocked] = useState<Slot<Booking> | null>(null);
   if (schedule.isPending || day.isPending) return <LoadingRows rows={2} />;
   if (schedule.isError) return <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} />;
   if (day.isError) return <ErrorState error={day.error} onRetry={() => day.refetch()} />;
   const slots = buildSlots({ date, schedule: schedule.data, bookings: day.data.bookings, duration });
-  if (slots.length === 0) {
-    return <p className="text-sm text-muted-foreground">لا يعمل {barber.displayName} في هذا اليوم. غيّر التاريخ أو عدّل <Link href={`/employees/${barber.id}`} className="text-primary underline">ساعات عمله</Link>.</p>;
-  }
   const details = shown && day.data.bookings.find(booking => booking.id === shown.id);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="وقت البداية">
         {slots.map(slot => {
           const isSelected = slot.startTime === selected && slot.state === "free";
-          const label = slot.state === "booked" ? `${formatTime(slot.startTime)}، محجوز` : slot.state === "free" ? formatTime(slot.startTime) : `${formatTime(slot.startTime)}، غير متاح`;
+          const reasonText = slot.reason === "day-off" ? "إجازة / استثناء" : "استراحة";
+          const label = slot.state === "booked" ? `${formatTime(slot.startTime)}، محجوز`
+            : slot.state === "free" ? formatTime(slot.startTime)
+            : slot.state === "locked" ? `${formatTime(slot.startTime)}، مغلق: ${reasonText}`
+            : `${formatTime(slot.startTime)}، غير متاح`;
+          const tooltip = slot.state === "booked" && slot.booking
+            ? `${timeWords(slot.startTime)} · ${slot.booking.client.name} · ${slot.booking.address.area} · ${slot.booking.client.phone} · ${haircutSummary(slot.booking)} · ${visitStatusLabels[slot.booking.visitStatus]}`
+            : slot.state === "free" ? timeWords(slot.startTime)
+            : slot.state === "locked" ? `${timeWords(slot.startTime)} · مغلق: ${reasonText}`
+            : formatTime(slot.startTime);
           return (
-            <button key={slot.startTime} type="button" role="radio" aria-checked={isSelected} aria-label={label}
+            <button key={slot.startTime} type="button" role="radio" aria-checked={isSelected} aria-label={label} title={tooltip}
               disabled={slot.state === "past" || slot.state === "blocked"}
-              onClick={() => { if (slot.state === "booked") setShown(slot.booking ?? null); else { setShown(null); onSelect(slot); } }}
+              onClick={() => {
+                if (slot.state === "booked") { setLocked(null); setShown(slot.booking ?? null); }
+                else if (slot.state === "locked") { setShown(null); setLocked(slot); }
+                else { setShown(null); setLocked(null); onSelect(slot); }
+              }}
               className={cn("min-w-[5.5rem] rounded-full border px-3 py-1.5 text-sm transition-colors", slotStyles[slot.state], isSelected && "border-primary bg-primary text-primary-foreground hover:bg-primary")}
               data-numeric>
               {formatTime(slot.startTime)}
@@ -114,8 +126,12 @@ function SlotPills({ barber, date, duration, selected, onSelect }: { barber: Emp
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full border border-border bg-card" aria-hidden />متاح</span>
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-status-no-show-soft ring-1 ring-status-no-show/40" aria-hidden />محجوز (اضغط للتفاصيل)</span>
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-status-locked-soft ring-1 ring-status-locked/40" aria-hidden />مغلق (استراحة أو إجازة)</span>
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-muted" aria-hidden />غير متاح لمدة {formatDuration(duration)}</span>
       </p>
+      {locked ? (
+        <p className="text-sm text-muted-foreground" role="status">مغلق: {locked.reason === "day-off" ? "إجازة / استثناء" : "استراحة"}</p>
+      ) : null}
       {details ? (
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-status-no-show/30 bg-status-no-show-soft/50 px-3 py-2.5 text-sm" role="status">
           <div className="min-w-0">
