@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canEditBooking, canRecordPayment, isNewForBarber, visitActions } from "@/lib/visit-rules";
+import { canEditBooking, canRecordPayment, isCorrection, isNewForBarber, visitActions } from "@/lib/visit-rules";
 
 const booking = (visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show", paymentStatus: "paid" | "unpaid" = "unpaid") => ({
   date: "2026-10-10", startTime: "10:00", endTime: "11:00", visitStatus, invoice: { paymentStatus },
@@ -26,6 +26,12 @@ describe("visit rules", () => {
     expect(canEditBooking(booking("booked"), at("09:59"))).toBe(true);
     expect(canEditBooking(booking("booked"), at("10:00"))).toBe(false);
     expect(canEditBooking(booking("arrived"), at("09:00"))).toBe(false);
+  });
+
+  it("flags anything started or finished as a correction the administrator can fix", () => {
+    expect(isCorrection(booking("booked"), at("09:59"))).toBe(false);
+    expect(isCorrection(booking("booked"), at("10:00"))).toBe(true);
+    for (const status of ["arrived", "completed", "cancelled", "no_show"] as const) expect(isCorrection(booking(status), at("09:00"))).toBe(true);
   });
 
   it("allows the administrator to record cash only for unpaid arrived or completed visits", () => {

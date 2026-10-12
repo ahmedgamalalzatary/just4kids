@@ -20,7 +20,7 @@ import type { Booking } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
 import { formatDate, formatDateTime, formatDuration, formatWindow, windowMinutes } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
-import { canEditBooking, canRecordPayment } from "@/lib/visit-rules";
+import { canRecordPayment, isCorrection } from "@/lib/visit-rules";
 
 function InvoiceSummary({ booking }: { booking: Booking }) {
   const invoice = booking.invoice;
@@ -62,6 +62,7 @@ function BookingScreen({ id }: { id: string }) {
   const data = booking.data;
   const link = mapLink(data.address);
   const payable = canRecordPayment(data, isAdmin);
+  const correction = isCorrection(data);
   const barberPhone = employees.data?.find(employee => employee.id === data.employee.id)?.phone;
 
   return (
@@ -82,7 +83,7 @@ function BookingScreen({ id }: { id: string }) {
         {isAdmin ? (
           <div className="flex flex-wrap gap-2">
             <WhatsAppButton booking={data} barberPhone={barberPhone} size="sm" />
-            {canEditBooking(data) ? <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil aria-hidden />تعديل الحجز</Button> : null}
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil aria-hidden />{correction ? "تصحيح الحجز" : "تعديل الحجز"}</Button>
             <Button variant="ghost" size="sm" onClick={() => setCorrectionOpen(true)}><RotateCcw aria-hidden />تصحيح الحالة</Button>
           </div>
         ) : null}

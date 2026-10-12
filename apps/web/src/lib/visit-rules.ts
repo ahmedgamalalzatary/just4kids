@@ -15,8 +15,13 @@ export function visitActions(booking: BookingTiming, now: Date = new Date()): Vi
   return [];
 }
 
+// A started or finished visit is no longer a plain edit; the administrator corrects it with a reason.
+export function isCorrection(booking: BookingTiming, now: Date = new Date()): boolean {
+  return booking.visitStatus !== "booked" || now >= kuwaitInstant(booking.date, booking.startTime);
+}
+
 export function canEditBooking(booking: BookingTiming, now: Date = new Date()): boolean {
-  return booking.visitStatus === "booked" && now < kuwaitInstant(booking.date, booking.startTime);
+  return !isCorrection(booking, now);
 }
 
 export function canRecordPayment(booking: BookingTiming & { invoice: { paymentStatus: "paid" | "unpaid" } }, isAdmin: boolean): boolean {

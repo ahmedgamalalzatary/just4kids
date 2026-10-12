@@ -154,17 +154,35 @@ describe("reservation edits and invoice revisions", () => {
     expect((await edit({ adultCount: 1 })).status).toBe(409);
     expect((await revisions()).body.revisions).toEqual([]);
   });
-  it("rejects past starts and terminal/arrived visits without changing history", async () => {
+  it("lets the administrator correct a started or finished visit only with a reason, keeping the history", async () => {
+    const before = (await detail()).body;
+    // The reserved start has arrived, so an edit is now a correction and needs a reason.
     vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T09:00:00+03:00`));
-    expect((await edit({ startTime: "10:00", endTime: "10:20" })).status).toBe(409);
+    const missingReason = await edit({ adultCount: 2 });
+    expect(missingReason.status).toBe(400);
+    expect(missingReason.body.error.code).toBe("CORRECTION_REASON_REQUIRED");
+    expect((await detail()).body).toEqual(before);
+    const corrected = await edit({ adultCount: 2, reason: "correct the count" });
+    expect(corrected.status).toBe(200);
+    expect(corrected.body).toMatchObject({ adultCount: 2, visitVersion: 1 });
     vi.restoreAllMocks();
-    for (const status of ["arrived", "completed", "cancelled", "no_show"]) {
-      await connection.pool.execute("UPDATE bookings SET visit_status = ? WHERE id = ?", [status, booking.id]);
-      expect((await edit({ adultCount: 2 })).status).toBe(409);
-    }
-    await connection.pool.execute("UPDATE bookings SET visit_status = 'booked' WHERE id = ?", [booking.id]);
-    expect((await edit({ date: "2000-01-01" })).status).toBe(400);
-    expect((await revisions()).body.revisions).toEqual([]);
+    // A plain reservation that has not started still may not be moved into the past.
+    expect((await edit({ date: "2000-01-01" }, 1)).status).toBe(400);
+    expect((await edit({ date: "2000-01-01" }, 1)).body.error.code).toBe("BOOKING_START_NOT_FUTURE");
+    // A finished visit is corrected the same way, and the revision keeps the reason and both versions.
+    await connection.pool.execute("UPDATE bookings SET visit_status = 'completed' WHERE id = ?", [booking.id]);
+    const finished = await edit({ childCount: 3, reason: "miscounted children" }, 1);
+    expect(finished.status).toBe(200);
+    expect(finished.body).toMatchObject({ childCount: 3 });
+    const history = await revisions();
+    expect(history.body.revisions).toHaveLength(2);
+    expect(history.body.revisions[0]).toMatchObject({ reason: "correct the count", before: { adultCount: 1 }, after: { adultCount: 2 } });
+    expect(history.body.revisions[1]).toMatchObject({ reason: "miscounted children", before: { childCount: 1 }, after: { childCount: 3 } });
+    // A correction still refuses a window that clashes with another visit for the same barber.
+    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "10:20" })).status).toBe(201);
+    const clash = await edit({ startTime: "10:00", endTime: "10:20", reason: "move it" }, 2);
+    expect(clash.status).toBe(409);
+    expect(clash.body.error.code).toBe("BARBER_UNAVAILABLE");
   });
   it("rejects paid edits when the corresponding cash record is missing", async () => {
     await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);

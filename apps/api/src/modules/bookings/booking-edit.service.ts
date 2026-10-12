@@ -32,7 +32,9 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("update");
         if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
         if (booking.employeeId !== identity.employeeId || booking.visitVersion !== input.expectedVersion) throw new HttpError(409, "BOOKING_CONFLICT", "تم تعديل الحجز، أعد تحميله");
-        if (booking.visitStatus !== "booked" || Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= Date.now()) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "يمكن تعديل الحجز المستقبلي غير المبدوء فقط");
+        // A started or finished visit is a correction: it must state a reason, and it may be moved into the past.
+        const correction = booking.visitStatus !== "booked" || Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= Date.now();
+        if (correction && input.reason === undefined) throw new HttpError(400, "CORRECTION_REASON_REQUIRED", "سبب التصحيح مطلوب");
         const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
         if (!invoice) throw new Error("Booking invoice missing");
         const [activePayment] = invoice.paymentStatus === "paid" ? await transaction.select().from(cashPayments).where(eq(cashPayments.activeInvoiceId, invoice.id)).for("update") : [];
@@ -45,7 +47,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
           amountCash: invoice.amountCash, amountLink: invoice.amountLink });
         // The invoice amounts are inputs to validation only; the reservation edit never changes them.
         const merged = { clientId: parsed.clientId, addressId: parsed.addressId, employeeId: parsed.employeeId, date: parsed.date, startTime: parsed.startTime, endTime: parsed.endTime, adultCount: parsed.adultCount, childCount: parsed.childCount, specialChildCount: parsed.specialChildCount };
-        assertFutureStart(merged);
+        if (!correction) assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;
         const barber = barbers.get(targetId)!;
@@ -81,8 +83,8 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         nextBooking.visitVersion++;
         const after = serializeBooking({ booking: nextBooking, invoice: nextInvoice });
         const now = Date.now();
-        if (Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= now) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "يمكن تعديل الحجز المستقبلي غير المبدوء فقط");
-        assertFutureStart(merged);
+        if (!correction && Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= now) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "يمكن تعديل الحجز المستقبلي غير المبدوء فقط");
+        if (!correction) assertFutureStart(merged);
         await transaction.update(bookings).set({ ...merged, notes: nextNotes, seenByBarberAt, branchId, addressSnapshot, employeeSnapshot, visitVersion: nextBooking.visitVersion }).where(eq(bookings.id, id));
         const revisionId = randomUUID();
         await transaction.insert(bookingRevisions).values({ id: revisionId, bookingId: id, version: nextBooking.visitVersion, actorAccountId: actor.id, reason: input.reason ?? null, occurredAt: new Date(now), before, after });

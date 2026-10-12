@@ -16,6 +16,12 @@ describe("booking window", () => {
     expect(windowProblem({ date: "2026-10-11", startTime: "08:00", endTime: "12:01" }, now)).toBe("أطول مدة للموعد 4 ساعات");
     expect(windowProblem({ date: "2026-10-10", startTime: "10:00", endTime: "11:00" }, now)).toBe("يجب أن يبدأ الموعد بعد الوقت الحالي بتوقيت الكويت");
   });
+
+  it("skips the future rule for a correction, which may sit in the past", () => {
+    expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:20" }, now, false)).toBeNull();
+    expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:19" }, now, false)).toBe("أقل مدة للموعد 20 دقيقة");
+    expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:20" }, now)).toBe("يجب أن يبدأ الموعد بعد الوقت الحالي بتوقيت الكويت");
+  });
 });
 
 describe("special-needs child count", () => {

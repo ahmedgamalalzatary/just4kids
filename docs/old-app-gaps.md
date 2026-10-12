@@ -352,7 +352,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
 | S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Done | [ ] |
-| S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Blocked | [ ] |
+| S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Done | [ ] |
 | S16 | Partner and moderator accounts | G11 | S2, S3 (if approved), S11 | Q5 | Yes | L | Blocked | [ ] |
 | S17 | Client review and production rollout | all | every other slice Verified or dropped | — | — | M | Blocked | [ ] |
 
@@ -607,13 +607,13 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S15 — Corrections on finished visits (G17)
 
-- **Blocked by:** Q10.
+- **Decisions:** Q10 answered 2026-10-12 — a finished or already-started visit stays editable, but only as a correction that must state a reason; the old app's `edit_appointment.php` edited any appointment with only working-hours and slot checks.
 - **Start:** S10 and S11 verified; Q10 answered.
 - **Goal:** the admin can fix counts or times on finished visits, with a required reason and full history.
 - **Work:** an admin "correction" edit for completed or past visits. It records a reason and the before/after values; money follows the payment-reconciliation rules (or S11 if daily entry is chosen).
 - **End: Full check.**
 - **How to verify:** fix the children count on yesterday's completed visit: the history shows the reason and the old/new values, and the reports update.
-- Evidence:
+- Evidence (2026-10-12): the reservation edit now also acts as a correction. API: `PATCH /bookings/:id` treats a started or finished visit (`visitStatus !== "booked" || start <= now`) as a correction — it requires a `reason` (400 `CORRECTION_REASON_REQUIRED` otherwise), may be moved into the past (the future-start rule is skipped), and still runs the barber working-hours and slot-conflict checks; every change is kept in `booking_revisions` with the before/after values and the reason. A not-yet-started reservation keeps its old rules unchanged. Web: `isCorrection` (started or finished) drives the booking page, which shows «تصحيح الحجز» and the edit dialog in correction mode — past dates allowed and a required «سبب التصحيح» field; the «التعديلات» tab already shows the reason and the old/new values. Tests (red → green): `apps/api/tests/booking-edits.test.ts` (a started visit is refused without a reason and saved with one; a finished visit is corrected; the revision keeps the reason and both versions; a clashing window is still refused) and `apps/web/tests/visit-rules.test.ts` + `apps/web/tests/booking.test.ts` (`isCorrection` and the correction window rule). Full `pnpm check` green: 54 files / 348 tests and build.
 
 ### S16 — Partner and moderator accounts (G11)
 

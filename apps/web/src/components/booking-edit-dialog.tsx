@@ -15,6 +15,7 @@ import { useClient, useEditBooking, useEmployees } from "@/lib/api/hooks";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem, windowProblem } from "@/lib/booking";
+import { isCorrection } from "@/lib/visit-rules";
 import { kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 
@@ -37,6 +38,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const client = useClient(booking.clientId);
   const employees = useEmployees();
   const edit = useEditBooking();
+  const correction = isCorrection(booking);
   const [addressId, setAddressId] = useState(KEEP_ADDRESS);
   const [employeeId, setEmployeeId] = useState(booking.employeeId);
   const [date, setDate] = useState(booking.date);
@@ -62,7 +64,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
 
   const submit = () => {
     if (!changed) { setProblem("لم تغيّر شيئاً بعد"); return; }
-    if (timingChanged) { const issue = windowProblem({ date, startTime, endTime }); if (issue) { setProblem(issue); return; } }
+    if (timingChanged) { const issue = windowProblem({ date, startTime, endTime }, new Date(), !correction); if (issue) { setProblem(issue); return; } }
+    if (correction && !reason.trim()) { setProblem("اكتب سبب التصحيح"); return; }
     if (adultCount + childCount === 0) { setProblem("حلاقة واحدة على الأقل"); return; }
     const specialProblem = specialChildrenProblem(childCount, specialChildCount);
     if (specialProblem) { setProblem(specialProblem); return; }
@@ -103,7 +106,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           </Select>
         </Field>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="التاريخ"><Input type="date" dir="ltr" min={kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
+          <Field label="التاريخ"><Input type="date" dir="ltr" min={correction ? undefined : kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
           <Field label="من"><Input type="time" dir="ltr" value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
           <Field label="إلى"><Input type="time" dir="ltr" value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
         </div>
@@ -119,7 +122,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           </p>
         </div>
         <Field label="ملاحظات" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
-        <Field label="سبب التعديل" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
+        <Field label={correction ? "سبب التصحيح" : "سبب التعديل"} optional={!correction}><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={edit.error} />
       </div>
@@ -129,12 +132,13 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
 }
 
 export function BookingEditDialog({ booking, open, onOpenChange }: { booking: Booking; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const correction = isCorrection(booking);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>تعديل الحجز <Ltr>{booking.reference}</Ltr></DialogTitle>
-          <DialogDescription>يحتفظ الحجز برقمه وفاتورته، ويُحفظ كل تعديل في السجل. لا يتغير السعر المتفق عليه.</DialogDescription>
+          <DialogTitle>{correction ? "تصحيح الحجز" : "تعديل الحجز"} <Ltr>{booking.reference}</Ltr></DialogTitle>
+          <DialogDescription>{correction ? "تصحيح زيارة بدأت أو انتهت: يلزم سبب، ويُحفظ كل تصحيح في السجل. لا يتغير السعر المتفق عليه." : "يحتفظ الحجز برقمه وفاتورته، ويُحفظ كل تعديل في السجل. لا يتغير السعر المتفق عليه."}</DialogDescription>
         </DialogHeader>
         {open ? <EditForm booking={booking} onDone={() => onOpenChange(false)} /> : null}
       </DialogContent>
