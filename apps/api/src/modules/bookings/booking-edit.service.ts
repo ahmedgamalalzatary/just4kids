@@ -66,7 +66,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         if (input.addressId !== undefined) {
           const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, merged.addressId), eq(clientAddresses.clientId, booking.clientId))).for("update");
           if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
-          addressSnapshot = bookingAddressSnapshotSchema.parse({ area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude });
+          addressSnapshot = bookingAddressSnapshotSchema.parse({ area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude });
         }
         const adultAmount = fils(adultUnitPrice) * BigInt(merged.adultCount), childAmount = fils(childUnitPrice) * BigInt(merged.childCount);
         const nextNotes = input.notes === undefined ? booking.notes : input.notes;

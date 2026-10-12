@@ -7,7 +7,7 @@ import { clients, clientAddresses } from "./clients.js";
 // Snapshot types are structural so the server-only database package does not depend on contracts.
 type ClientSnapshot = { name: string; phone: string };
 type EmployeeSnapshot = { id: string; displayName: string; branchId: string; branchName: string; branchLocation: string };
-type AddressSnapshot = { area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null; floor: string | null; apartment: string | null; instructions: string | null; mapsUrl: string | null; latitude: string | null; longitude: string | null };
+type AddressSnapshot = { area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; gate: string | null; blueNumber: string | null; floor: string | null; apartment: string | null; instructions: string | null; mapsUrl: string | null; latitude: string | null; longitude: string | null };
 export const bookings = mysqlTable("bookings", {
   id: varchar("id", { length: 36 }).primaryKey(), reference: varchar("reference", { length: 40 }).notNull(),
   clientId: varchar("client_id", { length: 36 }).notNull().references(() => clients.id, { onDelete: "restrict" }),

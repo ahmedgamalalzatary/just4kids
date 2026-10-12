@@ -1,5 +1,6 @@
 type AddressLike = {
   area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null;
+  avenue?: string | null; gate?: string | null; blueNumber?: string | null;
   floor: string | null; apartment: string | null; instructions?: string | null; mapsUrl: string | null; latitude: string | null; longitude: string | null;
 };
 
@@ -13,6 +14,9 @@ export function formatAddress(address: AddressLike): string {
     address.buildingName ? `مبنى ${address.buildingName}` : null,
     address.floor ? `الدور ${address.floor}` : null,
     address.apartment ? `شقة ${address.apartment}` : null,
+    address.avenue ? `جادة ${address.avenue}` : null,
+    address.gate ? `بوابة ${address.gate}` : null,
+    address.blueNumber ? `الرقم الأزرق ${address.blueNumber}` : null,
   ].filter(Boolean).join("، ");
 }
 

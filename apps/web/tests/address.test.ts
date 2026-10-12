@@ -9,6 +9,7 @@ describe("address display", () => {
   it("joins only the parts that exist", () => {
     expect(formatAddress(base)).toBe("السالمية، قطعة 10، شارع سالم المبارك، منزل 12");
     expect(formatAddress({ ...base, houseNumber: null, buildingName: "برج النخيل", floor: "3", apartment: "7" })).toBe("السالمية، قطعة 10، شارع سالم المبارك، مبنى برج النخيل، الدور 3، شقة 7");
+    expect(formatAddress({ ...base, avenue: "3", gate: "12", blueNumber: "5" })).toBe("السالمية، قطعة 10، شارع سالم المبارك، منزل 12، جادة 3، بوابة 12، الرقم الأزرق 5");
   });
 
   it("prefers the saved map link and falls back to coordinates", () => {
@@ -24,7 +25,12 @@ describe("address form", () => {
   it("requires a house number or building name and turns blanks into null", () => {
     expect(addressFormSchema.safeParse(filled).error?.issues[0]?.path).toEqual(["houseNumber"]);
     const parsed = addressFormSchema.parse({ ...filled, buildingName: "برج" });
-    expect(parsed).toMatchObject({ houseNumber: null, buildingName: "برج", floor: null, mapsUrl: null, latitude: null });
+    expect(parsed).toMatchObject({ houseNumber: null, buildingName: "برج", floor: null, mapsUrl: null, latitude: null, avenue: null, gate: null, blueNumber: null });
+  });
+
+  it("keeps the optional avenue, gate and blue number", () => {
+    const parsed = addressFormSchema.parse({ ...filled, buildingName: "برج", avenue: "3", gate: "12", blueNumber: "5" });
+    expect(parsed).toMatchObject({ avenue: "3", gate: "12", blueNumber: "5" });
   });
 
   it("requires both coordinates and a real Google Maps link", () => {
