@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "514fa006-db87-40a9-b3d5-b6e27c97ae46",
+  "id": "5faf49ea-2c31-4d41-8507-4b672463d95e",
   "prevId": "e945ff55-c961-4081-b667-5b7c39317567",
   "tables": {
     "accounts": {
@@ -53,6 +53,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": true
+        },
+        "access_until": {
+          "name": "access_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -1341,94 +1348,6 @@
           "value": "`invoices`.`adult_unit_price` >= 0 AND `invoices`.`child_unit_price` >= 0 AND `invoices`.`adult_amount` >= 0 AND `invoices`.`child_amount` >= 0 AND `invoices`.`total` = `invoices`.`adult_amount` + `invoices`.`child_amount`"
         }
       }
-    },
-    "booking_messages": {
-      "name": "booking_messages",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "booking_id": {
-          "name": "booking_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "enum('sent_to_barber')",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "actor_account_id": {
-          "name": "actor_account_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "datetime(3)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "booking_messages_booking_index": {
-          "name": "booking_messages_booking_index",
-          "columns": [
-            "booking_id",
-            "occurred_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "booking_messages_booking_id_bookings_id_fk": {
-          "name": "booking_messages_booking_id_bookings_id_fk",
-          "tableFrom": "booking_messages",
-          "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "booking_messages_actor_account_id_accounts_id_fk": {
-          "name": "booking_messages_actor_account_id_accounts_id_fk",
-          "tableFrom": "booking_messages",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "actor_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "booking_messages_id": {
-          "name": "booking_messages_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
     },
     "booking_visit_events": {
       "name": "booking_visit_events",

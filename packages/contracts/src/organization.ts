@@ -32,6 +32,7 @@ export const employeeAdminUpdateSchema = z.strictObject({
   phone: phoneSchema.optional(),
   branchId: z.uuid().optional(),
   enabled: z.boolean().optional(),
+  accessUntil: z.iso.date().nullable().optional(),
 }).refine(value => Object.keys(value).length > 0);
 export const employeeSelfUpdateSchema = z.strictObject({ displayName: label });
 export const employeePasswordResetSchema = z.strictObject({ password: passwordSchema });
@@ -42,6 +43,7 @@ export const employeeResponseSchema = z.strictObject({
   branchId: z.uuid(),
   branch: z.strictObject({ id: z.uuid(), name: label, location }),
   enabled: z.boolean(),
+  accessUntil: z.iso.date().nullable(),
   photoUpdatedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
