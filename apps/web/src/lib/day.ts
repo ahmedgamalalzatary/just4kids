@@ -17,8 +17,14 @@ type Interval = { startTime: string; endTime: string };
 type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[] }[]; exceptions: { date: string; intervals: Interval[] }[] };
 type Visit = Interval & { visitStatus: VisitStatus };
 
-export type SlotState = "free" | "booked" | "past" | "blocked";
-export type Slot<T extends Visit> = { startTime: string; endTime: string; state: SlotState; booking?: T };
+export type SlotState = "free" | "booked" | "past" | "blocked" | "locked";
+export type SlotReason = "break" | "day-off";
+export type Slot<T extends Visit> = { startTime: string; endTime: string; state: SlotState; booking?: T; reason?: SlotReason };
+
+// Pills span the whole day the client is used to (the old app's 09:00 list up to midnight) so a closed or idle half
+// hour is shown blue instead of hidden. The span still reaches any shift that starts earlier than 09:00.
+const DAY_START = "09:00";
+const DAY_END = "24:00";
 
 function timeOf(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -43,27 +49,50 @@ function covered(intervals: Interval[], startTime: string, endTime: string): boo
 }
 
 /**
- * 30-minute pills over a barber's working hours. A pill is booked when a visit holds its half hour, past when it
- * already started, and blocked when the chosen visit length would run into a visit or past closing time.
+ * 30-minute pills across the barber's whole day. A pill is booked when a visit holds its half hour, past when it has
+ * already started, locked (blue) when the half hour is outside the day's working intervals — a break between shifts
+ * or a whole day off — and blocked when the chosen visit length would run into a visit or past closing time.
  * The server stays authoritative and rechecks availability on save.
  */
 export function buildSlots<T extends Visit>({ date, schedule, bookings, duration, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; duration: number; now?: Date }): Slot<T>[] {
   const intervals = workingIntervals(schedule, date);
-  const starts = new Set<number>();
-  for (const interval of intervals) {
-    for (let minute = minuteOfDay(interval.startTime); minute + SLOT_MINUTES <= minuteOfDay(interval.endTime); minute += SLOT_MINUTES) starts.add(minute);
-  }
+  const scheduledStarts = [...schedule.days, ...schedule.exceptions].flatMap(entry => entry.intervals.map(interval => minuteOfDay(interval.startTime)));
+  const firstMinute = Math.min(minuteOfDay(DAY_START), ...scheduledStarts);
+  const lastMinute = minuteOfDay(DAY_END);
+  const starts: number[] = [];
+  for (let minute = firstMinute; minute + SLOT_MINUTES <= lastMinute; minute += SLOT_MINUTES) starts.push(minute);
   const holding = bookings.filter(booking => blocking.has(booking.visitStatus));
   const overlapping = (startTime: string, endTime: string) => holding.find(booking => startTime < booking.endTime && endTime > booking.startTime);
-  return [...starts].sort((a, b) => a - b).map(minute => {
+  return starts.map(minute => {
     const startTime = timeOf(minute);
-    const endTime = minute + duration < 24 * 60 ? timeOf(minute + duration) : "24:00";
-    const booking = overlapping(startTime, timeOf(minute + SLOT_MINUTES));
+    const halfEndTime = timeOf(minute + SLOT_MINUTES);
+    const endTime = minute + duration < lastMinute ? timeOf(minute + duration) : DAY_END;
+    const booking = overlapping(startTime, halfEndTime);
     if (booking) return { startTime, endTime, state: "booked", booking };
     if (kuwaitInstant(date, startTime) <= now) return { startTime, endTime, state: "past" };
-    if (endTime === "24:00" || !covered(intervals, startTime, endTime) || overlapping(startTime, endTime)) return { startTime, endTime, state: "blocked" };
+    if (intervals.length === 0 || !covered(intervals, startTime, halfEndTime)) return { startTime, endTime, state: "locked", reason: intervals.length === 0 ? "day-off" : "break" };
+    if (endTime === DAY_END || !covered(intervals, startTime, endTime) || overlapping(startTime, endTime)) return { startTime, endTime, state: "blocked" };
     return { startTime, endTime, state: "free" };
   });
+}
+
+const hourWords: Record<number, string> = { 1: "الواحدة", 2: "الثانية", 3: "الثالثة", 4: "الرابعة", 5: "الخامسة", 6: "السادسة", 7: "السابعة", 8: "الثامنة", 9: "التاسعة", 10: "العاشرة", 11: "الحادية عشرة", 12: "الثانية عشرة" };
+
+function dayPart(hours: number): string {
+  if (hours >= 5 && hours < 12) return "صباحاً";
+  if (hours >= 12 && hours < 16) return "ظهراً";
+  if (hours >= 16 && hours < 19) return "عصراً";
+  if (hours >= 19 && hours < 22) return "مساءً";
+  return "ليلاً";
+}
+
+/** A local HH:mm time in Arabic words, e.g. "الرابعة والنصف عصراً". */
+export function timeWords(time: string): string {
+  const hours = Number(time.slice(0, 2));
+  const minutes = Number(time.slice(3, 5));
+  const hourWord = hourWords[hours % 12 === 0 ? 12 : hours % 12]!;
+  const minuteWord = minutes === 0 ? "" : minutes === 30 ? " والنصف" : ` و${minutes} دقيقة`;
+  return `${hourWord}${minuteWord} ${dayPart(hours)}`;
 }
 
 type ShareableBooking = {
