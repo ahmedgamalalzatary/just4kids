@@ -25,6 +25,11 @@ export function TimeChip({ booking, className }: { booking: Pick<Booking, "start
   return <span className={cn("inline-flex w-fit items-center whitespace-nowrap rounded-full bg-accent px-3 py-1 text-sm font-semibold text-accent-foreground ring-1 ring-ring/25", className)} data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span>;
 }
 
+/** The orange dot that marks a booking the assigned barber has not opened yet. */
+export function NewBookingDot({ className }: { className?: string }) {
+  return <span role="img" aria-label="حجز جديد" title="لم تفتح هذا الحجز بعد" className={cn("inline-block size-2.5 shrink-0 rounded-full bg-sun ring-2 ring-sun/25", className)} />;
+}
+
 /** Opens WhatsApp to the barber with the visit details ready to send. */
 export function WhatsAppButton({ booking, barberPhone, size = "sm" }: { booking: Booking; barberPhone: string | undefined; size?: "sm" | "default" }) {
   if (!barberPhone) return null;
@@ -79,7 +84,10 @@ export function VisitCard({ booking }: { booking: Booking }) {
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <TimeChip booking={booking} />
+        <span className="flex items-center gap-2">
+          {booking.seenByBarberAt === null ? <NewBookingDot /> : null}
+          <TimeChip booking={booking} />
+        </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <VisitStatusBadge status={booking.visitStatus} />
           <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />

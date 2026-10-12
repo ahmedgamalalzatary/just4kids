@@ -230,4 +230,26 @@ describe("reservation edits and invoice revisions", () => {
     expect(history.body.revisions[0].before.notes).toBe("اتصل قبل الوصول");
     expect(history.body.revisions[0].after.notes).toBe("لا تنسَ الباب");
   });
+  it("marks a booking seen when the assigned barber opens it, but not for the administrator or another barber", async () => {
+    expect((await detail()).body.seenByBarberAt).toBeNull();
+    const opened = await detail(employee);
+    expect(opened.status).toBe(200);
+    expect(typeof opened.body.seenByBarberAt).toBe("string");
+    const [stored] = await connection.pool.execute("SELECT seen_by_barber_at FROM bookings WHERE id = ?", [booking.id]);
+    expect((stored as { seen_by_barber_at: unknown }[])[0]?.seen_by_barber_at).not.toBeNull();
+    expect((await request(app).get(`/bookings/${booking.id}`).set("Cookie", other.cookie)).status).toBe(403);
+    expect((await detail()).body.seenByBarberAt).toBe(opened.body.seenByBarberAt);
+  });
+  it("clears the new-booking marker when the visit time changes or the booking is reassigned", async () => {
+    await detail(employee);
+    expect((await detail()).body.seenByBarberAt).not.toBeNull();
+    const moved = await edit({ startTime: "10:00", endTime: "10:20" });
+    expect(moved.status).toBe(200);
+    expect(moved.body.seenByBarberAt).toBeNull();
+    await detail(employee);
+    expect((await detail()).body.seenByBarberAt).not.toBeNull();
+    const reassigned = await edit({ employeeId: sameId }, 1);
+    expect(reassigned.status).toBe(200);
+    expect(reassigned.body.seenByBarberAt).toBeNull();
+  });
 });

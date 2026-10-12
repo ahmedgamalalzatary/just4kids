@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, branches, clients, clientAddresses, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
 import type { Account, BookingCreate, BookingListQuery } from "@just4kids/contracts";
@@ -23,6 +23,10 @@ export function createBookingRepository(connection: ReturnType<typeof createData
   }
   return {
     get,
+    // Marks the booking as opened by its barber once; the conditional update keeps a concurrent first view from overwriting the time.
+    async markSeenByBarber(id: string, at: Date) {
+      await db.update(bookings).set({ seenByBarberAt: at }).where(and(eq(bookings.id, id), isNull(bookings.seenByBarberAt)));
+    },
     async list(actor: Account, query: BookingListQuery) {
       // Employees only ever see their own bookings, whatever barber filter they send.
       const employeeId = actor.role === "employee" ? actor.id : query.employeeId;
@@ -56,7 +60,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
         const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
         const booking = {
-          id, reference, ...input, notes: input.notes ?? null, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+          id, reference, ...input, notes: input.notes ?? null, seenByBarberAt: null, branchId: branch.id, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
           clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
           employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName, branchId: branch.id, branchName: branch.name, branchLocation: branch.location }, createdAt: now,
         };

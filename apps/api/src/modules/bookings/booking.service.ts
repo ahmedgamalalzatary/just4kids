@@ -9,6 +9,7 @@ export function serializeBooking(row: NonNullable<Awaited<ReturnType<BookingRepo
   return bookingResponseSchema.parse({
     id: booking.id, reference: booking.reference, clientId: booking.clientId, addressId: booking.addressId, employeeId: booking.employeeId, branchId: booking.branchId,
     date: booking.date, startTime: booking.startTime, endTime: booking.endTime, timeZone: "Asia/Kuwait", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, notes: booking.notes,
+    seenByBarberAt: booking.seenByBarberAt ? booking.seenByBarberAt.toISOString() : null,
     source: booking.source, visitStatus: booking.visitStatus, visitVersion: booking.visitVersion, createdAt: booking.createdAt.toISOString(), ...snapshots,
     invoice: { ...invoice, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, notes: booking.notes, ...snapshots },
   });
@@ -20,6 +21,12 @@ export function createBookingService(repository: BookingRepository) {
       const row = await repository.get(id);
       if (!row) return undefined;
       if (actor.role !== "admin" && actor.id !== row.booking.employeeId) throw new ForbiddenError();
+      // The assigned barber opening the booking clears their "new booking" marker; the administrator never does.
+      if (actor.role === "employee" && row.booking.seenByBarberAt === null) {
+        const seenByBarberAt = new Date();
+        await repository.markSeenByBarber(id, seenByBarberAt);
+        return serializeBooking({ booking: { ...row.booking, seenByBarberAt }, invoice: row.invoice });
+      }
       return serializeBooking(row);
     },
     async list(queryInput: unknown, actor: Account) {

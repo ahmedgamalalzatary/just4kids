@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canEditBooking, canRecordPayment, visitActions } from "@/lib/visit-rules";
+import { canEditBooking, canRecordPayment, isNewForBarber, visitActions } from "@/lib/visit-rules";
 
 const booking = (visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show", paymentStatus: "paid" | "unpaid" = "unpaid") => ({
   date: "2026-10-10", startTime: "10:00", endTime: "11:00", visitStatus, invoice: { paymentStatus },
@@ -39,5 +39,12 @@ describe("visit rules", () => {
   it("never offers cash recording to barbers", () => {
     expect(canRecordPayment(booking("arrived"), false)).toBe(false);
     expect(canRecordPayment(booking("completed"), false)).toBe(false);
+  });
+
+  it("shows the new-booking marker only to the barber, until they open the booking", () => {
+    expect(isNewForBarber({ seenByBarberAt: null }, false)).toBe(true);
+    expect(isNewForBarber({ seenByBarberAt: "2026-10-12T00:00:00.000Z" }, false)).toBe(false);
+    expect(isNewForBarber({ seenByBarberAt: null }, true)).toBe(false);
+    expect(isNewForBarber({ seenByBarberAt: "2026-10-12T00:00:00.000Z" }, true)).toBe(false);
   });
 });

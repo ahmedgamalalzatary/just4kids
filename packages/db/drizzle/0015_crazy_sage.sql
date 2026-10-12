@@ -1,0 +1,1 @@
+ALTER TABLE `bookings` ADD `seen_by_barber_at` datetime(3);

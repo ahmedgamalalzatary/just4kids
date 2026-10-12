@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useId, useState, type ReactNode } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
-import { DayBookingRow, TimeChip, VisitCard } from "@/components/day-bookings";
+import { DayBookingRow, NewBookingDot, TimeChip, VisitCard } from "@/components/day-bookings";
 import { Field } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Pagination } from "@/components/pagination";
@@ -22,6 +22,7 @@ import type { Booking, Employee } from "@/lib/api/types";
 import { daySummary, haircutSummary, shiftDate } from "@/lib/day";
 import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
+import { isNewForBarber } from "@/lib/visit-rules";
 import { cn } from "@/lib/utils";
 
 function groupByDate(bookings: Booking[]) {
@@ -30,12 +31,15 @@ function groupByDate(bookings: Booking[]) {
   return [...groups.entries()];
 }
 
-function BookingRow({ booking, showBarber, photoVersion }: { booking: Booking; showBarber: boolean; photoVersion?: string | null | undefined }) {
+function BookingRow({ booking, showBarber, unseen, photoVersion }: { booking: Booking; showBarber: boolean; unseen: boolean; photoVersion?: string | null | undefined }) {
   return (
     <li>
       <Link href={`/bookings/${booking.id}`} className="grid gap-2.5 px-4 py-4 transition-colors hover:bg-muted/50 sm:px-5 lg:grid-cols-[10rem_1fr_auto] lg:items-center lg:gap-6">
         <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-2">
-          <TimeChip booking={booking} />
+          <span className="flex items-center gap-2">
+            {unseen ? <NewBookingDot /> : null}
+            <TimeChip booking={booking} />
+          </span>
           {showBarber ? (
             <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
               <EmployeeAvatar employeeId={booking.employee.id} name={booking.employee.displayName} version={photoVersion} className="size-6 text-xs" />
@@ -131,7 +135,7 @@ function AllView({ isAdmin, employees, newButton }: { isAdmin: boolean; employee
             {formatDate(date)}
             {date === today ? <span className="rounded-full bg-sun px-2 py-0.5 text-xs font-semibold text-sun-foreground">اليوم</span> : null}
           </h2>
-          <Card><ul className="divide-y divide-border">{items.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} photoVersion={photos.get(booking.employeeId)} />)}</ul></Card>
+          <Card><ul className="divide-y divide-border">{items.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} unseen={isNewForBarber(booking, isAdmin)} photoVersion={photos.get(booking.employeeId)} />)}</ul></Card>
         </section>
       ))}
       {bookings.data.total > bookings.data.limit ? <Card><Pagination total={bookings.data.total} limit={bookings.data.limit} offset={bookings.data.offset} onChange={setOffset} className="border-t-0" /></Card> : null}

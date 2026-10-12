@@ -296,7 +296,7 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 6. **Client name (G6):** may a new client be saved with only a phone number?
 7. **Areas list (G8):** do you want a fixed, searchable areas list again?
 8. **Barber login (G10):** keep phone login? Do you need an account expiry date?
-9. **New-booking dot (G14):** wanted?
+9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
 10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits?
 11. **Blue pill (G4):** should the admin lock a single half-hour directly from the pills, or is editing working hours enough?
 
@@ -350,7 +350,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Blocked | [ ] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Blocked | [ ] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
-| S13 | "New booking" dot for barbers | G14 | S0 | Q9 | Yes | S | Blocked | [ ] |
+| S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
 | S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Blocked | [ ] |
 | S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Blocked | [ ] |
 | S16 | Partner and moderator accounts | G11 | S2, S3 (if approved), S11 | Q5 | Yes | L | Blocked | [ ] |
@@ -581,7 +581,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S13 — "New booking" dot for barbers (G14)
 
-- **Blocked by:** Q9.
+- **Blocked by:** — (Q9 answered yes, 2026-10-12).
 - **Start:** S0 verified; Q9 answered. Bookings area green.
 - **Goal:** barbers see which bookings they have not opened yet.
 - **Work:**
@@ -590,7 +590,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   - It resets if the booking is reassigned to them or its time changes.
 - **End: Full check.**
 - **How to verify:** create a booking for a barber; the barber sees the dot until they open the booking, and it is gone after.
-- Evidence:
+- Evidence: 2026-10-12. New nullable `bookings.seen_by_barber_at` datetime(3) via migration `0015_crazy_sage.sql` (applied to test and development MySQL). Contracts: `bookingResponseSchema` adds `seenByBarberAt: string | null` defaulting to null, so existing stored snapshots (revision before/after, payment bookingAtReceipt) still parse. API: `GET /bookings/:id` (and `/invoice`) sets the marker on the first open by the assigned barber only, via a conditional `seen_by_barber_at IS NULL` update; the administrator never sets it and another barber is denied 403; a reservation edit that moves the window or reassigns the barber clears it, while counts/notes/address-only edits keep it. Web: an orange `NewBookingDot` shows on the barber's visit cards (barber home and the day view) and on the barber's booking-list rows, gated by `isNewForBarber(booking, isAdmin)` so the administrator never sees it. Tests: `apps/api/tests/booking-edits.test.ts` (mark on barber open, not admin and not another barber, clear on window move and on reassignment), `apps/web/tests/visit-rules.test.ts` (marker rules). `pnpm check` green: lint, typecheck, 50 files/335 tests, build. Not yet browser-verified.
 
 ### S14 — Barber account expiry (G10)
 
@@ -677,7 +677,7 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 | S10 | S1 | S11, S15 | Q1 |
 | S11 | S1, S10 | S15, S16 | Q2 |
 | S12 | S7 | — | — |
-| S13 | S0 | — | Q9 |
+| S13 | S0 | — | — |
 | S14 | S0 | — | Q8 |
 | S15 | S10, S11 | — | Q10 |
 | S16 | S2, S3 (if approved), S11 | S17 | Q5 |
