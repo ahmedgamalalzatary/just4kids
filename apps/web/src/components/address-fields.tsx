@@ -19,6 +19,9 @@ export function AddressFields({ register, errors }: { register: (name: keyof Add
       <Field label="اسم المبنى" error={errors.buildingName?.message} className="sm:col-span-3" optional><Input {...register("buildingName")} /></Field>
       <Field label="الدور" error={errors.floor?.message} className="sm:col-span-3" optional><Input {...register("floor")} /></Field>
       <Field label="الشقة" error={errors.apartment?.message} className="sm:col-span-3" optional><Input {...register("apartment")} /></Field>
+      <Field label="الجادة" error={errors.avenue?.message} className="sm:col-span-3" optional><Input {...register("avenue")} /></Field>
+      <Field label="البوابة (G)" error={errors.gate?.message} className="sm:col-span-3" optional><Input {...register("gate")} /></Field>
+      <Field label="الرقم الأزرق" error={errors.blueNumber?.message} className="sm:col-span-3" optional><Input {...register("blueNumber")} /></Field>
       <Field label="تعليمات للحلاق" error={errors.instructions?.message} className="sm:col-span-6" optional><Textarea rows={2} {...register("instructions")} placeholder="مثل: الباب الجانبي، الجرس لا يعمل" /></Field>
       <Field label="رابط خرائط Google" error={errors.mapsUrl?.message} className="sm:col-span-6" optional><Input {...register("mapsUrl")} dir="ltr" inputMode="url" className="text-start" placeholder="https://maps.app.goo.gl/…" /></Field>
       <Field label="خط العرض" error={errors.latitude?.message} className="sm:col-span-3" optional hint="من موقع واتساب."><Input {...register("latitude")} dir="ltr" inputMode="decimal" className="text-start" placeholder="29.3759" /></Field>

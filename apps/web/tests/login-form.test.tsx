@@ -15,15 +15,30 @@ function renderForm(onSuccess = vi.fn()) {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("LoginForm", () => {
-  it("asks for an international phone number before contacting the server", async () => {
+  it("refuses a number that is not a valid phone before contacting the server", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     renderForm();
-    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "50000000");
+    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "5000");
     await userEvent.type(screen.getByLabelText("كلمة المرور"), "secret");
     await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
     expect(await screen.findByText(/بالصيغة الدولية/)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("turns a local eight-digit number into the international form before signing in", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(200, { csrfToken: "b".repeat(64) }))
+      .mockResolvedValueOnce(json(200, session));
+    vi.stubGlobal("fetch", fetchMock);
+    const onSuccess = renderForm();
+    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "50000000");
+    await userEvent.type(screen.getByLabelText("كلمة المرور"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(session));
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("/api/auth/login");
+    expect(init.body).toBe(JSON.stringify({ phone: "+96550000000", password: "secret" }));
   });
 
   it("gets a login token, signs in, and reports the session", async () => {

@@ -28,6 +28,13 @@ describe("client and address contracts", () => {
     expect(addressUpdateSchema.safeParse({ childNames: ["x"] }).success).toBe(false);
   });
 
+  it("treats the avenue, gate and blue number as optional extras", () => {
+    expect(addressCreateSchema.safeParse({ ...address, avenue: "جادة 3", gate: "12", blueNumber: "5" }).success).toBe(true);
+    expect(addressCreateSchema.safeParse(address).success).toBe(true);
+    expect(addressCreateSchema.safeParse({ ...address, blueNumber: "  " }).success).toBe(false);
+    expect(addressUpdateSchema.safeParse({ avenue: null, gate: null, blueNumber: null }).success).toBe(true);
+  });
+
   it("bounds admin search and pagination", () => {
     expect(clientSearchSchema.parse({ q: " سارة ", limit: "20", offset: "0" })).toEqual({ q: "سارة", limit: 20, offset: 0, status: "all" });
     expect(clientSearchSchema.safeParse({ limit: "1000" }).success).toBe(false);

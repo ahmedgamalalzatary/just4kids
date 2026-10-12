@@ -98,15 +98,15 @@ describe("clients and reusable visit addresses", () => {
     const first = await createClient(admin, phoneB);
     const second = await createClient(admin, phoneC);
     const added = await request(app).post(`/clients/${first.id}/addresses`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ area: "السالمية", block: "4", street: "شارع البحر", buildingName: "برج السلام", mapsUrl: "https://maps.app.goo.gl/AbCd123" });
+      .send({ area: "السالمية", block: "4", street: "شارع البحر", buildingName: "برج السلام", avenue: "جادة 3", gate: "12", blueNumber: "5", mapsUrl: "https://maps.app.goo.gl/AbCd123" });
     expect(added.status).toBe(201);
-    expect(added.body).toMatchObject({ clientId: first.id, buildingName: "برج السلام", houseNumber: null });
+    expect(added.body).toMatchObject({ clientId: first.id, buildingName: "برج السلام", houseNumber: null, avenue: "جادة 3", gate: "12", blueNumber: "5" });
     const crossClient = await request(app).patch(`/clients/${second.id}/addresses/${added.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ floor: "5" });
     expect(crossClient.status).toBe(404);
     const updated = await request(app).patch(`/clients/${first.id}/addresses/${added.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ floor: " 5 ", apartment: "8", mapsUrl: null });
+      .send({ floor: " 5 ", apartment: "8", mapsUrl: null, gate: " 12 ", blueNumber: null });
     expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ floor: "5", apartment: "8", mapsUrl: null });
+    expect(updated.body).toMatchObject({ floor: "5", apartment: "8", mapsUrl: null, gate: "12", blueNumber: null });
     const invalid = await request(app).patch(`/clients/${first.id}/addresses/${added.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
       .send({ buildingName: null });
     expect(invalid.status).toBe(400);

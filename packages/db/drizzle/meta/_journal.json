@@ -99,6 +99,13 @@
       "when": 1791719912194,
       "tag": "0013_rare_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1791824169453,
+      "tag": "0014_nosy_ser_duncan",
+      "breakpoints": true
     }
   ]
 }
