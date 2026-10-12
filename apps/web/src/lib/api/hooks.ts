@@ -3,14 +3,14 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
-  EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
+  EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, BarberCollectionCreate, BarberCollectionUpdate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
 import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingMessage, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
   PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, VisitEvent,
 } from "./types";
 
@@ -313,6 +313,40 @@ export function useComprehensiveReport(filters: SalonFilters, enabled = true) {
     queryKey: [...keys.reports, "comprehensive", filters],
     queryFn: ({ signal }) => apiRequest<ComprehensiveReport>("/reports/comprehensive", { query: filters, signal }),
     enabled,
+  });
+}
+
+// Barber collections ---------------------------------------------------------
+
+export type CollectionFilters = { from: string; to: string; employeeId: string };
+
+export function useCollectionReport(filters: CollectionFilters, enabled = true) {
+  return useQuery({
+    queryKey: ["collections", filters],
+    queryFn: ({ signal }) => apiRequest<BarberCollectionReport>("/collections", { query: filters, signal }),
+    enabled,
+  });
+}
+
+export function useCreateCollection() {
+  return useApiMutation((input: BarberCollectionCreate, csrfToken) =>
+    apiRequest<BarberCollection>("/collections", { method: "POST", body: input, csrfToken }), {
+    invalidate: () => [["collections"], keys.reports],
+  });
+}
+
+export function useUpdateCollection() {
+  return useApiMutation(({ id, ...input }: BarberCollectionUpdate & { id: string }, csrfToken) =>
+    apiRequest<BarberCollection>(`/collections/${id}`, { method: "PATCH", body: input, csrfToken }), {
+    invalidate: () => [["collections"], keys.reports],
+  });
+}
+
+export function useCollectionHistory(id: string | null) {
+  return useQuery({
+    queryKey: ["collections", id, "history"],
+    queryFn: ({ signal }) => apiRequest<{ events: BarberCollectionEvent[] }>(`/collections/${id}/history`, { signal }).then(result => result.events),
+    enabled: id !== null,
   });
 }
 

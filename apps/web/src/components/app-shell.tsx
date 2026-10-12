@@ -24,12 +24,12 @@ const home: NavItem = { href: "/", label: "الرئيسية", icon: House };
 const adminNav: NavGroup[] = [
   { items: [home, { href: "/bookings", label: "توجيه الحجز", icon: CalendarDays }] },
   { label: "الحلاقون", items: [{ href: "/employees", label: "الحلاقون وساعات العمل", icon: Scissors }, { href: "/bookings/new", label: "حجز لحلاق", icon: CalendarPlus }] },
-  { label: "النظام", items: [{ href: "/clients", label: "العملاء", icon: Users }, { href: "/branches", label: "الفروع", icon: Store }, { href: "/salon", label: "شغل الصالون", icon: Coins }] },
+  { label: "النظام", items: [{ href: "/clients", label: "العملاء", icon: Users }, { href: "/branches", label: "الفروع", icon: Store }, { href: "/salon", label: "شغل الصالون", icon: Coins }, { href: "/collections", label: "تحصيلات الحلاقين", icon: Coins }] },
   { label: "التقارير", items: [{ href: "/reports", label: "التقارير", icon: ChartColumn }, { href: "/reports/salon", label: "تقرير الصالون", icon: ChartPie }, { href: "/reports/comprehensive", label: "التقرير الشامل", icon: ClipboardList }] },
 ];
 
 const employeeNav: NavGroup[] = [
-  { items: [home, { href: "/bookings", label: "حجوزاتي", icon: CalendarDays }, { href: "/schedule", label: "جدولي", icon: CalendarClock }, { href: "/reports", label: "تقاريري", icon: ChartColumn }, { href: "/profile", label: "ملفي", icon: UserRound }] },
+  { items: [home, { href: "/bookings", label: "حجوزاتي", icon: CalendarDays }, { href: "/schedule", label: "جدولي", icon: CalendarClock }, { href: "/collections", label: "تحصيلاتي", icon: Coins }, { href: "/reports", label: "تقاريري", icon: ChartColumn }, { href: "/profile", label: "ملفي", icon: UserRound }] },
 ];
 
 // The phone bar keeps the five places used most during the day.

@@ -8,6 +8,7 @@ export * from "./cash.js";
 export * from "./payments.js";
 export * from "./reports.js";
 export * from "./salon.js";
+export * from "./collections.js";
 
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),

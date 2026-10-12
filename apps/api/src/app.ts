@@ -12,6 +12,7 @@ import { createSchedules } from "./modules/schedules/index.js";
 import { createClients } from "./modules/clients/index.js";
 import { createBookings } from "./modules/bookings/index.js";
 import { createSalon } from "./modules/salon/index.js";
+import { createCollections } from "./modules/collections/index.js";
 import { createReports } from "./modules/reports/index.js";
 
 export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv }) {
@@ -29,6 +30,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     if (options.connection) app.use("/clients", createClients(options.connection, options.auth));
     if (options.connection) app.use("/bookings", createBookings(options.connection, options.auth));
     if (options.connection) app.use("/salon", createSalon(options.connection, options.auth));
+    if (options.connection) app.use("/collections", createCollections(options.connection, options.auth));
     if (options.connection) app.use("/reports", createReports(options.connection, options.auth));
     if (options.connection) {
       const schedules = createSchedules(options.connection, options.auth);

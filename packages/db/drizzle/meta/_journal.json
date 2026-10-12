@@ -141,6 +141,13 @@
       "when": 1791830400000,
       "tag": "0019_equal_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1791833633631,
+      "tag": "0020_gigantic_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

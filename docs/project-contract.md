@@ -94,6 +94,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Adult/child prices and descriptive durations remain editable per branch for reporting, but do not price bookings (S10).
 - Initial KWD prices are exact to three decimal places (1 dinar = 1,000 fils), following the [Central Bank of Kuwait's currency description](https://www.cbk.gov.kw/en/banknotes-and-coins/banknotes/introduction).
 - Confirmed booking price (2026-10-12, S10): the administrator types each booking's price as cash + link; the initial invoice total is their exact sum in KWD. There is no branch-derived price, and an edit never changes the amount.
+- Confirmed barber collections (2026-10-12, S11): the administrator records one daily collection per barber — normal/special children and cash/link/KNET with a server-computed total — retained with history; a barber reads only their own. The barber, comprehensive, and invoice/cash reports read these daily rows.
 - Generate one combined invoice when booked, including manual bookings.
 - Confirmed initial invoice fields (2026-10-02; amended 2026-10-12, S10): booking reference, issue date, client and address, barber and (optional) branch, adult/child quantities, the typed cash and link amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
 - Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.

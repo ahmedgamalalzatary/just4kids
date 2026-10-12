@@ -348,7 +348,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S8 | Default visit length | G16 | S2 | Q4 | No | XS | Blocked | [ ] |
 | S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Done | [ ] |
-| S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Blocked | [ ] |
+| S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | In progress | [ ] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
 | S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Done | [ ] |
@@ -547,7 +547,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S11 — Daily barber collections (G3)
 
-- **Blocked by:** Q2.
+- **Decisions:** Q2 answered 2026-10-12 — keep per-booking payments and add a daily per-barber entry that the reports read; a barber may see their own entries read-only.
 - **Start:** S1 and S10 verified (or built together with S10 in one plan); Q2 answered; a full-repository baseline is green.
 - **Goal:** the admin records barber money the way the client works (see Q2), and the reports read from it.
 - **Work (if Q2 = daily entry):**
@@ -565,7 +565,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   1. Enter today's money for one barber: the barber report and the comprehensive report show it.
   2. Edit it: the history shows both versions.
   3. Log in as that barber: the entry shows read-only.
-- Evidence:
+- Evidence (part 1, 2026-10-12): the collections entry and read path are built. DB: migration `0020_gigantic_doctor_faustus` adds `barber_collections` (unique barber+date, method amounts, server total) and `barber_collection_events` history, applied to test and development. Contracts: `barberCollection*` create/update/response/event/query/report schemas. API: `/collections` — administrator create/update with history, one entry per barber per day, and a session-scoped read where a barber sees only their own. Web: the `تحصيلات الحلاقين` screen (admin entry + barber read-only) and navigation entries. Tests: `apps/api/tests/collections.test.ts` (unique, admin-only/CSRF, caller-controlled total rejected, employee own-only, totals, history). Full `pnpm check` green: 54 files / 346 tests and build. **Remaining:** the barber, comprehensive, and invoice/cash reports still read per-booking receipts; wiring them to the daily collections is the next step.
 
 ### S12 — Booking tracking report (G12)
 
