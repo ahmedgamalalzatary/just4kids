@@ -47,7 +47,7 @@ beforeAll(async () => {
   await connection.db.insert(bookings).values({
     id: bookingId, reference: `J4K-SALON${randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`, clientId, addressId, employeeId, branchId, createdBy: adminAccount!.id,
     date: "2099-06-01", startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, source: "manual", visitStatus: "completed", visitVersion: 2,
-    clientSnapshot: { name: "عميل الصالون", phone: "+96555000006" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+    clientSnapshot: { name: "عميل الصالون", phone: "+96555000006" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
     employeeSnapshot: { id: employeeId, displayName: "حلاق الصالون", branchId, branchName: "فرع الصالون", branchLocation: "حولي" }, createdAt: now,
   });
   await connection.db.insert(invoices).values({ id: invoiceId, bookingId, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "5.000", childAmount: "3.000", total: "8.000", status: "issued", paymentStatus: "paid", issuedAt: now });

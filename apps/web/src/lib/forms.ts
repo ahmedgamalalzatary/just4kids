@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addressCreateSchema, kwdPriceSchema, phoneSchema } from "@just4kids/contracts";
+import { normalizePhone } from "@/lib/phone";
 
 // Form schemas mirror the shared API contracts with Arabic messages written for the people using the forms.
 // The API stays authoritative; these give immediate, readable feedback before submitting.
@@ -11,7 +12,7 @@ export const requiredText = (max: number, message = "هذا الحقل مطلو�
 export const optionalText = (max: number) =>
   z.string().trim().max(max, `الحد الأقصى ${max} حرفاً`).transform(value => (value === "" ? null : value));
 
-export const phoneField = z.string().trim().refine(value => phoneSchema.safeParse(value).success, "اكتب الرقم بالصيغة الدولية مثل ‎+96550000000");
+export const phoneField = z.string().trim().transform(normalizePhone).refine(value => phoneSchema.safeParse(value).success, "اكتب الرقم بالصيغة الدولية مثل ‎+96550000000");
 
 export const passwordField = z.string().min(8, "8 أحرف على الأقل").max(128, "الحد الأقصى 128 حرفاً");
 
@@ -58,6 +59,9 @@ export const addressFormSchema = z.object({
   street: requiredText(200, "اكتب الشارع"),
   houseNumber: optionalText(120),
   buildingName: optionalText(120),
+  avenue: optionalText(120),
+  gate: optionalText(120),
+  blueNumber: optionalText(120),
   floor: optionalText(120),
   apartment: optionalText(120),
   instructions: optionalText(1000),
@@ -72,7 +76,7 @@ export const addressFormSchema = z.object({
   if (value.mapsUrl && !addressCreateSchema.shape.mapsUrl.safeParse(value.mapsUrl).success) context.addIssue({ code: "custom", path: ["mapsUrl"], message: "استخدم رابط خرائط Google يبدأ بـ https" });
 });
 
-export const emptyAddress = { area: "", block: "", street: "", houseNumber: "", buildingName: "", floor: "", apartment: "", instructions: "", mapsUrl: "", latitude: "", longitude: "" };
+export const emptyAddress = { area: "", block: "", street: "", houseNumber: "", buildingName: "", avenue: "", gate: "", blueNumber: "", floor: "", apartment: "", instructions: "", mapsUrl: "", latitude: "", longitude: "" };
 
 export const clientFormSchema = z.object({ name: requiredText(120, "اكتب اسم العميل"), phone: phoneField });
 

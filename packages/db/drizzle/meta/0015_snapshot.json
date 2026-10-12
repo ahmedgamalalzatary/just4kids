@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "1d2bc2b5-6abd-4ce4-bd85-2f7566b8b14c",
+  "id": "601b0b35-ece2-41f5-9fe6-228f8b0fa0a3",
   "prevId": "d447c663-e132-45b6-9d79-f4b8d7e312f0",
   "tables": {
     "accounts": {
@@ -649,6 +649,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "avenue": {
+          "name": "avenue",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gate": {
+          "name": "gate",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blue_number": {
+          "name": "blue_number",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "floor": {
           "name": "floor",
           "type": "varchar(120)",
@@ -1031,13 +1052,6 @@
         "notes": {
           "name": "notes",
           "type": "varchar(1000)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "seen_by_barber_at": {
-          "name": "seen_by_barber_at",
-          "type": "datetime(3)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

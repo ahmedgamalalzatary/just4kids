@@ -71,7 +71,7 @@ beforeAll(async () => {
     await connection.db.insert(bookings).values({
       id, reference: `J4K-PRF${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`, clientId, addressId, employeeId: fixture.employeeId, branchId: fixture.branchId, createdBy: adminAccount!.id,
       date: "2096-04-06", startTime: fixture.start, endTime: fixture.end, adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 2,
-      clientSnapshot: { name: "عميل الأداء", phone: "+96555000003" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: { name: "عميل الأداء", phone: "+96555000003" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "قديم", branchId: fixture.branchId, branchName: "قديم", branchLocation: "حولي" }, createdAt: new Date("2096-04-01T08:00:00Z"),
     });
     const adultAmount = price.adult * fixture.adult, childAmount = price.child * fixture.child;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { paymentRecordSchema, paymentUndoSchema, cashReconciliationSchema, bookingEditSchema, paymentMethodSchema, paymentResponseSchema, paymentEventResponseSchema } from "../src/index.js";
 
 const client = { name: "مريم", phone: "+96555550101" };
-const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
+const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
 const employee = { id: "44444444-4444-4444-8444-444444444444", displayName: "سالم", branchId: "55555555-5555-4555-8555-555555555555", branchName: "الفرع", branchLocation: "حولي" };
 const booking = {
   id: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", clientId: "22222222-2222-4222-8222-222222222222",

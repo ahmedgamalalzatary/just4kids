@@ -68,7 +68,7 @@ beforeAll(async () => {
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, branchId: fixture.branchId, createdBy: adminAccount!.id,
       date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 3,
-      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم", branchId: fixture.branchId, branchName, branchLocation: "حولي" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
     });
     const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;

@@ -82,6 +82,7 @@ export function EditClientDialog({ client, open, onOpenChange }: DialogProps & {
 
 const toForm = (address: Address) => ({
   area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber ?? "", buildingName: address.buildingName ?? "",
+  avenue: address.avenue ?? "", gate: address.gate ?? "", blueNumber: address.blueNumber ?? "",
   floor: address.floor ?? "", apartment: address.apartment ?? "", instructions: address.instructions ?? "", mapsUrl: address.mapsUrl ?? "",
   latitude: address.latitude ?? "", longitude: address.longitude ?? "",
 });
