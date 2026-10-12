@@ -304,9 +304,9 @@ Backend verification (2026-10-02): the initial edit test failed with 404 and its
 
 ## Phase 8 — Full cash payment, corrections, and reconciliation
 
-Depends on: phases 5–6 and phase 7 edit services. Confirmed on 2026-10-02: full cash recording only for arrived/completed visits; administrator-only mistaken-entry undo with a required reason and preserved history; paid total changes require the exact extra cash/refund and reason recorded atomically with the edit. Cancellation never automatically refunds cash.
+Depends on: phases 5–6 and phase 7 edit services. Confirmed on 2026-10-02: full cash recording only for arrived/completed visits; administrator-only mistaken-entry undo with a required reason and preserved history; paid total changes require the exact extra cash/refund and reason recorded atomically with the edit. Cancellation never automatically refunds cash. Amended 2026-10-12: only the administrator records payments; employees see them read-only.
 
-Outcome: assigned employee records one full cash payment; administrator can correct it with an audit trail.
+Outcome: the administrator records one full cash payment; employees see it read-only and the administrator can correct it with an audit trail.
 
 Backend checklist:
 
@@ -320,14 +320,14 @@ Backend checklist:
 
 Frontend checklist:
 
-- [ ] Build employee full-cash recording and separate payment/visit indicators.
+- [ ] Build administrator full-cash recording and separate payment/visit indicators.
 - [ ] Build administrator correction/undo/reconciliation flows with reasons and visible payment history.
 
 Acceptance:
 
 - [ ] Repeated cash recording cannot create a second active payment; administrator corrections and paid edits preserve an understandable history.
 
-Backend handoff (2026-10-02): `POST /api/bookings/:id/payment` accepts `{ expectedVersion }` for the administrator or currently assigned employee and records the complete issued invoice amount only when the visit is arrived/completed. Callers cannot choose amount, method, or recorder. `POST /api/bookings/:id/payment/undo` is administrator-only and requires `{ expectedVersion, paymentId, reason }`, identifying the current active receipt. Both return `{ booking, payment }`, advance the shared `visitVersion`, and atomically update invoice payment status, cash receipt, and actor/time/before/after history. Visit status, invoice identity/prices/amount, and reserved window remain unchanged. Undo marks the receipt voided and invoice unpaid; it creates no refund. A later replacement receipt preserves the voided one and must still satisfy arrived/completed state rules.
+Backend handoff (2026-10-02; amended 2026-10-12: administrator-only): `POST /api/bookings/:id/payment` accepts `{ expectedVersion }` for the administrator and records the complete issued invoice amount only when the visit is arrived/completed. Callers cannot choose amount, method, or recorder. `POST /api/bookings/:id/payment/undo` is administrator-only and requires `{ expectedVersion, paymentId, reason }`, identifying the current active receipt. Both return `{ booking, payment }`, advance the shared `visitVersion`, and atomically update invoice payment status, cash receipt, and actor/time/before/after history. Visit status, invoice identity/prices/amount, and reserved window remain unchanged. Undo marks the receipt voided and invoice unpaid; it creates no refund. A later replacement receipt preserves the voided one and must still satisfy arrived/completed state rules.
 
 `GET /api/bookings/:id/payments` returns `{ payment, payments, events }`: the current active receipt or null, all original/voided receipts, and ordered recording/undo/reconciliation events. Receipt `originalAmount` and `bookingAtReceipt` retain the original complete invoice and historical barber/branch attribution; `amount` is the current reconciled amount. Events retain previous/new receipt values, actor, UTC time, reason, kind (`recorded`, `voided`, `extra_cash`, `refund`), amount, shared version, and the associated invoice-revision ID for adjustments. A void event's amount identifies the entry corrected; it is not a cash refund. Administrators/current assigned employees may read; reassignment removes former employees' access while preserving original receipt attribution. Browser changes require origin/CSRF protection. No public client payment endpoints or additional payment methods were added.
 

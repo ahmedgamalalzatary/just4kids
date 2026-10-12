@@ -19,9 +19,9 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
 - Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, and password; employees do not change their own password.
-- Assigned employees can cancel, mark arrived, mark completed, mark no-show, and record a full payment with its method.
+- Assigned employees can cancel, mark arrived, mark completed, and mark no-show. Only the administrator records payments; employees see the invoice, its status, and the payment history read-only.
 - Employees cannot reschedule or reassign bookings.
-- Only the administrator can correct or undo payment records.
+- Only the administrator records, corrects, or undoes payment records.
 - Backend authorization must enforce ownership even when a record is requested directly.
 - Confirmed authentication policy: seven-day server-side MySQL sessions via HttpOnly cookies, with `Secure` in production and CSRF protection on browser changes. The sole administrator's phone/password come from the private server environment and are applied on API restart; changing either revokes existing administrator sessions. Phone numbers use international format. Only the administrator changes employee phones and resets employee passwords; employees edit their display name only.
 
@@ -101,8 +101,8 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
-- Client pays the full amount at the home visit by one method — cash, payment link, or KNET; the assigned employee records the single full payment together with its method.
-- Confirmed payment-method workflow (2026-10-11, extending the 2026-10-02 cash rule): one full payment is allowed only for arrived or completed visits, by the assigned employee or administrator. The server uses the complete current invoice amount; callers cannot supply partial amounts. The caller must choose exactly one method (`cash`, `link`, `knet`); the server stores it on the receipt and on every related history event (record, adjustment, and undo). Recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained. Receipts recorded before this change are treated as `cash`.
+- Client pays the full amount at the home visit by one method — cash, payment link, or KNET; the administrator records the single full payment together with its method.
+- Confirmed payment-method workflow (2026-10-11, extending the 2026-10-02 cash rule; amended 2026-10-12: only the administrator records payments): one full payment is allowed only for arrived or completed visits, and only the administrator records it. The server uses the complete current invoice amount; callers cannot supply partial amounts. The caller must choose exactly one method (`cash`, `link`, `knet`); the server stores it on the receipt and on every related history event (record, adjustment, and undo). Recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained. Receipts recorded before this change are treated as `cash`.
 - Administrator may undo a mistaken payment entry with a required reason, retaining its original values including the method, actor/time history, and any adjustment history. This marks the receipt voided and the invoice unpaid; it does not record a refund or change the visit/invoice amount. A replacement full receipt is permitted under the same payment-recording state rules. Employees cannot undo receipts or record reconciliation adjustments.
 - No partial/split payments, deposits, or multiple methods on one payment. A payment link is one of the accepted single methods, not a separate online-payment or deposit flow.
 - Administrator corrections retain actor, time, reason, and previous values. No duplicate active payment.

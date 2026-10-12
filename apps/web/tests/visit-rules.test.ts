@@ -28,11 +28,16 @@ describe("visit rules", () => {
     expect(canEditBooking(booking("arrived"), at("09:00"))).toBe(false);
   });
 
-  it("allows cash only for unpaid arrived or completed visits", () => {
-    expect(canRecordPayment(booking("arrived"))).toBe(true);
-    expect(canRecordPayment(booking("completed"))).toBe(true);
-    expect(canRecordPayment(booking("completed", "paid"))).toBe(false);
-    expect(canRecordPayment(booking("booked"))).toBe(false);
-    expect(canRecordPayment(booking("cancelled"))).toBe(false);
+  it("allows the administrator to record cash only for unpaid arrived or completed visits", () => {
+    expect(canRecordPayment(booking("arrived"), true)).toBe(true);
+    expect(canRecordPayment(booking("completed"), true)).toBe(true);
+    expect(canRecordPayment(booking("completed", "paid"), true)).toBe(false);
+    expect(canRecordPayment(booking("booked"), true)).toBe(false);
+    expect(canRecordPayment(booking("cancelled"), true)).toBe(false);
+  });
+
+  it("never offers cash recording to barbers", () => {
+    expect(canRecordPayment(booking("arrived"), false)).toBe(false);
+    expect(canRecordPayment(booking("completed"), false)).toBe(false);
   });
 });

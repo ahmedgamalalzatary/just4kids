@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
+import { useSession } from "@/lib/api/session";
 import { haircutSummary, whatsAppLink } from "@/lib/day";
 import { formatWindow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
@@ -73,6 +74,7 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
 
 /** A barber's visit card: who, where, call and map, then the next visit steps and payment. */
 export function VisitCard({ booking }: { booking: Booking }) {
+  const isAdmin = useSession().data?.account.role === "admin";
   const map = mapLink(booking.address);
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -94,10 +96,10 @@ export function VisitCard({ booking }: { booking: Booking }) {
         {map ? <Button asChild variant="outline"><a href={map} target="_blank" rel="noopener noreferrer"><MapPin aria-hidden />الموقع</a></Button> : null}
         <Button asChild variant="ghost"><Link href={`/bookings/${booking.id}`}>التفاصيل</Link></Button>
       </div>
-      {cancellable(booking) || canRecordPayment(booking) ? (
+      {cancellable(booking) || canRecordPayment(booking, isAdmin) ? (
         <div className="flex flex-wrap items-start gap-2 border-t border-border pt-3">
           <VisitActions booking={booking} />
-          {canRecordPayment(booking) ? <RecordPaymentButton booking={booking} /> : null}
+          {canRecordPayment(booking, isAdmin) ? <RecordPaymentButton booking={booking} /> : null}
         </div>
       ) : null}
     </Card>

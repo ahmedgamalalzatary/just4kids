@@ -94,7 +94,7 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 
 ## Phase 8 — Cash payment, undo, and reconciliation
 
-- [x] Full cash recording for arrived/completed unpaid visits.
+- [x] Administrator full-cash recording for arrived/completed unpaid visits; barbers see it read-only.
 - [x] Administrator undo with a required reason.
 - [x] Paid-edit reconciliation: extra cash or refund preview with the exact amount and a reason.
 - [x] Cash history.

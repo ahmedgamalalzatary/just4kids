@@ -59,7 +59,7 @@ function BookingScreen({ id }: { id: string }) {
 
   const data = booking.data;
   const link = mapLink(data.address);
-  const payable = canRecordPayment(data);
+  const payable = canRecordPayment(data, isAdmin);
 
   return (
     <>

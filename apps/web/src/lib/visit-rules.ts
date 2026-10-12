@@ -19,6 +19,6 @@ export function canEditBooking(booking: BookingTiming, now: Date = new Date()): 
   return booking.visitStatus === "booked" && now < kuwaitInstant(booking.date, booking.startTime);
 }
 
-export function canRecordPayment(booking: BookingTiming & { invoice: { paymentStatus: "paid" | "unpaid" } }): boolean {
-  return (booking.visitStatus === "arrived" || booking.visitStatus === "completed") && booking.invoice.paymentStatus === "unpaid";
+export function canRecordPayment(booking: BookingTiming & { invoice: { paymentStatus: "paid" | "unpaid" } }, isAdmin: boolean): boolean {
+  return isAdmin && (booking.visitStatus === "arrived" || booking.visitStatus === "completed") && booking.invoice.paymentStatus === "unpaid";
 }
