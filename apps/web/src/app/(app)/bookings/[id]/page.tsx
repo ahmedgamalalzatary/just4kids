@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ChevronRight, FileText, MapPin, Pencil, Phone, RotateCcw } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
 import { CorrectionDialog, RecordPaymentButton, VisitActions } from "@/components/booking-actions";
+import { WhatsAppButton } from "@/components/day-bookings";
 import { BookingEditDialog } from "@/components/booking-edit-dialog";
 import { BookingHistory } from "@/components/booking-history";
 import { Detail, ErrorState, LoadingRows, Ltr } from "@/components/page";
@@ -13,7 +14,7 @@ import { PaymentBadge, SourceLabel, VisitStatusBadge } from "@/components/status
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/client";
-import { useBooking } from "@/lib/api/hooks";
+import { useBooking, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
@@ -47,6 +48,7 @@ function InvoiceSummary({ booking }: { booking: Booking }) {
 function BookingScreen({ id }: { id: string }) {
   const booking = useBooking(id);
   const isAdmin = useSession().data?.account.role === "admin";
+  const employees = useEmployees(isAdmin);
   const [editOpen, setEditOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
 
@@ -60,6 +62,7 @@ function BookingScreen({ id }: { id: string }) {
   const data = booking.data;
   const link = mapLink(data.address);
   const payable = canRecordPayment(data, isAdmin);
+  const barberPhone = employees.data?.find(employee => employee.id === data.employee.id)?.phone;
 
   return (
     <>
@@ -78,6 +81,7 @@ function BookingScreen({ id }: { id: string }) {
         </div>
         {isAdmin ? (
           <div className="flex flex-wrap gap-2">
+            <WhatsAppButton booking={data} barberPhone={barberPhone} size="sm" />
             {canEditBooking(data) ? <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil aria-hidden />تعديل الحجز</Button> : null}
             <Button variant="ghost" size="sm" onClick={() => setCorrectionOpen(true)}><RotateCcw aria-hidden />تصحيح الحالة</Button>
           </div>

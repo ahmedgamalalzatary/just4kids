@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type {
-  accountSchema, addressResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchReportResponseSchema, branchResponseSchema, clientReportResponseSchema,
+  accountSchema, addressResponseSchema, bookingMessageResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchReportResponseSchema, branchResponseSchema, clientReportResponseSchema,
   clientResponseSchema, clientStatusEventSchema, clientSummarySchema, eligibilityResponseSchema, employeeReportResponseSchema, employeeResponseSchema, haircutReportResponseSchema, invoiceReportResponseSchema,
   comprehensiveReportResponseSchema, invoiceResponseSchema, paymentEventResponseSchema, paymentMethodSchema, paymentResponseSchema, reservationReportResponseSchema,
   salonEntryEventSchema, salonEntryResponseSchema, salonReportResponseSchema, scheduleResponseSchema, sessionResponseSchema, visitEventResponseSchema,
@@ -19,6 +19,7 @@ export type Address = z.output<typeof addressResponseSchema>;
 export type Booking = z.output<typeof bookingResponseSchema>;
 export type Invoice = z.output<typeof invoiceResponseSchema>;
 export type VisitEvent = z.output<typeof visitEventResponseSchema>;
+export type BookingMessage = z.output<typeof bookingMessageResponseSchema>;
 export type BookingRevision = z.output<typeof bookingRevisionResponseSchema>;
 export type Payment = z.output<typeof paymentResponseSchema>;
 export type PaymentEvent = z.output<typeof paymentEventResponseSchema>;

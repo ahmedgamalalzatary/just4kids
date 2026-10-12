@@ -5,7 +5,7 @@ import { Suspense, useDeferredValue, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ChevronRight, Loader2, MapPin, Minus, Plus, Search, UserPlus, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, Loader2, MapPin, MessageCircle, Minus, Plus, Search, UserPlus, UserRound, X } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
@@ -15,15 +15,16 @@ import { VisitStatusBadge, visitStatusLabels } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
-import { useBranches, useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule } from "@/lib/api/hooks";
+import { useBranches, useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule, useSendToBarber } from "@/lib/api/hooks";
 import type { Booking, Employee } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
-import { buildSlots, durationOptions, haircutSummary, timeWords, type Slot } from "@/lib/day";
+import { buildSlots, durationOptions, haircutSummary, timeWords, whatsAppLink, type Slot } from "@/lib/day";
 import { formatDate, formatDuration, formatTime, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -202,11 +203,13 @@ function NewBookingScreen() {
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
   const [notes, setNotes] = useState("");
+  const [created, setCreated] = useState<Booking | null>(null);
 
   const employees = useEmployees();
   const client = useClient(clientId);
   const branches = useBranches();
   const create = useCreateBooking();
+  const send = useSendToBarber();
 
   const barber = employees.data?.find(employee => employee.id === barberId) ?? null;
   const branch = barber ? branches.data?.find(candidate => candidate.id === barber.branchId) : undefined;
@@ -223,13 +226,21 @@ function NewBookingScreen() {
   const submit = () => {
     if (!ready || !barber || !slot || !client.data || !address) return;
     create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
-      onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); router.push(`/bookings/${booking.id}`); },
+      onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
       onError: error => {
         // Someone else took the time (or the hours changed): reload the pills and ask for another time.
         if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setSlot(null); void queryClient.invalidateQueries({ queryKey: ["bookings", "list"] }); void queryClient.invalidateQueries({ queryKey: ["schedules", barber.id] }); }
       },
     });
   };
+  // G15: after saving, offer to send the details to the barber on WhatsApp or return to today's list.
+  const sendCreated = () => {
+    if (!created || !barber) return;
+    send.mutate({ id: created.id });
+    window.open(whatsAppLink(barber.phone, created), "_blank", "noopener,noreferrer");
+    router.push(`/bookings/${created.id}`);
+  };
+  const backToToday = () => router.push("/bookings");
 
   return (
     <>
@@ -352,6 +363,18 @@ function NewBookingScreen() {
           </Card>
         </aside>
       </div>
+      <Dialog open={created !== null} onOpenChange={open => { if (!open) router.push(created ? `/bookings/${created.id}` : "/bookings"); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تم حفظ الحجز</DialogTitle>
+            <DialogDescription>أرسل تفاصيل الحجز <Ltr className="text-xs">{created?.reference}</Ltr> إلى الحلاق على واتساب؟</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button variant="sun" onClick={sendCreated} disabled={send.isPending}><MessageCircle aria-hidden />إرسال الحجز واتساب للحلاق</Button>
+            <Button variant="outline" onClick={backToToday}>لا ترسل، رجوع لحجوزات اليوم</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
+import { accounts, bookings, invoices, bookingVisitEvents, bookingMessages } from "@just4kids/db/schema";
 import type { Account, VisitStatus, VisitCorrection, VisitTransition } from "@just4kids/contracts";
-import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema } from "@just4kids/contracts";
+import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema, bookingMessageResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readBlockingBookings, readWorkingHours } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
@@ -63,7 +63,11 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
         if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
         if (account.role !== "admin" && account.id !== booking.employeeId) throw new ForbiddenError();
         const events = await transaction.select().from(bookingVisitEvents).where(eq(bookingVisitEvents.bookingId, id)).orderBy(asc(bookingVisitEvents.version));
-        return { events: events.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() })) };
+        const messages = await transaction.select().from(bookingMessages).where(eq(bookingMessages.bookingId, id)).orderBy(asc(bookingMessages.occurredAt));
+        return {
+          events: events.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() })),
+          messages: messages.map(message => bookingMessageResponseSchema.parse({ ...message, occurredAt: message.occurredAt.toISOString() })),
+        };
       });
     },
   };

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, datetime, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { boolean, check, datetime, index, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
 import { clients } from "./clients.js";
 import { bookings } from "./bookings.js";
@@ -18,3 +18,11 @@ export const bookingVisitEvents = mysqlTable("booking_visit_events", {
   check("visit_event_version_valid", sql`${table.version} >= 0`),
   check("visit_event_correction_reason", sql`${table.correction} = false OR CHAR_LENGTH(TRIM(${table.reason})) > 0 AND ${table.reason} IS NOT NULL`),
 ]);
+
+// One row per message sent to the barber, so the booking history keeps every send (G13) and S12 can merge them into a timeline.
+export const bookingMessages = mysqlTable("booking_messages", {
+  id: varchar("id", { length: 36 }).primaryKey(), bookingId: varchar("booking_id", { length: 36 }).notNull().references(() => bookings.id, { onDelete: "restrict" }),
+  kind: mysqlEnum("kind", ["sent_to_barber"]).notNull(),
+  actorAccountId: varchar("actor_account_id", { length: 36 }).notNull().references(() => accounts.id, { onDelete: "restrict" }),
+  occurredAt: datetime("occurred_at", { mode: "date", fsp: 3 }).notNull(),
+}, table => [index("booking_messages_booking_index").on(table.bookingId, table.occurredAt)]);

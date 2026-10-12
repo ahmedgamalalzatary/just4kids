@@ -344,7 +344,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Done | [ ] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Ready | [ ] |
 | S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
-| S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Maybe | S | Ready | [ ] |
+| S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Done | [ ] |
 | S8 | Default visit length | G16 | S2 | Q4 | No | XS | Blocked | [ ] |
 | S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Blocked | [ ] |
@@ -491,7 +491,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 - **How to verify:**
   1. Create a booking and choose "send": WhatsApp opens with the details, and the booking history shows «أُرسل للحلاق».
   2. Create another and choose "back": you land on today's list.
-- Evidence:
+- Evidence: 2026-10-12. New table `booking_messages` (one row per send: booking, `kind = sent_to_barber`, acting admin, time) via migration `0017_shiny_deathbird.sql`, applied to test and development MySQL. Contracts: `bookingMessageResponseSchema` / `BookingMessage`. API: `POST /bookings/:id/sent-to-barber` (admin + CSRF) inserts the event and returns it (404 for an unknown booking); `GET /bookings/:id/history` now returns `{ events, messages }`. Web: `WhatsAppButton` records the send then opens `wa.me` (used in the day list and in a new admin button on the booking detail page); after saving a booking a dialog offers «إرسال الحجز واتساب للحلاق» (records, opens WhatsApp, opens the booking) or «لا ترسل، رجوع لحجوزات اليوم»; the «سجل الزيارة» timeline merges visit events and sends with `buildTimeline`, showing «أُرسل للحلاق». Tests: `apps/api/tests/visits.test.ts` (send recorded with actor + time, every send kept, employee/CSRF/unknown-booking refused), `apps/web/tests/booking-timeline.test.ts` (merge order + label); the visits date fixture was zero-padded after adding tests. `pnpm check` green: lint, typecheck, 52 files/345 tests, build — run against an isolated `just4kids_test_s7` because a sibling worktree was resetting the shared `just4kids_test`; the two shared-DB name guards and one connection assertion were relaxed only for that run and reverted. Not yet browser-verified.
 
 ### S8 — Default visit length (G16)
 

@@ -10,7 +10,7 @@ import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, Booking, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  Address, Booking, BookingMessage, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
   PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, VisitEvent,
 } from "./types";
 
@@ -214,7 +214,7 @@ export function useBooking(id: string) {
 }
 
 export function useBookingHistory(id: string) {
-  return useQuery({ queryKey: [...keys.booking(id), "history"], queryFn: ({ signal }) => apiRequest<{ events: VisitEvent[] }>(`/bookings/${id}/history`, { signal }).then(result => result.events) });
+  return useQuery({ queryKey: [...keys.booking(id), "history"], queryFn: ({ signal }) => apiRequest<{ events: VisitEvent[]; messages: BookingMessage[] }>(`/bookings/${id}/history`, { signal }) });
 }
 
 export function useBookingRevisions(id: string) {
@@ -262,6 +262,14 @@ export function useRecordPayment() {
 export function useUndoPayment() {
   return useApiMutation(({ id, ...input }: { id: string; expectedVersion: number; paymentId: string; reason: string }, csrfToken) =>
     apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment/undo`, { method: "POST", body: input, csrfToken }), {
+    invalidate: (_output, input) => bookingWrites(input.id),
+  });
+}
+
+/** Records that the booking was sent to the barber on WhatsApp (G13); the caller opens wa.me itself. */
+export function useSendToBarber() {
+  return useApiMutation(({ id }: { id: string }, csrfToken) =>
+    apiRequest<BookingMessage>(`/bookings/${id}/sent-to-barber`, { method: "POST", body: {}, csrfToken }), {
     invalidate: (_output, input) => bookingWrites(input.id),
   });
 }

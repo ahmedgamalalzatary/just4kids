@@ -19,6 +19,11 @@ export const visitEventResponseSchema = z.strictObject({
   reason: reason.nullable(), correction: z.boolean(), previousInvoiceStatus: z.enum(["issued", "cancelled"]).nullable(), invoiceStatus: z.enum(["issued", "cancelled"]), occurredAt: z.iso.datetime(),
 });
 export type VisitStatus = z.infer<typeof visitStatusSchema>;
+export const bookingMessageKindSchema = z.enum(["sent_to_barber"]);
+export const bookingMessageResponseSchema = z.strictObject({
+  id: z.uuid(), bookingId: z.uuid(), kind: bookingMessageKindSchema, actorAccountId: z.uuid(), occurredAt: z.iso.datetime(),
+});
+export type BookingMessage = z.infer<typeof bookingMessageResponseSchema>;
 export type VisitTransition = z.infer<typeof visitTransitionSchema>;
 export type VisitCorrection = z.infer<typeof visitCorrectionSchema>;
 export const bookingCreateSchema = z.strictObject({

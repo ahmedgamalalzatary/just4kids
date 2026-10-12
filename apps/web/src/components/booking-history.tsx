@@ -11,6 +11,7 @@ import { useBookingHistory, useBookingPayments, useBookingRevisions, useEmployee
 import { useSession } from "@/lib/api/session";
 import type { Booking, BookingRevision, PaymentEvent, VisitEvent } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
+import { buildTimeline, messageKindLabels } from "@/lib/booking-timeline";
 import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodLabels } from "@/lib/payments";
@@ -50,14 +51,17 @@ function VisitHistory({ id }: { id: string }) {
   if (history.isPending) return <LoadingRows rows={3} />;
   if (history.isError) return <ErrorState error={history.error} onRetry={() => history.refetch()} />;
   const name = (event: VisitEvent) => event.actorType === "client" ? "العميل" : event.actorType === "system" ? "النظام" : actorName(event.actorAccountId);
+  const timeline = buildTimeline(history.data.events, history.data.messages);
   return (
     <Timeline>
-      {[...history.data].reverse().map(event => (
-        <TimelineItem key={event.id}
-          title={event.fromStatus === null ? `أُنشئ الحجز: ${visitStatusLabels[event.toStatus]}` : `${event.correction ? "تصحيح: " : ""}${visitStatusLabels[event.fromStatus]} ← ${visitStatusLabels[event.toStatus]}`}
-          meta={`${name(event)}، ${formatDateTime(event.occurredAt)}`}>
-          {event.reason ? <p className="text-muted-foreground">{event.reason}</p> : null}
-          {event.previousInvoiceStatus && event.previousInvoiceStatus !== event.invoiceStatus ? <p className="text-xs">الفاتورة: {event.invoiceStatus === "cancelled" ? "أُلغيت" : "أُعيد إصدارها"}</p> : null}
+      {timeline.slice().reverse().map(entry => entry.type === "message" ? (
+        <TimelineItem key={entry.message.id} title={messageKindLabels[entry.message.kind]} meta={`${actorName(entry.message.actorAccountId)}، ${formatDateTime(entry.message.occurredAt)}`} />
+      ) : (
+        <TimelineItem key={entry.event.id}
+          title={entry.event.fromStatus === null ? `أُنشئ الحجز: ${visitStatusLabels[entry.event.toStatus]}` : `${entry.event.correction ? "تصحيح: " : ""}${visitStatusLabels[entry.event.fromStatus]} ← ${visitStatusLabels[entry.event.toStatus]}`}
+          meta={`${name(entry.event)}، ${formatDateTime(entry.event.occurredAt)}`}>
+          {entry.event.reason ? <p className="text-muted-foreground">{entry.event.reason}</p> : null}
+          {entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? <p className="text-xs">الفاتورة: {entry.event.invoiceStatus === "cancelled" ? "أُلغيت" : "أُعيد إصدارها"}</p> : null}
         </TimelineItem>
       ))}
     </Timeline>

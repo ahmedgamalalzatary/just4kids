@@ -18,7 +18,7 @@ const branchId = randomUUID(), employeeId = randomUUID(), otherId = randomUUID()
 const phone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session, other: Session;
-let day = 10, date: string, booking: { id: string; invoice: { id: string; total: string }; visitVersion: number };
+let day = 1, date: string, booking: { id: string; invoice: { id: string; total: string }; visitVersion: number };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const login = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -44,13 +44,15 @@ beforeAll(async () => {
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD); employee = await signIn(phone, "employee-password-123"); other = await signIn(otherPhone, "employee-password-123");
 });
 beforeEach(async () => {
-  vi.restoreAllMocks(); date = `2099-01-${day++}`;
+  vi.restoreAllMocks(); date = `2099-01-${String(day++).padStart(2, "0")}`;
   const created = await write("/bookings", body(), admin); expect(created.status).toBe(201); booking = created.body;
 });
 afterAll(async () => {
   vi.restoreAllMocks();
   const [tables] = await connection.pool.query("SHOW TABLES LIKE 'booking_visit_events'");
   if ((tables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
+  const [messageTables] = await connection.pool.query("SHOW TABLES LIKE 'booking_messages'");
+  if ((messageTables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_messages WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   await connection.db.delete(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, employeeId));
@@ -202,5 +204,28 @@ describe("employee visit actions and history", () => {
     const recorded = await history();
     expect(recorded.body.events).toHaveLength(1);
     expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, actorClientId: null, fromStatus: null, toStatus: "completed", invoiceStatus: "issued" });
+  });
+});
+
+describe("recording a booking message sent to the barber", () => {
+  it("records every send with its administrator and time, and shows it in the booking history", async () => {
+    at("09:00");
+    const first = await write(`/bookings/${booking.id}/sent-to-barber`, {}, admin);
+    expect(first.status).toBe(201);
+    expect(first.body).toMatchObject({ bookingId: booking.id, kind: "sent_to_barber", actorAccountId: admin.id });
+    expect(Date.parse(first.body.occurredAt)).toBe(Date.parse(`${date}T09:00:00+03:00`));
+    at("09:05");
+    expect((await write(`/bookings/${booking.id}/sent-to-barber`, {}, admin)).status).toBe(201);
+    const all = await history();
+    expect(all.status).toBe(200);
+    expect(all.body.messages).toHaveLength(2);
+    expect(all.body.messages[0]).toMatchObject({ kind: "sent_to_barber", actorAccountId: admin.id });
+    expect(Date.parse(all.body.messages[1].occurredAt)).toBe(Date.parse(`${date}T09:05:00+03:00`));
+  });
+  it("refuses employees, requires CSRF, and rejects an unknown booking", async () => {
+    expect((await write(`/bookings/${booking.id}/sent-to-barber`, {}, employee)).status).toBe(403);
+    expect((await write(`/bookings/${booking.id}/sent-to-barber`, {}, other)).status).toBe(403);
+    expect((await request(app).post(`/bookings/${booking.id}/sent-to-barber`).set("Origin", origin).set("Cookie", admin.cookie).send({})).status).toBe(403);
+    expect((await write(`/bookings/${randomUUID()}/sent-to-barber`, {}, admin)).status).toBe(404);
   });
 });

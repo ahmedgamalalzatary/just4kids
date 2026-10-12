@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
+import { useSendToBarber } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import { haircutSummary, whatsAppLink } from "@/lib/day";
 import { formatWindow } from "@/lib/kuwait-time";
@@ -30,12 +31,18 @@ export function NewBookingDot({ className }: { className?: string }) {
   return <span role="img" aria-label="حجز جديد" title="لم تفتح هذا الحجز بعد" className={cn("inline-block size-2.5 shrink-0 rounded-full bg-sun ring-2 ring-sun/25", className)} />;
 }
 
-/** Opens WhatsApp to the barber with the visit details ready to send. */
+/** Opens WhatsApp to the barber with the visit details, recording the send in the booking history first (G13). */
 export function WhatsAppButton({ booking, barberPhone, size = "sm" }: { booking: Booking; barberPhone: string | undefined; size?: "sm" | "default" }) {
+  const send = useSendToBarber();
   if (!barberPhone) return null;
   return (
-    <Button asChild size={size} className="bg-status-completed text-white hover:bg-status-completed/90 dark:text-background">
-      <a href={whatsAppLink(barberPhone, booking)} target="_blank" rel="noopener noreferrer"><MessageCircle aria-hidden />واتساب</a>
+    <Button type="button" size={size} className="bg-status-completed text-white hover:bg-status-completed/90 dark:text-background"
+      onClick={() => {
+        // The record is fired alongside the synchronous open so the click still counts as a user gesture.
+        send.mutate({ id: booking.id });
+        window.open(whatsAppLink(barberPhone, booking), "_blank", "noopener,noreferrer");
+      }}>
+      <MessageCircle aria-hidden />واتساب
     </Button>
   );
 }
