@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Banknote } from "lucide-react";
 import { Detail, EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Pagination } from "@/components/pagination";
-import { CashMoney, Money, useReportFilters } from "@/components/reports";
+import { CollectedCash, Money, useReportFilters } from "@/components/reports";
 import { PaymentBadge, SourceLabel, VisitStatusBadge } from "@/components/status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInvoiceReport } from "@/lib/api/hooks";
@@ -81,7 +81,7 @@ function InvoicesReport({ filters, isAdmin }: { filters: ReportFilters; isAdmin:
           <Detail label="الفواتير الصادرة"><Money value={data.summary.invoices.issued} unit="فاتورة" /></Detail>
           <Detail label="فواتير غير مدفوعة"><Money value={data.summary.invoices.outstanding} unit="فاتورة" /></Detail>
           <Detail label="الفواتير الملغاة"><Money value={data.summary.invoices.cancelled} unit="فاتورة" /></Detail>
-          <Detail label="المبلغ المستلم"><CashMoney value={data.summary.cash} /></Detail>
+          <Detail label="المبلغ المستلم"><CollectedCash value={data.summary.cash} /></Detail>
         </CardContent>
       </Card>
       <Card>

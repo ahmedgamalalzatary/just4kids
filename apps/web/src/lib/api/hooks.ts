@@ -308,7 +308,7 @@ export function useSalonEntryHistory(id: string | null) {
   });
 }
 
-export function useComprehensiveReport(filters: SalonFilters, enabled = true) {
+export function useComprehensiveReport(filters: Omit<SalonFilters, "branchId">, enabled = true) {
   return useQuery({
     queryKey: [...keys.reports, "comprehensive", filters],
     queryFn: ({ signal }) => apiRequest<ComprehensiveReport>("/reports/comprehensive", { query: filters, signal }),

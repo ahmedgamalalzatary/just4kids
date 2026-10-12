@@ -44,8 +44,8 @@ Owner decisions already made (2026-10-12):
 | Complaint | Verdict | Details |
 |---|---|---|
 | 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). If the client still sees the old flow, the server was probably not redeployed after 2026-10-11. Check before anything else. |
-| 2. Time pills with red / blue / white | **Half built** | Red (booked) and white (free) exist. Blue (locked) never existed in either app; it is a new request. See G4. |
-| 3. Barbers not tied to branches | **Valid, real difference** | See G1. |
+| 2. Time pills with red / blue / white | **Built** (S2) | Red (booked), white (free) and blue (locked) pills. Locking a single half-hour by hand waits on Q11 (S3). See G4. |
+| 3. Barbers not tied to branches | **Built** (S10) | See G1. |
 
 ---
 
@@ -216,13 +216,13 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 | `newcustomer.php`, `editcustomer.php`, `customers_list.php` | Add / edit / stop clients; one address per client | `/clients`, `/clients/[id]` | New allows many addresses and needs a reason to stop a client. G8, G9. |
 | `newarea.php` | Manage areas list | — | Left out (Q7). |
 | `newservice.php` | Services & prices (not in menu, prices never used) | Branch prices | Not needed. |
-| `tadeltahsel.php` «ادخال تحصيلات الحلاقين» | Daily barber money entry | — | G3. |
-| `hlaktahsel.php` «تقرير تحصيلات الحلاقين» | Per barber over a period: clients, normal/special kids, cash, link, total, share | `/reports/barbers` | New reads booking payments, old reads daily entries (G3). |
+| `tadeltahsel.php` «ادخال تحصيلات الحلاقين» | Daily barber money entry | `/collections` | Covered (S11). |
+| `hlaktahsel.php` «تقرير تحصيلات الحلاقين» | Per barber over a period: clients, normal/special kids, cash, link, total, share | `/reports/barbers` | Covered (S11): reads the daily collections, as in the old app. |
 | `tahsel.php` «شغل الحلاقين» | Today per barber + period summary (done/cancelled orders, kids) | `/reports/barbers`, `/reports/haircuts` | Covered by data; not one page. Could become the home tile target. |
-| `shamel.php` «التقرير الشامل» | Barbers + salon totals with share | `/reports/comprehensive` | Covered (P5); source differs (G3). |
+| `shamel.php` «التقرير الشامل» | Barbers + salon totals with share | `/reports/comprehensive` | Covered (P5, S11): reads the daily barber collections and filters by period only, as in the old app. |
 | `salonwork.php` | Salon daily entry: kids, link, cash, KNET | `/salon` | Covered (P5, per branch). |
 | `salonreport.php` | Salon period table + chart + print | `/reports/salon` | Old has a chart; new has a table. |
-| `salon_work_details.php` | Salon daily by method + shares (admin/moder) | `/reports/salon` | Covered. |
+| `salon_work_details.php` | Salon daily by method + shares (admin/moder) | `/reports/salon` | Partly covered. Missing: each method's % share and the day count; rows are per branch per day, not one row per day. Moderator access waits on G11. |
 | `ttaborder.php`, `customerorders.php` | Tracking reports | `/reports/clients` (partly) | G12. |
 | `temp-bookings-admin.php`, `complete-temp-booking.php` | Online requests from the public form | — | Left out (customer-facing). |
 
@@ -233,7 +233,7 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 | `barber-dashboard.php` | Two big cards: Today's bookings (open count) and Today's revenue; "Keep GPS ON" | `/` barber home | Same idea (P6). New also lists today's visits. |
 | `barber-orders.php` | Open confirmed orders table, any date filter, order popup, new-order dot, Accept / Cancel | `/bookings` («حجوزاتي») | G14. New uses cards and shows all statuses. |
 | `barber-order-view.php` | Details, WhatsApp chat with the customer, start / complete | `/bookings/[id]` | Covered (arrived = old "in progress"). |
-| `barber-order-accept.php` | "Save & complete" (money fields switched off) | Visit step «تم» | Covered. Payment button must go (G2). |
+| `barber-order-accept.php` | "Save & complete" (money fields switched off) | Visit step «تم» | Covered. The barber's payment button is gone (G2, S1). |
 | `barber-order-cancel.php` | 7 fixed reasons | `CancelVisitDialog` | Covered (P6). |
 | `barber-performance.php` | Own daily rows: kids, special, cash, online, total, completed, cancelled, % shares | `/reports/barbers` («أدائي») | Check the daily breakdown and % columns. |
 | — | — | `/schedule`, `/profile` | New only. |
@@ -288,8 +288,8 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 
 ## 8. Questions for the client / owner
 
-1. **Price without branches (G1/G3):** if barbers have no branch, does a home visit use one business-wide adult/child price, or does the admin type the amount (as in the old app)?
-2. **Money entry (G3):** keep per-booking payments (admin only), add a daily per-barber collection entry like the old «ادخال تحصيلات الحلاقين», or both? May one visit be paid partly in cash and partly by link?
+1. **Price without branches (G1/G3):** if barbers have no branch, does a home visit use one business-wide adult/child price, or does the admin type the amount (as in the old app)? **Answered 2026-10-12:** the administrator types the booking price as cash + link; there is no branch price (S10).
+2. **Money entry (G3):** keep per-booking payments (admin only), add a daily per-barber collection entry like the old «ادخال تحصيلات الحلاقين», or both? May one visit be paid partly in cash and partly by link? **Answered 2026-10-12:** both — per-booking payments stay, and a daily per-barber entry is added that the reports read; a barber sees their own entries read-only (S11).
 3. **Language:** do the barbers need English screens?
 4. **Default visit length (G16):** 30 or 60 minutes?
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
@@ -297,7 +297,7 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 7. **Areas list (G8):** do you want a fixed, searchable areas list again?
 8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
-10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits?
+10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits? **Answered 2026-10-12:** yes, as a correction with a required reason and full history (S15).
 11. **Blue pill (G4):** should the admin lock a single half-hour directly from the pills, or is editing working hours enough?
 
 ---
@@ -339,7 +339,7 @@ The work above is split into small slices you can check one at a time. Each slic
 |---|---|---|---|---|---|---|---|---|
 | S0 | Starting point and deploy check | — | — | — | No | XS | Ready | [ ] |
 | S1 | Payments are admin-only | G2 | S0 | — | No | S | Done | [ ] |
-| S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Ready | [ ] |
+| S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Done | [ ] |
 | S3 | Admin locks a single half-hour | G4 (item 6) | S2 | Q11 | Yes | M | Blocked | [ ] |
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Done | [ ] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Done | [ ] |
@@ -349,7 +349,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Done | [ ] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Done | [ ] |
-| S12 | Booking tracking report | G12 | S7 | — | No | M | Ready after S7 | [ ] |
+| S12 | Booking tracking report | G12 | S7 | — | No | M | Ready | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done | [ ] |
 | S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Done | [ ] |
 | S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Done | [ ] |
@@ -405,7 +405,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   2. Pick that barber's day off: all pills are blue and say «إجازة».
   3. Hover over a booked pill on desktop: the customer, area, phone, children and status appear.
   4. Repeat on a phone-width window by tapping.
-- Evidence:
+- Evidence: 2026-10-12, commit `c39e363` (merged `a0477bd`). `lib/day.ts`: the pills cover the whole day (09:00–24:00), a new `locked` state with a `break`/`day-off` reason, and a `timeWords` helper. `globals.css`: `status-locked` / `status-locked-soft` tokens, light and dark. Booking page: blue locked pills, hover tooltips for free/locked/booked (booked shows customer, area, phone, haircuts, status), a tap message for why a slot is locked, a day-off row and a legend entry. Tests: `apps/web/tests/day.test.ts` (lunch gap, closed weekday, closing exception, replacement exception, time words at 09:00/12:30/16:30/19:00/22:00). Not yet verified in the browser.
 
 ### S3 — Admin locks a single half-hour (G4 item 6)
 
@@ -716,20 +716,17 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-S1 is **Done** (commit `81e6a0c`); lane D now waits on Q1 and Q2 for S10/S11. These two are safe together:
+As of 2026-10-12: S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Done** (none Verified yet). Lane D is finished.
 
 | Worktree | Slice | Why it is safe |
 |---|---|---|
-| 1 | S2 — blue pills | No migration; web only (`lib/day.ts`, booking page) |
-| 2 | S5 — address extras and 8-digit phone typing | Holds the only migration slot; S4 is the alternative |
+| 1 | S12 — booking tracking report | No migration; starts once S7 is verified |
 
-Then, as each merges:
+Everything else waits on a client answer:
 
-- When S5 merges: start S6, then S9 (after Q6); the migration slot frees for S4.
-- When S2 merges: S3 (after Q11) and S8 (after Q4).
-- When S4 merges: start S7, then S12.
-- **S10 and S11 run alone.** They change pricing, bookings and reports across the repo, so start them from a freshly merged `main` with no other open worktrees, and run the full `pnpm check` before and after.
-- **S16 runs last** (before S17). It adds roles that need a permission check on every endpoint, including ones the other slices add.
+- S3 (Q11) and S8 (Q4) — S2 is built.
+- S6 (Q7), then S9 (Q6) — S5 is built.
+- **S16 runs last** (before S17), after Q5. It adds roles that need a permission check on every endpoint, including ones the other slices add.
 
 ### Merge routine for every worktree
 

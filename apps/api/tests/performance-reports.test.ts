@@ -137,7 +137,9 @@ describe("barber performance report", () => {
     const response = await report("employees", { ...range, branchId: branchOne });
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId!));
     expect(rows.map((row: Row) => row.employeeId)).toEqual([barberA, barberB]);
-    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: collected(1, "18.000") });
+    expect(rows[0]).toMatchObject({ branchId: branchTwo, work: { bookings: 2, reservedMinutes: 60, completedVisits: 1 }, invoices: { issued: money(1, "13.000"), cancelled: money(1, "5.000") }, cash: null });
+    // Daily collections follow only the period and barber, so a branch filter hides them instead of showing unrelated money.
+    expect(rows[1].cash).toBeNull();
   });
   it("shows a barber only their own row and denies another barber", async () => {
     const own = await report("employees", range, sessionA);

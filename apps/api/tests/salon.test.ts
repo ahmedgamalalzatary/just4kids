@@ -135,7 +135,7 @@ describe("salon daily work", () => {
 
 describe("comprehensive collections report", () => {
   it("combines barber and salon rows with per-method totals and a share of the grand total", async () => {
-    const response = await request(app).get("/reports/comprehensive").query({ ...reportRange, branchId }).set("Cookie", admin.cookie);
+    const response = await request(app).get("/reports/comprehensive").query(reportRange).set("Cookie", admin.cookie);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ timeZone: "Asia/Kuwait" });
     expect(response.body.barbers).toEqual([
@@ -144,8 +144,13 @@ describe("comprehensive collections report", () => {
     expect(response.body.salon).toEqual({ cash: { count: 1, total: "5.000" }, link: { count: 1, total: "1.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 2, total: "11.000" }, share: 50 });
     expect(response.body.totals).toEqual({ cash: { count: 2, total: "12.000" }, link: { count: 2, total: "5.000" }, knet: { count: 2, total: "5.000" }, collected: { count: 3, total: "22.000" } });
   });
+  it("covers the period only, like the old report, so barber and salon shares use the same scope", async () => {
+    const response = await request(app).get("/reports/comprehensive").query({ ...reportRange, branchId }).set("Cookie", admin.cookie);
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("INVALID_INPUT");
+  });
   it("requires the administrator", async () => {
-    expect((await request(app).get("/reports/comprehensive").query({ ...reportRange, branchId })).status).toBe(401);
-    expect((await request(app).get("/reports/comprehensive").query({ ...reportRange, branchId }).set("Cookie", employee.cookie)).status).toBe(403);
+    expect((await request(app).get("/reports/comprehensive").query(reportRange)).status).toBe(401);
+    expect((await request(app).get("/reports/comprehensive").query(reportRange).set("Cookie", employee.cookie)).status).toBe(403);
   });
 });

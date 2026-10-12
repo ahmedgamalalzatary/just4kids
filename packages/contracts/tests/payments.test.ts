@@ -30,6 +30,19 @@ describe("payment method contracts", () => {
     expect(revision.after.invoice.address).toEqual(normalizedAddress);
     expect(paymentResponseSchema.parse({ ...payment, bookingAtReceipt: legacyBooking }).bookingAtReceipt.address).toEqual(normalizedAddress);
   });
+  it("reads legacy unit-price invoice snapshots as the whole total in cash", () => {
+    const current = Object.fromEntries(Object.entries(booking.invoice).filter(([key]) => key !== "amountCash" && key !== "amountLink"));
+    const legacyBooking = { ...booking, invoice: { ...current, adultUnitPrice: "5.000", childUnitPrice: "3.000", adultAmount: "5.000", childAmount: "0.000" } };
+    const expected = bookingResponseSchema.parse(booking).invoice;
+    expect(bookingResponseSchema.parse(legacyBooking).invoice).toEqual(expected);
+    const revision = bookingRevisionResponseSchema.parse({ id: payment.id, bookingId: booking.id, version: 1, actorAccountId: booking.employeeId, reason: null, occurredAt: payment.recordedAt, before: legacyBooking, after: legacyBooking });
+    expect(revision.before.invoice).toEqual(expected);
+    const receipt = { ...payment, bookingAtReceipt: legacyBooking };
+    expect(paymentResponseSchema.parse(receipt).bookingAtReceipt.invoice).toEqual(expected);
+    const event = { id: "99999999-9999-4999-8999-999999999999", bookingId: booking.id, paymentId: payment.id, version: 1, revisionId: null, kind: "recorded", amount: "5.000", method: "cash", actorAccountId: booking.employeeId, reason: null, occurredAt: payment.recordedAt, before: null, after: receipt };
+    expect(paymentEventResponseSchema.parse(event).after.bookingAtReceipt.invoice).toEqual(expected);
+    expect(bookingResponseSchema.safeParse({ ...booking, invoice: { ...booking.invoice, adultUnitPrice: "5.000" } }).success).toBe(false);
+  });
   it("requires a version and an explicit payment method", () => {
     expect(paymentMethodSchema.parse("link")).toBe("link");
     expect(paymentRecordSchema.parse({ expectedVersion: 1, method: "link" })).toEqual({ expectedVersion: 1, method: "link" });

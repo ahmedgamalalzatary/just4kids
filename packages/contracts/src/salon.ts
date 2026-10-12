@@ -48,7 +48,8 @@ export const salonReportResponseSchema = z.strictObject({
 });
 
 // Collected money per method plus the share of the combined total; the salon row is the shop's in-shop entry.
-export const comprehensiveReportQuerySchema = salonQuerySchema;
+// Period only, as in the old report: barber collections carry no branch, so a branch filter would mix scopes.
+export const comprehensiveReportQuerySchema = z.strictObject({ from: isoDate.optional(), to: isoDate.optional() }).superRefine(orderedRange);
 const collected = z.strictObject({ cash: reportMoneySchema, link: reportMoneySchema, knet: reportMoneySchema, collected: reportMoneySchema });
 const share = z.number().min(0).max(100);
 export const comprehensiveReportResponseSchema = z.strictObject({
@@ -61,6 +62,7 @@ export const comprehensiveReportResponseSchema = z.strictObject({
 export type SalonEntryCreate = z.infer<typeof salonEntryCreateSchema>;
 export type SalonEntryUpdate = z.infer<typeof salonEntryUpdateSchema>;
 export type SalonQuery = z.infer<typeof salonQuerySchema>;
+export type ComprehensiveReportQuery = z.infer<typeof comprehensiveReportQuerySchema>;
 export type SalonEntryResponse = z.infer<typeof salonEntryResponseSchema>;
 export type SalonEntryEvent = z.infer<typeof salonEntryEventSchema>;
 export type SalonReportResponse = z.infer<typeof salonReportResponseSchema>;

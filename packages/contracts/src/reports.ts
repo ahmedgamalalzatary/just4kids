@@ -74,6 +74,8 @@ export const employeeReportResponseSchema = z.strictObject({
     employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(), branchId: z.uuid().nullable(), branchName: z.string().nullable(),
     // Scheduled working minutes from weekly hours and dated exceptions for each day from `from` to `to`; null without a visit-date range.
     availableMinutes: total.nullable(), ...performance,
+    // The administrator's daily collections follow only the period and barber; null when another filter is applied.
+    cash: reportCashSchema.nullable(),
   })),
 });
 export const branchReportResponseSchema = z.strictObject({
@@ -113,7 +115,8 @@ export const invoiceReportResponseSchema = z.strictObject({
   summary: z.strictObject({
     // Invoice value, cancelled invoice amounts, and actual cash stay separate measures; one invoice per reservation means revisions are never counted twice.
     invoices: z.strictObject({ issued: reportMoneySchema, cancelled: reportMoneySchema, outstanding: reportMoneySchema }),
-    cash: reportCashSchema,
+    // The administrator's daily collections follow only the period and barber; null when another filter is applied.
+    cash: reportCashSchema.nullable(),
     editedBookings: total, edits: total, correctedBookings: total, corrections: total,
   }),
   invoices: z.array(invoiceReportEntrySchema), total, limit: z.number().int(), offset: z.number().int(),

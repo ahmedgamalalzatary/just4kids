@@ -71,7 +71,8 @@ export function ReportTabs() {
 
 const ALL = "all";
 
-function OptionSelect({ value, onChange, all, options, id, ...aria }: {
+/** A select whose optional "all" choice clears the value back to "" (Radix forbids an empty item value). */
+export function OptionSelect({ value, onChange, all, options, id, ...aria }: {
   value: string; onChange: (value: string) => void; all?: string; options: { value: string; label: string }[]; id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string;
 }) {
   return (
@@ -164,18 +165,22 @@ export function ReportFilterBar() {
   return <FilterForm key={search} filters={filters} isAdmin={isAdmin} />;
 }
 
-/** From/to/branch filter for the administrator-only salon and comprehensive reports. */
+// The comprehensive report covers the period only, as in the old app: barber collections carry no branch.
+const periodOnly = (pathname: string) => pathname === "/reports/comprehensive";
+
+/** From/to filter (plus branch, except on the comprehensive report) for the administrator-only salon reports. */
 export function SalonFilterBar() {
   const { filters, isAdmin, search } = useReportFilters();
+  const pathname = usePathname();
   // Rebuild the form whenever the address changes, matching ReportFilterBar.
-  return <SalonFilterForm key={search} from={filters.from} to={filters.to} branchId={filters.branchId} isAdmin={isAdmin} />;
+  return <SalonFilterForm key={search} from={filters.from} to={filters.to} branchId={filters.branchId} isAdmin={isAdmin} withBranch={!periodOnly(pathname)} />;
 }
 
-function SalonFilterForm({ from, to, branchId, isAdmin }: { from: string; to: string; branchId: string; isAdmin: boolean }) {
+function SalonFilterForm({ from, to, branchId, isAdmin, withBranch }: { from: string; to: string; branchId: string; isAdmin: boolean; withBranch: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
-  const branches = useBranches(isAdmin);
-  const [draft, setDraft] = useState({ from, to, branchId });
+  const branches = useBranches(isAdmin && withBranch);
+  const [draft, setDraft] = useState({ from, to, branchId: withBranch ? branchId : "" });
   const error = rangeError(draft.from, draft.to);
   const apply = (next: { from: string; to: string; branchId: string }) => router.replace(`${pathname}${reportSearch({ ...emptyReportFilters, ...next })}`, { scroll: false });
   const set = <Key extends keyof typeof draft>(key: Key) => (value: string) => setDraft(current => ({ ...current, [key]: value }));
@@ -186,7 +191,7 @@ function SalonFilterForm({ from, to, branchId, isAdmin }: { from: string; to: st
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Field label="من تاريخ" optional><Input type="date" value={draft.from} onChange={event => set("from")(event.target.value)} /></Field>
             <Field label="إلى تاريخ" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to")(event.target.value)} /></Field>
-            <Field label="الفرع" className="col-span-2"><OptionSelect value={draft.branchId} onChange={set("branchId")} all="كل الفروع" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} /></Field>
+            {withBranch ? <Field label="الفرع" className="col-span-2"><OptionSelect value={draft.branchId} onChange={set("branchId")} all="كل الفروع" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} /></Field> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
@@ -198,14 +203,15 @@ function SalonFilterForm({ from, to, branchId, isAdmin }: { from: string; to: st
   );
 }
 
-/** Print-visible period and branch scope for the salon and comprehensive reports. */
+/** Print-visible period (and branch, except on the comprehensive report) for the salon reports. */
 export function SalonScope() {
   const { filters, isAdmin } = useReportFilters();
-  const branches = useBranches(isAdmin);
+  const withBranch = !periodOnly(usePathname());
+  const branches = useBranches(isAdmin && withBranch);
   const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
     : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
   const branch = filters.branchId ? branches.data?.find(item => item.id === filters.branchId)?.name ?? "…" : "كل الفروع";
-  return <p className="text-sm text-muted-foreground">الفترة: {range} — الفرع: {branch} (بتوقيت الكويت).</p>;
+  return <p className="text-sm text-muted-foreground">الفترة: {range}{withBranch ? ` — الفرع: ${branch}` : ""} (بتوقيت الكويت).</p>;
 }
 
 /** The report name, date basis, and applied filters, shown on screen and on paper. */
@@ -274,7 +280,12 @@ export function CashMoney({ value }: { value: Collected }) {
   );
 }
 
-type Performance = Pick<BranchReport["branches"][number], "work" | "invoices" | "cash">;
+/** The barbers' daily collections, or a note when a filter they cannot follow hides them. */
+export function CollectedCash({ value }: { value: Collected | null }) {
+  return value ? <CashMoney value={value} /> : <span className="text-xs text-muted-foreground">التحصيلات تُفلتر بالفترة والحلاق فقط</span>;
+}
+
+type Performance = Pick<BranchReport["branches"][number], "work" | "invoices"> & { cash: Collected | null };
 
 /** Work, time, and money measures shared by the barber and branch reports. Invoices and cash stay separate. */
 export function PerformanceDetails({ value, children }: { value: Performance; children?: ReactNode }) {
@@ -296,7 +307,7 @@ export function PerformanceDetails({ value, children }: { value: Performance; ch
         <Detail label="الفواتير الصادرة"><Money value={invoices.issued} unit="فاتورة" /></Detail>
         <Detail label="فواتير غير مدفوعة"><Money value={invoices.outstanding} unit="فاتورة" /></Detail>
         <Detail label="الفواتير الملغاة"><Money value={invoices.cancelled} unit="فاتورة" /></Detail>
-        <Detail label="المبلغ المستلم"><CashMoney value={cash} /></Detail>
+        <Detail label="المبلغ المستلم"><CollectedCash value={cash} /></Detail>
       </dl>
     </div>
   );

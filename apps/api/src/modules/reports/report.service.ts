@@ -26,6 +26,11 @@ function collectionCash(row: CollectionRow | undefined) {
   };
 }
 
+// Daily collections carry only a barber and a day, so they follow the period and barber filters and nothing else.
+function collectionsFollow(query: HaircutReportQuery & { paymentStatus?: string | undefined }) {
+  return !query.branchId && !query.clientId && !query.status && !query.source && !query.q && !query.paymentStatus;
+}
+
 export function createReportService(repository: ReportRepository) {
   return {
     async reservations(queryInput: unknown, actor: Account) {
@@ -49,7 +54,7 @@ export function createReportService(repository: ReportRepository) {
     async employees(queryInput: unknown, actor: Account) {
       const query = scope(employeeReportQuerySchema.parse(queryInput), actor);
       const work = new Map((await repository.performance(query, ["employeeId"])).map(row => [row.employeeId, row]));
-      const collected = new Map((await repository.collectionSums(query)).map(row => [row.employeeId, row]));
+      const collected = collectionsFollow(query) ? new Map((await repository.collectionSums(query)).map(row => [row.employeeId, row])) : null;
       // With a branch filter, list barbers currently in that branch and any barber whose recorded work there matches.
       const people = (await repository.employees(query.employeeId)).filter(person => !query.branchId || person.branchId === query.branchId || work.has(person.employeeId));
       const range = query.dateBasis === "visit_date" && query.from && query.to ? { from: query.from, to: query.to } : undefined;
@@ -67,7 +72,7 @@ export function createReportService(repository: ReportRepository) {
             }
             availableMinutes = scheduledMinutes(range.from, range.to, schedules.weekly.filter(interval => interval.employeeId === person.employeeId), exceptions);
           }
-          return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)), cash: collectionCash(collected.get(person.employeeId)) };
+          return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)), cash: collected ? collectionCash(collected.get(person.employeeId)) : null };
         }),
       });
     },
@@ -126,12 +131,12 @@ export function createReportService(repository: ReportRepository) {
     async invoices(queryInput: unknown, actor: Account) {
       const query = scope(invoiceReportQuerySchema.parse(queryInput), actor);
       const { summary, rows } = await repository.invoiceList(query);
-      const collected = await repository.collectionTotals(query);
+      const collected = collectionsFollow(query) ? await repository.collectionTotals(query) : null;
       return invoiceReportResponseSchema.parse({
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
         summary: {
           invoices: { issued: { count: summary.issuedCount, total: summary.issuedTotal }, cancelled: { count: summary.cancelledCount, total: summary.cancelledTotal }, outstanding: { count: summary.outstandingCount, total: summary.outstandingTotal } },
-          cash: collectionCash(collected),
+          cash: collected ? collectionCash(collected) : null,
           editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
         },
         invoices: rows.map(row => {

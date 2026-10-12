@@ -53,13 +53,20 @@ export const invoiceResponseSchema = z.strictObject({
   amountCash: amount, amountLink: amount, total: amount,
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema,
 });
+// Snapshots saved before S10 priced the invoice per haircut; migration 0019 moved those totals to cash, so old JSON reads the same way.
+const legacyInvoiceKeys = ["adultUnitPrice", "childUnitPrice", "adultAmount", "childAmount"];
+const invoiceSnapshotSchema = z.preprocess(value => {
+  if (typeof value !== "object" || value === null || "amountCash" in value || !legacyInvoiceKeys.every(key => key in value)) return value;
+  const current = Object.fromEntries(Object.entries(value).filter(([key]) => !legacyInvoiceKeys.includes(key)));
+  return { ...current, amountCash: current.total, amountLink: "0.000" };
+}, invoiceResponseSchema);
 export const bookingResponseSchema = z.strictObject({
   id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid().nullable(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
   seenByBarberAt: z.iso.datetime().nullable().default(null),
   source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
-  client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceResponseSchema,
+  client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceSnapshotSchema,
 });
 export const bookingListQuerySchema = z.strictObject({
   limit: z.string().regex(/^[0-9]+$/).default("20").transform(Number).pipe(z.number().int().min(1).max(100)),

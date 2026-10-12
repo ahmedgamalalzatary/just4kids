@@ -26,7 +26,7 @@ import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
 import { buildSlots, durationOptions, haircutSummary, timeWords, whatsAppLink, type Slot } from "@/lib/day";
 import { formatDate, formatDuration, formatTime, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
-import { formatKwd, invoiceTotal } from "@/lib/money";
+import { formatKwd, invoiceTotal, typedPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 function Step({ number, title, done, children }: { number: number; title: string; done: boolean; children: ReactNode }) {
@@ -218,17 +218,16 @@ function NewBookingScreen() {
   const haircuts = adultCount + childCount;
   const specialProblem = specialChildrenProblem(childCount, specialChildCount);
   // The administrator types the visit price; there is no branch-derived price.
-  const validPrice = (value: string) => /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,3})?$/.test(value);
-  const pricesReady = validPrice(amountCash) && validPrice(amountLink);
-  const total = pricesReady ? invoiceTotal({ amountCash, amountLink }) : null;
-  const ready = Boolean(barber?.enabled && slot && client.data && address && haircuts > 0 && !specialProblem && pricesReady);
+  const price = typedPrice({ amountCash, amountLink });
+  const total = price ? invoiceTotal(price) : null;
+  const ready = Boolean(barber?.enabled && slot && client.data && address && haircuts > 0 && !specialProblem && price);
 
   const pickBarber = (id: string | null) => { setBarberId(id); setSlot(null); };
   const pickClient = (id: string | null) => { setClientId(id); setAddressId(null); };
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const submit = () => {
-    if (!ready || !barber || !slot || !client.data || !address) return;
-    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, amountCash, amountLink, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
+    if (!ready || !barber || !slot || !client.data || !address || !price) return;
+    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
       onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
       onError: error => {
         // Someone else took the time (or the hours changed): reload the pills and ask for another time.
@@ -358,7 +357,7 @@ function NewBookingScreen() {
                   <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountLink} onChange={event => setAmountLink(event.target.value)} />
                 </label>
               </div>
-              {(amountCash !== "" || amountLink !== "") && !pricesReady ? <p className="mt-2 text-xs text-destructive">اكتب المبلغ بالدينار، حتى 3 خانات عشرية.</p> : null}
+              {(amountCash.trim() !== "" || amountLink.trim() !== "") && !price ? <p className="mt-2 text-xs text-destructive">اكتب المبلغ بالدينار، حتى 3 خانات عشرية.</p> : null}
               <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">

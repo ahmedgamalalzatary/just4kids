@@ -5,6 +5,7 @@ import { Coins, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Field, FormAlert } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
+import { OptionSelect } from "@/components/reports";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -112,10 +113,7 @@ function CollectionsScreen() {
           <Field label="إلى تاريخ"><Input type="date" value={to} onChange={event => setTo(event.target.value)} /></Field>
           {isAdmin ? (
             <Field label="الحلاق">
-              <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="كل الحلاقين" /></SelectTrigger>
-                <SelectContent>{(employees.data ?? []).map(employee => <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>)}</SelectContent>
-              </Select>
+              <OptionSelect value={employeeId} onChange={setEmployeeId} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
             </Field>
           ) : null}
         </Card>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKwd, fromFils, invoiceTotal, toFils } from "@/lib/money";
+import { formatKwd, fromFils, invoiceTotal, toFils, typedPrice } from "@/lib/money";
 
 describe("money", () => {
   it("converts exact KWD strings to fils and back", () => {
@@ -22,5 +22,14 @@ describe("money", () => {
   it("computes the invoice total from the typed cash and link", () => {
     expect(invoiceTotal({ amountCash: "5.250", amountLink: "3.125" })).toBe("8.375");
     expect(invoiceTotal({ amountCash: "0.000", amountLink: "0.001" })).toBe("0.001");
+  });
+
+  it("reads a blank typed amount as zero but needs at least one amount", () => {
+    expect(typedPrice({ amountCash: "5", amountLink: "" })).toEqual({ amountCash: "5", amountLink: "0" });
+    expect(typedPrice({ amountCash: " ", amountLink: "2.5" })).toEqual({ amountCash: "0", amountLink: "2.5" });
+    expect(typedPrice({ amountCash: "5.250", amountLink: "3.125" })).toEqual({ amountCash: "5.250", amountLink: "3.125" });
+    expect(typedPrice({ amountCash: "", amountLink: "" })).toBeNull();
+    expect(typedPrice({ amountCash: "5.1234", amountLink: "" })).toBeNull();
+    expect(typedPrice({ amountCash: "05", amountLink: "1" })).toBeNull();
   });
 });

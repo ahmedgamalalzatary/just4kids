@@ -166,6 +166,14 @@ describe("invoice and cash report", () => {
       cash: collected(1, "19.000"), editedBookings: 1, edits: 2, correctedBookings: 1, corrections: 1,
     });
   });
+  it("hides the collections summary under filters the daily collections cannot follow", async () => {
+    for (const query of [{ branchId: branchTwo }, { clientId: clientOne }, { status: "completed" }, { source: "manual" }, { q: "سلمى" }, { paymentStatus: "paid" }]) {
+      const response = await report("invoices", { ...range, ...query });
+      expect(response.status).toBe(200);
+      expect(response.body.summary.cash).toBeNull();
+    }
+    expect((await report("invoices", { ...range, employeeId: barberX })).body.summary.cash).not.toBeNull();
+  });
   it("lists invoice line items with visit, cash, edit, and correction details, keeping paid cancelled invoices visible", async () => {
     const response = await report("invoices", range);
     const descending = (left: string, right: string) => right.localeCompare(left);

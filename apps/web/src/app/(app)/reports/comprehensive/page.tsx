@@ -32,7 +32,7 @@ function CollectedCells({ row }: { row: Row | ComprehensiveReport["salon"] }) {
 
 function ComprehensiveScreen() {
   const { filters, isAdmin } = useReportFilters();
-  const report = useComprehensiveReport({ from: filters.from, to: filters.to, branchId: filters.branchId }, isAdmin);
+  const report = useComprehensiveReport({ from: filters.from, to: filters.to }, isAdmin);
   if (report.isPending) return <Card><LoadingRows /></Card>;
   if (report.isError) return <Card><ErrorState error={report.error} onRetry={() => report.refetch()} /></Card>;
   const { barbers, salon, totals } = report.data;

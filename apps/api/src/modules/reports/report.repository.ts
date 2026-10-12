@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-o
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
-import type { ClientReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery, SalonQuery } from "@just4kids/contracts";
+import type { ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
 const createdDay = sql`DATE(${bookings.createdAt} + INTERVAL 3 HOUR)`;
@@ -188,7 +188,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         .orderBy(asc(clients.name), asc(clients.id)) as unknown as Promise<({ clientId: string; name: string; phone: string } & PerformanceRow)[]>;
     },
     /** Barber per-method collections joined with the shop's salon entries for the same period. */
-    async comprehensive(query: SalonQuery) {
+    async comprehensive(query: ComprehensiveReportQuery) {
       const barbers = await db.select({ employeeId: barberCollections.employeeId, displayName: employees.displayName, enabled: accounts.enabled, ...collectionMeasures }).from(barberCollections)
         .innerJoin(employees, eq(employees.accountId, barberCollections.employeeId)).innerJoin(accounts, eq(accounts.id, barberCollections.employeeId))
         .where(collectionWhere(query)).groupBy(barberCollections.employeeId, employees.displayName, accounts.enabled)
@@ -201,7 +201,6 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       }).from(salonEntries).where(and(
         query.from ? gte(salonEntries.date, query.from) : undefined,
         query.to ? lte(salonEntries.date, query.to) : undefined,
-        query.branchId ? eq(salonEntries.branchId, query.branchId) : undefined,
       ));
       return { barbers, salon: salon! };
     },

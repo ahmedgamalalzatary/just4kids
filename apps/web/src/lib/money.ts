@@ -17,6 +17,17 @@ export function formatKwd(amount: string): string {
   return `${fromFils(toFils(amount))} د.ك`;
 }
 
+const priceFormat = /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,3})?$/;
+
+/** The administrator's typed visit price: a blank amount counts as zero, but at least one must be typed. Null while invalid. */
+export function typedPrice(input: { amountCash: string; amountLink: string }): { amountCash: string; amountLink: string } | null {
+  const amountCash = input.amountCash.trim();
+  const amountLink = input.amountLink.trim();
+  if (amountCash === "" && amountLink === "") return null;
+  const price = { amountCash: amountCash || "0", amountLink: amountLink || "0" };
+  return priceFormat.test(price.amountCash) && priceFormat.test(price.amountLink) ? price : null;
+}
+
 export function invoiceTotal(input: { amountCash: string; amountLink: string }): string {
   return fromFils(toFils(input.amountCash) + toFils(input.amountLink));
 }
