@@ -44,10 +44,11 @@ export function createEmployeeRepository(connection: ReturnType<typeof createDat
         const [employee] = await transaction.select().from(employees).where(eq(employees.accountId, id)).for("update");
         if (!employee) return false;
         const now = new Date();
-        if (input.phone !== undefined || input.enabled !== undefined) {
+        if (input.phone !== undefined || input.enabled !== undefined || input.accessUntil !== undefined) {
           await transaction.update(accounts).set({
             ...(input.phone !== undefined ? { phone: input.phone } : {}),
             ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+            ...(input.accessUntil !== undefined ? { accessUntil: input.accessUntil } : {}),
             updatedAt: now,
           }).where(eq(accounts.id, id));
         }

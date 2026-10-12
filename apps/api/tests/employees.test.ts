@@ -162,4 +162,25 @@ describe("employee management", () => {
     expect(await connection.db.select().from(accounts).where(eq(accounts.phone, invalidBranchPhone))).toHaveLength(0);
     expect(await connection.db.select().from(accounts).where(eq(accounts.phone, testPhones[6]!))).toHaveLength(1);
   });
+
+  it("refuses an expired barber with a clear message and ends their existing sessions", async () => {
+    const phone = "+96555550071";
+    testPhones.push(phone);
+    const { admin, created } = await createEmployee(phone);
+    const employee = await signIn(phone, "employee-password-123");
+    expect(employee.response.status).toBe(200);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const expired = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ accessUntil: yesterday });
+    expect(expired.status).toBe(200);
+    expect(expired.body.accessUntil).toBe(yesterday);
+    expect((await request(app).get("/auth/session").set("Cookie", employee.cookie)).status).toBe(401);
+    const refused = await signIn(phone, "employee-password-123");
+    expect(refused.response.status).toBe(403);
+    expect(refused.response.body.error.code).toBe("ACCOUNT_EXPIRED");
+    expect(refused.response.body.error.message).toContain("منتهى الصلاحية");
+    const cleared = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ accessUntil: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.accessUntil).toBeNull();
+    expect((await signIn(phone, "employee-password-123")).response.status).toBe(200);
+  });
 });

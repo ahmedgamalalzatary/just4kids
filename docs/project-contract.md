@@ -18,7 +18,8 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator creates employee credentials. No public registration or client dashboard login.
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
-- Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, and password; employees do not change their own password.
+- Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, account expiry, and password; employees do not change their own password.
+- Confirmed barber account expiry (2026-10-12): the administrator may set an optional end date on an employee account. The account stays valid through that day; afterwards a login is refused with a clear Arabic message and existing sessions stop working. Clearing the date restores access. This restores the old app's account expiry.
 - Assigned employees can cancel, mark arrived, mark completed, and mark no-show. Only the administrator records payments; employees see the invoice, its status, and the payment history read-only.
 - Employees cannot reschedule or reassign bookings.
 - Only the administrator records, corrects, or undoes payment records.

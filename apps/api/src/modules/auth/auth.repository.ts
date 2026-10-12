@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, loginAttempts, sessions } from "@just4kids/db/schema";
 import { sha256 } from "../../lib/security.js";
@@ -7,6 +7,9 @@ import { dummyPasswordHash, hashPassword, verifyPassword } from "../../lib/passw
 
 type Connection = ReturnType<typeof createDatabase>;
 const attemptWindowMs = 15 * 60 * 1000;
+
+/** Kuwait is UTC+3 without daylight saving; an account with an `accessUntil` day stays valid through the end of that Kuwait day. */
+function kuwaitToday(now: Date = new Date()): string { return new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10); }
 
 export function createAuthRepository(connection: Connection) {
   const { db } = connection;
@@ -31,7 +34,7 @@ export function createAuthRepository(connection: Connection) {
     async findSession(token: string) {
       const [row] = await db.select({ account: accounts, expiresAt: sessions.expiresAt }).from(sessions)
         .innerJoin(accounts, eq(sessions.accountId, accounts.id))
-        .where(and(eq(sessions.tokenHash, sha256(token)), gt(sessions.expiresAt, new Date()), eq(accounts.enabled, true)));
+        .where(and(eq(sessions.tokenHash, sha256(token)), gt(sessions.expiresAt, new Date()), eq(accounts.enabled, true), or(isNull(accounts.accessUntil), gte(accounts.accessUntil, kuwaitToday()))));
       return row;
     },
 
@@ -72,6 +75,7 @@ export function createAuthRepository(connection: Connection) {
           return { kind: "invalid" as const };
         }
         await transaction.delete(loginAttempts).where(eq(loginAttempts.keyHash, sha256(`phone-ip:${phone}:${ip}`)));
+        if (account?.accessUntil && account.accessUntil < kuwaitToday()) return { kind: "expired" as const };
         return { kind: "valid" as const, account };
       });
     },
