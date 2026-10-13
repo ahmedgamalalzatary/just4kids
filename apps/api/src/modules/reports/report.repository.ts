@@ -1,8 +1,8 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
-import type { ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
+import { accounts, barberCollections, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, cashPaymentEvents, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
+import type { BookingTrackingQuery, ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
 const createdDay = sql`DATE(${bookings.createdAt} + INTERVAL 3 HOUR)`;
@@ -115,6 +115,24 @@ function filter(query: HaircutReportQuery) {
 export function createReportRepository(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
   return {
+    async tracking(query: BookingTrackingQuery) {
+      return db.transaction(async transaction => {
+        const rows = await transaction.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+          .where(filter({ ...query, dateBasis: "visit_date", q: "" })).orderBy(desc(bookings.date), desc(bookings.startTime), desc(bookings.id));
+        const ids = rows.map(row => row.booking.id);
+        if (!ids.length) return { rows, visits: [], revisions: [], payments: [], receipts: [], messages: [], actors: [], clients: [] };
+        const visits = await transaction.select().from(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, ids)).orderBy(asc(bookingVisitEvents.version));
+        const revisions = await transaction.select().from(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
+        const payments = await transaction.select().from(cashPaymentEvents).where(inArray(cashPaymentEvents.bookingId, ids));
+        const receipts = await transaction.select().from(cashPayments).where(inArray(cashPayments.bookingId, ids));
+        const messages = await transaction.select().from(bookingMessages).where(inArray(bookingMessages.bookingId, ids));
+        const actorIds = [...new Set([...rows.map(row => row.booking.createdBy), ...visits.flatMap(event => event.actorAccountId ? [event.actorAccountId] : []), ...revisions.map(event => event.actorAccountId), ...payments.map(event => event.actorAccountId), ...receipts.map(receipt => receipt.recordedBy), ...messages.map(event => event.actorAccountId)])];
+        const actors = await transaction.select({ id: accounts.id, role: accounts.role, name: employees.displayName }).from(accounts).leftJoin(employees, eq(employees.accountId, accounts.id)).where(inArray(accounts.id, actorIds));
+        const clientIds = [...new Set([...rows.map(row => row.booking.clientId), ...visits.flatMap(event => event.actorClientId ? [event.actorClientId] : [])])];
+        const people = await transaction.select({ id: clients.id, name: clients.name }).from(clients).where(inArray(clients.id, clientIds));
+        return { rows, visits, revisions, payments, receipts, messages, actors, clients: people };
+      });
+    },
     async reservations(query: ReservationReportQuery) {
       const where = filter(query);
       const status = (value: string) => total(sql`${bookings.visitStatus} = ${value}`);

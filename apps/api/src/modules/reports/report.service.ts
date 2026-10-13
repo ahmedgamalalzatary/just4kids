@@ -1,8 +1,9 @@
-import { clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
-import type { Account, HaircutReportQuery } from "@just4kids/contracts";
+import { bookingMessageResponseSchema, bookingRevisionResponseSchema, bookingTrackingQuerySchema, bookingTrackingResponseSchema, clientReportQuerySchema, currentKuwaitWeek, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
+import type { Account, BookingTrackingEvent, HaircutReportQuery } from "@just4kids/contracts";
 import { ForbiddenError } from "../../lib/http-error.js";
 import { fils, money } from "../bookings/booking.repository.js";
 import { serializeBooking } from "../bookings/booking.service.js";
+import { serializeVisitHistory } from "../bookings/visit.service.js";
 import { scheduledMinutes, shapePerformance } from "./report.repository.js";
 import type { ReportRepository } from "./report.repository.js";
 
@@ -33,6 +34,46 @@ function collectionsFollow(query: HaircutReportQuery & { paymentStatus?: string 
 
 export function createReportService(repository: ReportRepository) {
   return {
+    async tracking(queryInput: unknown) {
+      const parsed = bookingTrackingQuerySchema.parse(queryInput);
+      // Without any period the report would read every booking ever made; it falls back to the current week.
+      const query = parsed.from || parsed.to ? parsed : { ...parsed, ...currentKuwaitWeek() };
+      const data = await repository.tracking(query);
+      const accounts = new Map(data.actors.map(actor => [actor.id, actor]));
+      const clients = new Map(data.clients.map(client => [client.id, client.name]));
+      const actor = (id: string | null, role?: BookingTrackingEvent["actor"]["role"]): BookingTrackingEvent["actor"] => {
+        const account = id ? accounts.get(id) : undefined;
+        const kind = role ?? account?.role ?? "system";
+        const name = kind === "client" ? (id ? clients.get(id) : undefined) ?? "العميل" : kind === "admin" ? "المدير" : kind === "system" ? "النظام" : account?.name ?? "حساب آخر";
+        return { id, name, role: kind };
+      };
+      return bookingTrackingResponseSchema.parse({
+        dateBasis: "visit_date", timeZone: "Asia/Kuwait",
+        bookings: data.rows.map(row => {
+          const id = row.booking.id;
+          const entries: { value: BookingTrackingEvent; version: number; id: string }[] = [];
+          const add = (value: BookingTrackingEvent, id: string, version = Number.MAX_SAFE_INTEGER) => entries.push({ value, id, version });
+          for (const event of serializeVisitHistory(row.booking, data.visits.filter(event => event.bookingId === id))) {
+            add({ type: "visit", at: event.occurredAt, actor: actor(event.actorAccountId ?? event.actorClientId, event.actorType), event }, event.id, event.version);
+          }
+          for (const revision of data.revisions.filter(event => event.bookingId === id)) {
+            add({ type: "revision", at: revision.occurredAt.toISOString(), actor: actor(revision.actorAccountId), revision: bookingRevisionResponseSchema.parse({ ...revision, occurredAt: revision.occurredAt.toISOString() }) }, revision.id, revision.version);
+          }
+          const payments = data.payments.filter(event => event.bookingId === id);
+          for (const payment of payments) {
+            add({ type: "payment", at: payment.occurredAt.toISOString(), actor: actor(payment.actorAccountId), payment: { id: payment.id, paymentId: payment.paymentId, kind: payment.kind, method: payment.method, amount: payment.amount, reason: payment.reason } }, payment.id, payment.version);
+          }
+          for (const receipt of data.receipts.filter(receipt => receipt.bookingId === id)) {
+            if (!payments.some(event => event.paymentId === receipt.id && event.kind === "recorded")) add({ type: "payment", at: receipt.recordedAt.toISOString(), actor: actor(receipt.recordedBy), payment: { id: receipt.id, paymentId: receipt.id, kind: "recorded", method: receipt.method, amount: receipt.originalAmount, reason: null } }, receipt.id);
+          }
+          for (const message of data.messages.filter(event => event.bookingId === id)) {
+            add({ type: "message", at: message.occurredAt.toISOString(), actor: actor(message.actorAccountId), message: bookingMessageResponseSchema.parse({ ...message, occurredAt: message.occurredAt.toISOString() }) }, message.id);
+          }
+          entries.sort((left, right) => Date.parse(left.value.at) - Date.parse(right.value.at) || left.version - right.version || left.value.type.localeCompare(right.value.type) || left.id.localeCompare(right.id));
+          return { booking: serializeBooking(row), events: entries.map(entry => entry.value) };
+        }),
+      });
+    },
     async reservations(queryInput: unknown, actor: Account) {
       const query = scope(reservationReportQuerySchema.parse(queryInput), actor);
       const { summary, rows } = await repository.reservations(query);

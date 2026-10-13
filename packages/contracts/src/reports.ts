@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eligibilityQuerySchema } from "./availability.js";
-import { bookingListQuerySchema, bookingResponseObjectSchema, invoiceResponseSchema, visitStatusSchema } from "./bookings.js";
+import { bookingListQuerySchema, bookingMessageResponseSchema, bookingResponseObjectSchema, bookingRevisionResponseSchema, invoiceResponseSchema, visitEventResponseSchema, visitStatusSchema } from "./bookings.js";
 import { cashAmountSchema } from "./cash.js";
-import { paymentMethodSchema } from "./payments.js";
+import { paymentEventResponseSchema, paymentMethodSchema } from "./payments.js";
 import { phoneSchema } from "./auth.js";
 
 // visit_date is the reservation's Kuwait visit day; created_date is the Kuwait day the reservation was made.
@@ -18,6 +18,34 @@ const orderedRange = (value: { from?: string | undefined; to?: string | undefine
   if (value.from && value.to && value.from > value.to) context.addIssue({ code: "custom", message: "The report range must not end before it starts" });
 };
 export const haircutReportQuerySchema = z.strictObject(filters).superRefine(orderedRange);
+export const bookingTrackingQuerySchema = z.strictObject({
+  from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId,
+}).superRefine(orderedRange);
+export type BookingTrackingQuery = z.infer<typeof bookingTrackingQuerySchema>;
+/** The Saturday-to-Friday Kuwait week (UTC+3, no daylight saving) containing `now`; the tracking report's period when none is chosen. */
+export function currentKuwaitWeek(now: Date = new Date()): { from: string; to: string } {
+  const day = new Date(now.getTime() + 3 * 3_600_000);
+  day.setUTCHours(0, 0, 0, 0);
+  const start = new Date(day.getTime() - ((day.getUTCDay() + 1) % 7) * 86_400_000);
+  const end = new Date(start.getTime() + 6 * 86_400_000);
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+}
+const trackingMeta = {
+  at: z.iso.datetime(),
+  actor: z.strictObject({ id: z.uuid().nullable(), name: z.string(), role: visitEventResponseSchema.shape.actorType }),
+};
+export const bookingTrackingEventSchema = z.discriminatedUnion("type", [
+  z.strictObject({ ...trackingMeta, type: z.literal("visit"), event: visitEventResponseSchema }),
+  z.strictObject({ ...trackingMeta, type: z.literal("message"), message: bookingMessageResponseSchema }),
+  z.strictObject({ ...trackingMeta, type: z.literal("revision"), revision: bookingRevisionResponseSchema }),
+  z.strictObject({ ...trackingMeta, type: z.literal("payment"), payment: paymentEventResponseSchema.pick({ id: true, paymentId: true, kind: true, method: true, amount: true, reason: true }) }),
+]);
+export const bookingTrackingResponseSchema = z.strictObject({
+  dateBasis: z.literal("visit_date"), timeZone: z.literal("Asia/Kuwait"),
+  bookings: z.array(z.strictObject({ booking: bookingResponseObjectSchema, events: z.array(bookingTrackingEventSchema) })),
+});
+export type BookingTrackingEvent = z.infer<typeof bookingTrackingEventSchema>;
+export type BookingTrackingResponse = z.infer<typeof bookingTrackingResponseSchema>;
 export const reservationReportQuerySchema = z.strictObject({ ...filters, limit: bookingListQuerySchema.shape.limit, offset: bookingListQuerySchema.shape.offset }).superRefine(orderedRange);
 
 const total = z.number().int().min(0);

@@ -19,7 +19,7 @@ export default function ReportsLayout({ children }: { children: ReactNode }) {
       <div data-print-hidden>
         <PageHeader
           title="التقارير"
-          description={isAdmin ? "الحجوزات والحلاقات وأداء الحلاقين والفروع، مع المرشحات والتفاصيل." : "حجوزاتك وحلاقاتك وأداؤك، من زياراتك المسندة إليك فقط."}
+          description={isAdmin ? "الحجوزات والحلاقات وأداء الحلاقين والتحصيل والصالون، مع المرشحات والتفاصيل." : "حجوزاتك وحلاقاتك وأداؤك، من زياراتك المسندة إليك فقط."}
           actions={<Button variant="outline" onClick={() => window.print()}><Printer aria-hidden />طباعة</Button>}
         />
       </div>

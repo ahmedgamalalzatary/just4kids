@@ -18,7 +18,7 @@ export default function BarberReportPage() {
   if (report.isPending) return <Card><LoadingRows /></Card>;
   if (report.isError) return <Card><ErrorState error={report.error} onRetry={() => report.refetch()} /></Card>;
   const { data } = report;
-  if (data.employees.length === 0) return <Card><EmptyState icon={Scissors} title="لا يوجد حلاقون مطابقون" description="غيّر الفرع أو الحلاق في المرشحات." /></Card>;
+  if (data.employees.length === 0) return <Card><EmptyState icon={Scissors} title="لا يوجد حلاقون مطابقون" description="غيّر الفترة أو الحلاق في المرشحات." /></Card>;
   const hasAvailability = filters.dateBasis === "visit_date" && filters.from !== "" && filters.to !== "";
 
   return (

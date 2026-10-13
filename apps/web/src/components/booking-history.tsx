@@ -4,15 +4,13 @@ import { useState, type ReactNode } from "react";
 import { History } from "lucide-react";
 import { UndoPaymentDialog } from "@/components/booking-actions";
 import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
-import { visitStatusLabels } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBookingHistory, useBookingPayments, useBookingRevisions, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
-import type { Booking, BookingRevision, PaymentEvent, VisitEvent } from "@/lib/api/types";
-import { formatAddress } from "@/lib/address";
-import { buildTimeline, messageKindLabels } from "@/lib/booking-timeline";
-import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
+import type { Booking, VisitEvent } from "@/lib/api/types";
+import { buildTimeline, messageKindLabels, paymentKinds, revisionChanges, visitEventTitle } from "@/lib/booking-timeline";
+import { formatDateTime } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodLabels } from "@/lib/payments";
 
@@ -58,7 +56,7 @@ function VisitHistory({ id }: { id: string }) {
         <TimelineItem key={entry.message.id} title={messageKindLabels[entry.message.kind]} meta={`${actorName(entry.message.actorAccountId)}، ${formatDateTime(entry.message.occurredAt)}`} />
       ) : (
         <TimelineItem key={entry.event.id}
-          title={entry.event.fromStatus === null ? `أُنشئ الحجز: ${visitStatusLabels[entry.event.toStatus]}` : `${entry.event.correction ? "تصحيح: " : ""}${visitStatusLabels[entry.event.fromStatus]} ← ${visitStatusLabels[entry.event.toStatus]}`}
+          title={visitEventTitle(entry.event)}
           meta={`${name(entry.event)}، ${formatDateTime(entry.event.occurredAt)}`}>
           {entry.event.reason ? <p className="text-muted-foreground">{entry.event.reason}</p> : null}
           {entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? <p className="text-xs">الفاتورة: {entry.event.invoiceStatus === "cancelled" ? "أُلغيت" : "أُعيد إصدارها"}</p> : null}
@@ -66,22 +64,6 @@ function VisitHistory({ id }: { id: string }) {
       ))}
     </Timeline>
   );
-}
-
-function revisionChanges(revision: BookingRevision): string[] {
-  const { before, after } = revision;
-  const changes: string[] = [];
-  if (before.date !== after.date || before.startTime !== after.startTime || before.endTime !== after.endTime) {
-    changes.push(`الموعد: من ${formatDate(before.date)} ${formatWindow(before.startTime, before.endTime)} إلى ${formatDate(after.date)} ${formatWindow(after.startTime, after.endTime)}`);
-  }
-  if (before.employee.id !== after.employee.id) changes.push(`الحلاق: من ${before.employee.displayName} إلى ${after.employee.displayName}`);
-  if (formatAddress(before.address) !== formatAddress(after.address) || before.address.instructions !== after.address.instructions) changes.push(`العنوان: ${formatAddress(after.address)}`);
-  if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
-    changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل (${before.specialChildCount} احتياج خاص) إلى ${after.adultCount} بالغ و${after.childCount} طفل (${after.specialChildCount} احتياج خاص)`);
-  }
-  if (before.notes !== after.notes) changes.push(`الملاحظات: من «${before.notes ?? "لا شيء"}» إلى «${after.notes ?? "لا شيء"}»`);
-  if (before.invoice.total !== after.invoice.total) changes.push(`الإجمالي: من ${formatKwd(before.invoice.total)} إلى ${formatKwd(after.invoice.total)}`);
-  return changes;
 }
 
 function Revisions({ id }: { id: string }) {
@@ -101,13 +83,6 @@ function Revisions({ id }: { id: string }) {
     </Timeline>
   );
 }
-
-const paymentKinds: Record<PaymentEvent["kind"], string> = {
-  recorded: "تسجيل دفع كامل",
-  voided: "إلغاء قيد دفع خاطئ",
-  extra_cash: "استلام مبلغ إضافي بعد تعديل",
-  refund: "إرجاع مبلغ للعميل بعد تعديل",
-};
 
 function Payments({ booking }: { booking: Booking }) {
   const payments = useBookingPayments(booking.id);

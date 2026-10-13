@@ -12,6 +12,17 @@ import { serializeBooking } from "./booking.service.js";
 type VisitActor = { kind: "account"; account: Account } | { kind: "client"; clientId: string };
 const blocking = new Set<VisitStatus>(["booked", "arrived", "completed"]);
 const allowed: Partial<Record<VisitStatus, VisitStatus[]>> = { booked: ["arrived", "cancelled", "no_show"], arrived: ["completed", "cancelled", "no_show"] };
+// Older bookings may predate visit events; creation is still recoverable from their source, actor and timestamp.
+export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect, "id" | "source" | "createdBy" | "clientId" | "createdAt">, rows: (typeof bookingVisitEvents.$inferSelect)[]) {
+  const events = rows.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() }));
+  if (!events.some(event => event.fromStatus === null)) events.unshift(visitEventResponseSchema.parse({
+    id: booking.id, bookingId: booking.id, version: 0, fromStatus: null, toStatus: "booked",
+    actorType: booking.source === "ai" ? "client" : "admin", actorAccountId: booking.source === "ai" ? null : booking.createdBy,
+    actorClientId: booking.source === "ai" ? booking.clientId : null, reason: null, correction: false,
+    previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: booking.createdAt.toISOString(),
+  }));
+  return events;
+}
 export function createVisitService(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
   async function change(id: string, input: VisitTransition | VisitCorrection, actor: VisitActor, correction: boolean) {
@@ -59,13 +70,13 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
     cancelForClient: (id: string, expectedVersion: number, clientId: string, reason?: string) => change(id, visitTransitionSchema.parse({ status: "cancelled", expectedVersion, ...(reason === undefined ? {} : { reason }) }), { kind: "client", clientId }, false),
     async history(id: string, account: Account) {
       return db.transaction(async transaction => {
-        const [booking] = await transaction.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id)).for("share");
+        const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("share");
         if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
         if (account.role !== "admin" && account.id !== booking.employeeId) throw new ForbiddenError();
         const events = await transaction.select().from(bookingVisitEvents).where(eq(bookingVisitEvents.bookingId, id)).orderBy(asc(bookingVisitEvents.version));
         const messages = await transaction.select().from(bookingMessages).where(eq(bookingMessages.bookingId, id)).orderBy(asc(bookingMessages.occurredAt));
         return {
-          events: events.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() })),
+          events: serializeVisitHistory(booking, events),
           messages: messages.map(message => bookingMessageResponseSchema.parse({ ...message, occurredAt: message.occurredAt.toISOString() })),
         };
       });

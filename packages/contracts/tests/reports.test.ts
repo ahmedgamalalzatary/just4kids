@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
+import * as contracts from "../src/index.js";
 import { employeeReportQuerySchema, haircutReportQuerySchema, reportCashSchema, reportMoneySchema, reservationReportQuerySchema } from "../src/index.js";
 
 const id = "11111111-1111-4111-8111-111111111111";
+describe("booking tracking query", () => {
+  it("accepts an optional barber, client and inclusive visit period", () => {
+    expect(contracts.bookingTrackingQuerySchema).toBeDefined();
+    expect(contracts.bookingTrackingQuerySchema.parse({})).toEqual({});
+    const query = { employeeId: id, clientId: id, from: "2030-01-01", to: "2030-01-01" };
+    expect(contracts.bookingTrackingQuerySchema.parse(query)).toEqual(query);
+    expect(contracts.bookingTrackingQuerySchema.parse({ from: query.from })).toEqual({ from: query.from });
+    expect(contracts.bookingTrackingQuerySchema.parse({ to: query.to })).toEqual({ to: query.to });
+  });
+  it("defaults to the Kuwait week (Saturday to Friday) containing now", () => {
+    expect(contracts.currentKuwaitWeek(new Date("2026-10-13T09:00:00.000Z"))).toEqual({ from: "2026-10-10", to: "2026-10-16" });
+    // Saturday 00:30 in Kuwait is still Friday in UTC: the new week has started.
+    expect(contracts.currentKuwaitWeek(new Date("2026-10-09T21:30:00.000Z"))).toEqual({ from: "2026-10-10", to: "2026-10-16" });
+    // Friday 23:30 in Kuwait closes the week.
+    expect(contracts.currentKuwaitWeek(new Date("2026-10-16T20:30:00.000Z"))).toEqual({ from: "2026-10-10", to: "2026-10-16" });
+    expect(contracts.currentKuwaitWeek(new Date("2026-12-29T12:00:00.000Z"))).toEqual({ from: "2026-12-26", to: "2027-01-01" });
+  });
+  it("rejects invalid dates, reversed ranges, invalid identities and unsupported filters", () => {
+    expect(contracts.bookingTrackingQuerySchema).toBeDefined();
+    for (const query of [{ from: "2030-02-30" }, { to: "yesterday" }, { from: "2030-02-01", to: "2030-01-01" }, { employeeId: "1" }, { clientId: "" }, { dateBasis: "created_date" }, { status: "completed" }, { limit: "20" }]) {
+      expect(contracts.bookingTrackingQuerySchema.safeParse(query).success).toBe(false);
+    }
+  });
+});
 describe("report contracts", () => {
   it("defaults to the visit date basis, an empty search, and the first page", () => {
     expect(reservationReportQuerySchema.parse({})).toEqual({ dateBasis: "visit_date", q: "", limit: 20, offset: 0 });

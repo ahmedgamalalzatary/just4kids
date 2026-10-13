@@ -2,23 +2,23 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { VisitStatus } from "@just4kids/contracts";
 import { Field } from "@/components/field";
-import { Detail, Ltr } from "@/components/page";
+import { Detail, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { visitStatusLabels } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBranches, useClient, useEmployees } from "@/lib/api/hooks";
+import { PAGE_SIZE, useBranches, useClient, useClients, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { ClientReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodOptions } from "@/lib/payments";
-import { emptyReportFilters, rangeError, readReportFilters, reportSearch, type ReportFilters } from "@/lib/reports";
+import { emptyReportFilters, rangeError, readReportFilters, reportSearch, trackingFilters, withTrackingPeriod, type ReportFilters } from "@/lib/reports";
 
 export const dateBasisLabels = { visit_date: "تاريخ الزيارة", created_date: "تاريخ إنشاء الحجز" } as const;
 export const sourceLabels = { manual: "حجز يدوي", ai: "عبر واتساب" } as const;
@@ -27,9 +27,13 @@ export const paymentStatusLabels = { paid: "مدفوعة", unpaid: "غير مد�
 /** The current report filters from the address; the barber filter applies to the administrator only. */
 export function useReportFilters() {
   const params = useSearchParams();
+  const pathname = usePathname();
   const isAdmin = useSession().data?.account.role === "admin";
-  const filters = readReportFilters(params, isAdmin);
-  return { filters, isAdmin, search: reportSearch(filters) };
+  const read = readReportFilters(params, isAdmin);
+  const tracking = pathname === "/reports/tracking";
+  const chosen = tracking ? trackingFilters(read) : read;
+  // The address keeps only what was chosen; the tracking report's default week is applied on top.
+  return { filters: tracking ? withTrackingPeriod(chosen) : chosen, isAdmin, search: reportSearch(chosen) };
 }
 
 /** A link to the reservation records behind a report row, keeping the current filters. */
@@ -42,6 +46,7 @@ const tabs = [
   { href: "/reports/haircuts", label: "الحلاقات" },
   { href: "/reports/barbers", label: "الحلاقون", employeeLabel: "أدائي" },
   { href: "/reports/clients", label: "العملاء" },
+  { href: "/reports/tracking", label: "تتبع الحجوزات", adminOnly: true },
   { href: "/reports/invoices", label: "الفواتير والنقد" },
   { href: "/reports/salon", label: "شغل الصالون", adminOnly: true },
   { href: "/reports/comprehensive", label: "التحصيل الشامل", adminOnly: true },
@@ -54,7 +59,7 @@ export function reportTitle(pathname: string, isAdmin: boolean) {
 
 export function ReportTabs() {
   const pathname = usePathname();
-  const { isAdmin, search } = useReportFilters();
+  const { filters, isAdmin, search } = useReportFilters();
   const list = useRef<HTMLDivElement>(null);
   // On a narrow screen the tabs scroll sideways; keep the open report's tab in view.
   useEffect(() => {
@@ -73,7 +78,7 @@ export function ReportTabs() {
       <TabsList ref={list} className="w-full max-w-full justify-start overflow-x-auto [scrollbar-width:none] sm:w-fit">
         {tabs.filter(tab => isAdmin || !tab.adminOnly).map(tab => (
           <TabsTrigger key={tab.href} value={tab.href} asChild>
-            <Link href={`${tab.href}${search}`}>{isAdmin ? tab.label : tab.employeeLabel ?? tab.label}</Link>
+            <Link href={`${tab.href}${tab.href === "/reports/tracking" && pathname !== tab.href ? reportSearch(trackingFilters(filters)) : search}`}>{isAdmin ? tab.label : tab.employeeLabel ?? tab.label}</Link>
           </TabsTrigger>
         ))}
       </TabsList>
@@ -168,7 +173,61 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
 /** Filters edited as a draft and applied to the address; the form restarts whenever the address changes. */
 export function ReportFilterBar() {
   const { filters, isAdmin, search } = useReportFilters();
+  const pathname = usePathname();
+  if (pathname === "/reports/tracking") return isAdmin ? <TrackingFilterForm key={search} filters={filters} /> : null;
   return <FilterForm key={search} filters={filters} isAdmin={isAdmin} />;
+}
+
+function TrackingFilterForm({ filters }: { filters: ReportFilters }) {
+  const router = useRouter();
+  const [draft, setDraft] = useState(filters);
+  const [search, setSearch] = useState("");
+  const [offset, setOffset] = useState(0);
+  const query = useDeferredValue(search.trim());
+  const clients = useClients(query, offset);
+  const client = useClient(draft.clientId || null);
+  const employees = useEmployees(true);
+  const error = rangeError(draft.from, draft.to);
+  const set = (key: "from" | "to" | "employeeId" | "clientId", value: string) => setDraft(current => ({ ...current, [key]: value }));
+  const apply = (next: ReportFilters) => router.replace(`/reports/tracking${reportSearch(trackingFilters(next))}`, { scroll: false });
+  return (
+    <Card data-print-hidden>
+      <CardContent>
+        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="مرشحات التقرير">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Field label="من تاريخ" optional><Input type="date" value={draft.from} onChange={event => set("from", event.target.value)} /></Field>
+            <Field label="إلى تاريخ" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to", event.target.value)} /></Field>
+            <Field label="الحلاق" className="col-span-2 lg:col-span-1"><OptionSelect value={draft.employeeId} onChange={value => set("employeeId", value)} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} /></Field>
+            <div className="col-span-2 flex flex-col gap-2 lg:col-span-1">
+              {draft.clientId ? (
+                <><p className="text-sm">العميل: {client.data?.name ?? "…"}</p><Button type="button" variant="link" className="h-auto self-start p-0" onClick={() => set("clientId", "")}>كل العملاء / اختيار عميل آخر</Button></>
+              ) : (
+                <>
+                  <Field label="بحث عن عميل" optional hint="اتركه دون اختيار لعرض كل العملاء."><Input type="search" maxLength={120} value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} placeholder="الاسم أو رقم الهاتف" /></Field>
+                  {clients.isPending ? <LoadingRows rows={1} /> : clients.isError ? <ErrorState error={clients.error} onRetry={() => clients.refetch()} /> : (
+                    <>
+                      <ul className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                        {clients.data.clients.map(person => <li key={person.id}><button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-muted/60" onClick={() => set("clientId", person.id)}><span>{person.name}{person.enabled ? "" : " (موقوف)"}</span><Ltr>{person.phone}</Ltr></button></li>)}
+                      </ul>
+                      {clients.data.clients.length === 0 ? <p className="text-xs text-muted-foreground">لا يوجد عميل مطابق</p> : null}
+                      <div className="flex gap-2">
+                        {offset > 0 ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => Math.max(0, current - PAGE_SIZE))}>السابق</Button> : null}
+                        {offset + PAGE_SIZE < clients.data.total ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => current + PAGE_SIZE)}>التالي</Button> : null}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
+            <Button type="button" variant="ghost" onClick={() => { setDraft(withTrackingPeriod(emptyReportFilters)); setSearch(""); setOffset(0); apply(emptyReportFilters); }}>مسح المرشحات</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 
 // The comprehensive report covers the period only, as in the old app: barber collections carry no branch.

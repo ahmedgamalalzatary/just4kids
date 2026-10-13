@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { reportDateBasisSchema, visitStatusSchema } from "@just4kids/contracts";
+import { currentKuwaitWeek, reportDateBasisSchema, visitStatusSchema } from "@just4kids/contracts";
 import type { ReportDateBasis, VisitStatus } from "@just4kids/contracts";
 
 export type ReportFilters = {
@@ -8,6 +8,15 @@ export type ReportFilters = {
 };
 
 export const emptyReportFilters: ReportFilters = { dateBasis: "visit_date", from: "", to: "", branchId: "", employeeId: "", clientId: "", status: "", source: "", paymentStatus: "", q: "" };
+
+export function trackingFilters(filters: ReportFilters): ReportFilters {
+  return { ...emptyReportFilters, from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId };
+}
+
+/** The tracking report covers the current Kuwait week when no period is chosen, as the API does. */
+export function withTrackingPeriod(filters: ReportFilters, now: Date = new Date()): ReportFilters {
+  return filters.from || filters.to ? filters : { ...filters, ...currentKuwaitWeek(now) };
+}
 
 const date = z.iso.date();
 const uuid = z.uuid();

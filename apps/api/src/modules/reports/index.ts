@@ -17,6 +17,7 @@ export function createReports(connection: ReturnType<typeof createDatabase>, aut
   };
   router.use((_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
   router.use(auth.requireAuth);
+  router.get("/tracking", auth.requireAdmin, handle(async (request, response) => { response.json(await service.tracking(request.query)); }));
   router.get("/reservations", handle(async (request, response) => { response.json(await service.reservations(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/haircuts", handle(async (request, response) => { response.json(await service.haircuts(request.query, (response.locals.auth as Authenticated).account)); }));
   router.get("/employees", handle(async (request, response) => { response.json(await service.employees(request.query, (response.locals.auth as Authenticated).account)); }));

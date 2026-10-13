@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
-  AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
+  AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BookingTrackingResponse, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
   EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, BarberCollectionCreate, BarberCollectionUpdate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
 import type { ClientStatusFilter } from "@/lib/clients";
@@ -366,4 +366,12 @@ export const useReservationReport = (filters: ReportFilters, offset: number) => 
 export const useHaircutReport = (filters: ReportFilters) => useReport<HaircutReport>("haircuts", filters);
 export const useEmployeeReport = (filters: ReportFilters) => useReport<EmployeeReport>("employees", filters);
 export const useClientReport = (filters: ReportFilters) => useReport<ClientReport>("clients", filters);
+export function useBookingTrackingReport(filters: ReportFilters, enabled: boolean) {
+  const query = { from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId };
+  return useQuery({
+    queryKey: [...keys.reports, "tracking", query],
+    queryFn: ({ signal }) => apiRequest<BookingTrackingResponse>("/reports/tracking", { query, signal }),
+    enabled, placeholderData: keepPreviousData,
+  });
+}
 export const useInvoiceReport = (filters: ReportFilters, offset: number) => useReport<InvoiceReport>("invoices", filters, { offset });

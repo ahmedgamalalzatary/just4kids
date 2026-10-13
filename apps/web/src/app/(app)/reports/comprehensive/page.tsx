@@ -52,7 +52,7 @@ function ComprehensiveScreen() {
         <CardHeader>
           <div>
             <CardTitle>التقرير الشامل لتحصيلات الحلاقين + الصالون</CardTitle>
-            <CardDescription>تحصيل كل حلاق من الحجوزات المدفوعة، وصف الصالون من إدخالاته، مع نسبة كل واحد من الإجمالي.</CardDescription>
+            <CardDescription>تحصيل كل حلاق من تحصيلاته اليومية، وصف الصالون من إدخالاته، مع نسبة كل واحد من الإجمالي.</CardDescription>
           </div>
         </CardHeader>
         {empty ? <EmptyState icon={ChartColumn} title="لا توجد تحصيلات في هذه الفترة." /> : (
