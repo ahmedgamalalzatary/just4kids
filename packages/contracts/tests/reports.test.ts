@@ -20,6 +20,15 @@ describe("booking tracking query", () => {
     expect(contracts.currentKuwaitWeek(new Date("2026-10-16T20:30:00.000Z"))).toEqual({ from: "2026-10-10", to: "2026-10-16" });
     expect(contracts.currentKuwaitWeek(new Date("2026-12-29T12:00:00.000Z"))).toEqual({ from: "2026-12-26", to: "2027-01-01" });
   });
+  it("caps the period at 31 days and turns a lone bound into a 7-day week", () => {
+    expect(contracts.bookingTrackingQuerySchema.safeParse({ from: "2030-01-01", to: "2030-01-31" }).success).toBe(true);
+    expect(contracts.bookingTrackingQuerySchema.safeParse({ from: "2030-01-01", to: "2030-02-01" }).success).toBe(false);
+    const now = new Date("2026-10-13T09:00:00.000Z");
+    expect(contracts.trackingPeriod({}, now)).toEqual({ from: "2026-10-10", to: "2026-10-16" });
+    expect(contracts.trackingPeriod({ from: "2030-02-25" }, now)).toEqual({ from: "2030-02-25", to: "2030-03-03" });
+    expect(contracts.trackingPeriod({ to: "2030-03-03" }, now)).toEqual({ from: "2030-02-25", to: "2030-03-03" });
+    expect(contracts.trackingPeriod({ from: "2030-01-01", to: "2030-01-31" }, now)).toEqual({ from: "2030-01-01", to: "2030-01-31" });
+  });
   it("rejects invalid dates, reversed ranges, invalid identities and unsupported filters", () => {
     expect(contracts.bookingTrackingQuerySchema).toBeDefined();
     for (const query of [{ from: "2030-02-30" }, { to: "yesterday" }, { from: "2030-02-01", to: "2030-01-01" }, { employeeId: "1" }, { clientId: "" }, { dateBasis: "created_date" }, { status: "completed" }, { limit: "20" }]) {

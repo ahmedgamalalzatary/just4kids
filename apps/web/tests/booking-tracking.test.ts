@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BookingTrackingResponse } from "@just4kids/contracts";
 import * as timeline from "@/lib/booking-timeline";
-import { emptyReportFilters, withTrackingPeriod } from "@/lib/reports";
+import { emptyReportFilters, trackingRangeError, withTrackingPeriod } from "@/lib/reports";
 
 const actor = { id: null, name: "المدير", role: "admin" as const };
 const at = "2026-10-13T09:00:00.000Z";
@@ -42,9 +42,14 @@ describe("tracking report grouping", () => {
 
 describe("tracking report period", () => {
   const now = new Date("2026-10-13T09:00:00.000Z");
-  it("falls back to the current Kuwait week only when no period is chosen", () => {
+  it("falls back to the current Kuwait week, or 7 days from a lone bound, as the API does", () => {
     expect(withTrackingPeriod(emptyReportFilters, now)).toMatchObject({ from: "2026-10-10", to: "2026-10-16" });
-    expect(withTrackingPeriod({ ...emptyReportFilters, from: "2026-09-01" }, now)).toMatchObject({ from: "2026-09-01", to: "" });
-    expect(withTrackingPeriod({ ...emptyReportFilters, to: "2026-09-30" }, now)).toMatchObject({ from: "", to: "2026-09-30" });
+    expect(withTrackingPeriod({ ...emptyReportFilters, from: "2026-09-01" }, now)).toMatchObject({ from: "2026-09-01", to: "2026-09-07" });
+    expect(withTrackingPeriod({ ...emptyReportFilters, to: "2026-09-30" }, now)).toMatchObject({ from: "2026-09-24", to: "2026-09-30" });
+  });
+  it("refuses a period longer than 31 days", () => {
+    expect(trackingRangeError("2026-09-01", "2026-10-01")).toBeUndefined();
+    expect(trackingRangeError("2026-09-01", "2026-10-02")).toBe("الفترة لا تتجاوز 31 يومًا");
+    expect(trackingRangeError("2026-10-02", "2026-10-01")).toBe("تاريخ النهاية قبل تاريخ البداية");
   });
 });

@@ -18,7 +18,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator creates employee credentials. No public registration or client dashboard login.
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
-- Employee self-editing is limited to display name. Only the administrator changes employee phone, branch assignment, active status, account expiry, and password; employees do not change their own password.
+- Employee self-editing is limited to display name. Only the administrator changes employee phone, active status, account expiry, and password; employees do not change their own password.
 - Confirmed barber account expiry (2026-10-12): the administrator may set an optional end date on an employee account. The account stays valid through that day; afterwards a login is refused with a clear Arabic message and existing sessions stop working. Clearing the date restores access. This restores the old app's account expiry.
 - Assigned employees can cancel, mark arrived, mark completed, and mark no-show. Only the administrator records payments; employees see the invoice, its status, and the payment history read-only.
 - Employees cannot reschedule or reassign bookings.
@@ -28,11 +28,11 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Branches and employees
 
-- A branch is a business location used to group money and reports. Confirmed 2026-10-12 (S10): a barber may stand alone with no branch; branch assignment is optional and display-only, and employees are no longer owned by a branch.
+- A branch is a business location used to group money and reports. Confirmed 2026-10-12 (S10) and 2026-10-13 (migration 0021): barbers and bookings have no branch; branches remain only for daily salon entries.
 - Each branch keeps its adult/child prices and descriptive haircut durations for reporting, but bookings are no longer priced from them.
 - For the first branch-management slice, branch details are name and location/address, with adult/child prices and descriptive haircut durations. No additional branch settings are required in this slice.
 - Administrator controls employee working days, working hours, and available times.
-- Clients choose a barber, not a branch. Display each barber's branch to help clients estimate travel.
+- Clients choose a barber, not a branch.
 - Administrator can create manual bookings and hand a booking to another available barber.
 - Availability is enforced for AI actions, manual bookings, rescheduling, and reassignment.
 - Working hours repeat weekly and may contain separate shifts on a day. An administrator can replace one day's hours or close it using a dated exception. Shifts and booking windows stay within one Kuwait calendar day.
@@ -49,7 +49,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Accept a WhatsApp location or Google Maps link alongside visit details.
 - Reservations record adult/child counts. Separate child names, ages, and saved child profiles are not required.
 - Confirmed 2026-10-11: a reservation also records a special-needs child count, an integer `0 ≤ special ≤ childCount`. These are a subset of the children and are priced as children (no pricing change). The count appears on the booking form, edit dialog, booking detail, invoice, and reports (shown beside the child counts).
-- Preserve the reservation's address and historical branch/pricing details when current client/employee information changes.
+- Preserve the reservation's address and historical barber/pricing details when current client/employee information changes.
 
 ## Reservation rules
 
@@ -57,6 +57,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
 - Client chooses the date and variable start/end window through AI. Administrator can choose/change it manually.
+- Confirmed 2026-10-13 (S8): the administrator's new-booking screen preselects a 30-minute visit. The administrator can change the length per booking; selecting a free time pill uses the chosen length and blocks the full reserved window.
 - Confirmed on 2026-10-02: new reservations must start strictly in the future in Kuwait, with no additional lead-time cutoff. This does not decide later WhatsApp rescheduling/cancellation policy.
 - Minimum window: **20 minutes**. Maximum window: **4 hours**. Both bounds are inclusive.
 - The whole window includes outbound travel, all haircuts, and return travel and blocks the assigned barber.
@@ -76,7 +77,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 1. Client requests haircuts; AI collects adult/child counts.
 2. Collect/reuse the primary contact's name, phone identity, address, date, and requested window.
-3. Show eligible barbers and their branches. Client chooses a named barber or delegates selection to AI.
+3. Show eligible barbers. Client chooses a named barber or delegates selection to AI.
 4. Present the selected visit details and applicable price in the conversation.
 5. Validate and save the reservation and invoice together. No administrator approval is required.
 6. Reply in Arabic with the result and booking reference.
@@ -97,10 +98,10 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Confirmed barber collections (2026-10-12, S11): the administrator records one daily collection per barber — normal/special children and cash/link/KNET with a server-computed total — retained with history; a barber reads only their own. The barber, comprehensive, and invoice/cash reports read these daily rows. Daily collections follow only the period and barber filters: the barber and invoice/cash reports hide their collected money (with a note) under any other filter, and the comprehensive report is filtered by period only, as in the old app.
 - Confirmed finished-visit corrections (2026-10-12, S15): a started or finished visit stays editable by the administrator, but only as a correction that must state a reason; a change is kept in the reservation revisions with the before/after values, may move the visit into the past, and still satisfies the barber's working hours and slot availability.
 - Generate one combined invoice when booked, including manual bookings.
-- Confirmed initial invoice fields (2026-10-02; amended 2026-10-12, S10): booking reference, issue date, client and address, barber and (optional) branch, adult/child quantities, the typed cash and link amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
-- Snapshot agreed prices. Later branch price changes do not automatically change existing invoices.
-- Changing barber/branch or counts keeps the existing invoice and its amount; retain revision history.
-- Confirmed edit pricing (2026-10-12, S10): a reservation edit never changes the agreed amount. The typed cash and link amounts are preserved across count, window, address, and barber/branch changes, and no cash reconciliation is required.
+- Confirmed initial invoice fields (2026-10-02; amended 2026-10-12, S10): booking reference, issue date, client and address, barber, adult/child quantities, the typed cash and link amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
+- Snapshot agreed prices. Later price changes do not automatically change existing invoices.
+- Changing barber or counts keeps the existing invoice and its amount; retain revision history.
+- Confirmed edit pricing (2026-10-12, S10): a reservation edit never changes the agreed amount. The typed cash and link amounts are preserved across count, window, address, and barber changes, and no cash reconciliation is required.
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
@@ -121,14 +122,14 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Reports
 
-Reports cover the data collected by every module, with search, applicable date/branch/employee/client/status/source filters, summaries, and permitted detail records.
+Reports cover the data collected by every module, with search, applicable date/employee/client/status/source filters, summaries, and permitted detail records.
 
 | Area | Coverage |
 | --- | --- |
 | Overview/reservations | Booking counts, windows, statuses, manual/AI source, cancellations, no-shows, changes |
 | Employees | Assigned/completed work, adult/child haircut counts, reserved hours, availability, linked invoices/payments |
-| Branches | Booking and haircut output, employee breakdown, invoices and related cash receipts |
-| Haircuts | Booked versus completed adult/child quantities by date, branch, and employee |
+| Haircuts | Booked versus completed adult/child quantities by date and employee |
+| Booking tracking | Administrator-only: each booking's timeline (creation, WhatsApp sends, edits/corrections, visit status changes, payments) with actor, role, time and reason, by barber, client and visit period (default: the current Kuwait week; a lone bound covers 7 days; at most 31 days) |
 | Clients | Contact details, booking history, repeat visits, haircut counts, invoiced totals, payments |
 | Invoices/payments | Line items, amounts, unpaid/paid/cancelled state, actual cash received, revisions and corrections |
 | Salon work | Daily per-branch entries: children, cash/link/KNET, totals and history; comprehensive collections beside barbers |
@@ -136,7 +137,7 @@ Reports cover the data collected by every module, with search, applicable date/b
 - Administrator reports across the business. Employees report only on their own permitted records.
 - Completed haircut counts come from completed reservations, not payment status.
 - Invoice value, cancelled invoice amounts, and collected money are separate measures; collected money is split by payment method (cash, link, KNET) with totals.
-- Historical employee/branch attribution must survive branch transfers. Do not count invoice revisions twice.
+- Work is attributed to the barber assigned on the reservation. Do not count invoice revisions twice.
 - Label each report's date basis. Reserved hours include travel; they are not measured cutting time.
 - Reports cover these modules, not an unlimited custom-report builder or data the application does not collect.
 - Confirmed on 2026-10-08 for reservation and haircut reports: the date basis is selectable as the Kuwait visit date (default) or the Kuwait date the reservation was made. Haircut reports show every reserved haircut and separately the completed, still open (booked/arrived), cancelled, and no-show quantities. Reservation changes count administrator edits and administrator status corrections, shown separately.

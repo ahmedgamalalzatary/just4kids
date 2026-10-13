@@ -18,7 +18,7 @@ import type { ClientReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodOptions } from "@/lib/payments";
-import { emptyReportFilters, rangeError, readReportFilters, reportSearch, trackingFilters, withTrackingPeriod, type ReportFilters } from "@/lib/reports";
+import { emptyReportFilters, rangeError, readReportFilters, reportSearch, trackingFilters, trackingRangeError, withTrackingPeriod, type ReportFilters } from "@/lib/reports";
 
 export const dateBasisLabels = { visit_date: "تاريخ الزيارة", created_date: "تاريخ إنشاء الحجز" } as const;
 export const sourceLabels = { manual: "حجز يدوي", ai: "عبر واتساب" } as const;
@@ -187,7 +187,7 @@ function TrackingFilterForm({ filters }: { filters: ReportFilters }) {
   const clients = useClients(query, offset);
   const client = useClient(draft.clientId || null);
   const employees = useEmployees(true);
-  const error = rangeError(draft.from, draft.to);
+  const error = trackingRangeError(draft.from, draft.to);
   const set = (key: "from" | "to" | "employeeId" | "clientId", value: string) => setDraft(current => ({ ...current, [key]: value }));
   const apply = (next: ReportFilters) => router.replace(`/reports/tracking${reportSearch(trackingFilters(next))}`, { scroll: false });
   return (

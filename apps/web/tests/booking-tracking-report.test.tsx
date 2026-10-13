@@ -60,10 +60,10 @@ describe("tracking report surface", () => {
     expect(screen.getByText(/حسب تاريخ الزيارة/)).toHaveTextContent(`من ${formatDate(week.from)} إلى ${formatDate(week.to)}`);
     expect(screen.getByLabelText(/إلى تاريخ/)).toHaveValue(week.to);
     await userEvent.clear(screen.getByLabelText(/من تاريخ/));
-    await userEvent.type(screen.getByLabelText(/من تاريخ/), "2026-10-01");
+    await userEvent.type(screen.getByLabelText(/من تاريخ/), week.to);
     await userEvent.click(screen.getByRole("button", { name: /نورة/ }));
     await userEvent.click(screen.getByRole("button", { name: "عرض التقرير" }));
-    expect(navigation.replace).toHaveBeenCalledWith(`/reports/tracking?from=2026-10-01&to=${week.to}&clientId=${id}`, { scroll: false });
+    expect(navigation.replace).toHaveBeenCalledWith(`/reports/tracking?from=${week.to}&to=${week.to}&clientId=${id}`, { scroll: false });
   });
   it("shows the tracking tab only to the administrator and drops unsupported carried filters", () => {
     navigation.params = new URLSearchParams(`dateBasis=created_date&status=completed&employeeId=${id}`);

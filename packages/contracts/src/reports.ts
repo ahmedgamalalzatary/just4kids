@@ -18,17 +18,27 @@ const orderedRange = (value: { from?: string | undefined; to?: string | undefine
   if (value.from && value.to && value.from > value.to) context.addIssue({ code: "custom", message: "The report range must not end before it starts" });
 };
 export const haircutReportQuerySchema = z.strictObject(filters).superRefine(orderedRange);
+// The tracking report reads every event of every matching booking, so its period is bounded.
+export const TRACKING_MAX_DAYS = 31;
+const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 export const bookingTrackingQuerySchema = z.strictObject({
   from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId,
-}).superRefine(orderedRange);
+}).superRefine(orderedRange).superRefine((value, context) => {
+  if (value.from && value.to && value.to > addDays(value.from, TRACKING_MAX_DAYS - 1)) context.addIssue({ code: "custom", message: `The tracking period must not exceed ${TRACKING_MAX_DAYS} days` });
+});
 export type BookingTrackingQuery = z.infer<typeof bookingTrackingQuerySchema>;
-/** The Saturday-to-Friday Kuwait week (UTC+3, no daylight saving) containing `now`; the tracking report's period when none is chosen. */
+/** The Saturday-to-Friday Kuwait week (UTC+3, no daylight saving) containing `now`. */
 export function currentKuwaitWeek(now: Date = new Date()): { from: string; to: string } {
-  const day = new Date(now.getTime() + 3 * 3_600_000);
-  day.setUTCHours(0, 0, 0, 0);
-  const start = new Date(day.getTime() - ((day.getUTCDay() + 1) % 7) * 86_400_000);
-  const end = new Date(start.getTime() + 6 * 86_400_000);
-  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+  const day = new Date(now.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const from = addDays(day, -((new Date(`${day}T00:00:00.000Z`).getUTCDay() + 1) % 7));
+  return { from, to: addDays(from, 6) };
+}
+/** The tracking report's period: the chosen one, 7 days from (or up to) a lone bound, or the current Kuwait week. */
+export function trackingPeriod(query: { from?: string | undefined; to?: string | undefined }, now: Date = new Date()): { from: string; to: string } {
+  if (query.from && query.to) return { from: query.from, to: query.to };
+  if (query.from) return { from: query.from, to: addDays(query.from, 6) };
+  if (query.to) return { from: addDays(query.to, -6), to: query.to };
+  return currentKuwaitWeek(now);
 }
 const trackingMeta = {
   at: z.iso.datetime(),

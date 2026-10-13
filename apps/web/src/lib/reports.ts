@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { currentKuwaitWeek, reportDateBasisSchema, visitStatusSchema } from "@just4kids/contracts";
+import { bookingTrackingQuerySchema, reportDateBasisSchema, TRACKING_MAX_DAYS, trackingPeriod, visitStatusSchema } from "@just4kids/contracts";
 import type { ReportDateBasis, VisitStatus } from "@just4kids/contracts";
 
 export type ReportFilters = {
@@ -13,9 +13,13 @@ export function trackingFilters(filters: ReportFilters): ReportFilters {
   return { ...emptyReportFilters, from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId };
 }
 
-/** The tracking report covers the current Kuwait week when no period is chosen, as the API does. */
+/** The tracking report's period as the API applies it: the current Kuwait week, or 7 days from a lone bound. */
 export function withTrackingPeriod(filters: ReportFilters, now: Date = new Date()): ReportFilters {
-  return filters.from || filters.to ? filters : { ...filters, ...currentKuwaitWeek(now) };
+  return { ...filters, ...trackingPeriod({ from: filters.from || undefined, to: filters.to || undefined }, now) };
+}
+
+export function trackingRangeError(from: string, to: string): string | undefined {
+  return rangeError(from, to) ?? (from && to && !bookingTrackingQuerySchema.safeParse({ from, to }).success ? `الفترة لا تتجاوز ${TRACKING_MAX_DAYS} يومًا` : undefined);
 }
 
 const date = z.iso.date();

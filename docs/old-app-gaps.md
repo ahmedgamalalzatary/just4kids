@@ -2,7 +2,7 @@
 
 Created: 2026-10-12. Source: a full read of the old PHP app (`other/`, 65 files) compared with this repository. Product authority stays [project-contract.md](project-contract.md). Repository rules: [AGENTS.md](../AGENTS.md). This document supersedes the earlier `docs/parity-phases.md`, which has been removed.
 
-Updated: 2026-10-13. Current descriptions below reflect the implemented slices. Historical test results remain in each slice's evidence; an evidence line that says "not yet browser-verified" records the state when it was written, and the tracker's **Verified** column is the current browser status. The owner browser-verified S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 on 2026-10-13; production deployment is not yet confirmed (S0).
+Updated: 2026-10-13. Current descriptions below reflect the implemented slices. Historical test results remain in each slice's evidence; an evidence line that says "not yet browser-verified" records the state when it was written, and the tracker's **Verified** column is the current browser status. The owner browser-verified S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 on 2026-10-13. The owner confirmed S0 complete on 2026-10-13; S12 browser verification is deferred for now, not marked verified.
 
 This doc answers three questions:
 
@@ -19,11 +19,11 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-**Built:** S1, S2, S4, S5, S7, S10, S11, S12, S13, S14 and S15 (11 slices). **Unfinished:** S0, S3, S6, S8, S9, S16 and S17 (7 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 11 built); S12 remains. “Done” means implemented with recorded green checks; it does not confirm deployment or client acceptance.
+**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S4, S5, S7, S8, S10, S11, S12, S13, S14 and S15 (12 slices). **Unfinished:** S3, S6, S9, S16 and S17 (5 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 12 built); S8 verification remains and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
 
 | # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
-| G1 | Barbers without branches | Barbers stand alone | Branch optional; admin types booking cash/link price | Built (S10) |
+| G1 | Barbers without branches | Barbers stand alone | No branch on barbers or bookings (migration 0021); admin types booking cash/link price | Built (S10) |
 | G2 | Only the admin records payments | Admin enters money | Admin-only API and payment controls; barber reads amounts | Built (S1) |
 | G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | Built (S10, S11); split receipts remain excluded by contract |
 | G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks and closed days/exceptions | Built (S2); manual half-hour locks await Q11 (S3) |
@@ -38,7 +38,7 @@ Owner decisions already made (2026-10-12):
 | G13 | WhatsApp send is recorded | Logs the action before opening WhatsApp | Admin action recorded before opening `wa.me` | Built (S7); records the action, not delivery confirmation |
 | G14 | "New booking" marker for barbers | Dot until booking opened | Dot until assigned barber opens booking | Built (S13) |
 | G15 | After saving a booking | WhatsApp / back choices | Dialog offers send / return to today's bookings | Built (S7) |
-| G16 | Visit length step | Pick one start time | 30 minutes preselected; admin can change length; full window blocked | Confirm 30 vs 60 minutes with owner (Q4, S8) |
+| G16 | Visit length step | Pick one start time | 30 minutes preselected; admin can change length; full window blocked | Built (S8); owner confirmed 30 minutes; browser verification remains |
 | G17 | Editing old bookings | Admin can edit past confirmed bookings | Started/finished visits editable as corrections with required reason and history | Built (S15) |
 
 ---
@@ -47,7 +47,7 @@ Owner decisions already made (2026-10-12):
 
 | Complaint | Verdict | Details |
 |---|---|---|
-| 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). The live server version is not recorded; confirm deployment in S0 before diagnosing a different live flow. |
+| 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). S0 is complete per owner confirmation; the exact deployed commit is not recorded in this document. |
 | 2. Time pills with red / blue / white | **Built** (S2) | Red (booked), white (free) and blue (locked) pills. Locking a single half-hour by hand waits on Q11 (S3). See G4. |
 | 3. Barbers not tied to branches | **Built** (S10) | See G1. |
 
@@ -158,7 +158,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, sch
 - **Old «تتبع الاوردرات»:** pick a barber, then optionally a booking. Shows each booking with its status and every logged action (created, WhatsApp sent, updated, cancelled, completed) with actor, role, time and note. Has a print version.
 - **Old «تقرير اوردات عميل»:** search a client by name and period. Shows totals (completed, cancelled, kids, cash, link) and each booking's action timeline.
 - **New (S12 built):** admin-only «تتبع الحجوزات» report (`/reports/tracking`) that lists each matching booking with its full timeline — creation, WhatsApp sends, reservation edits/corrections, visit status changes and payments — with actor, role, time and reason. Filters: barber, client and visit-date period; prints cleanly. No new tables: it reads the existing visit, revision, payment and WhatsApp history. Per-booking history (`booking-history.tsx`) and the client report (`/reports/clients`) remain.
-- **Remaining:** browser verification. With no period chosen, the report covers the current Kuwait week (Saturday–Friday), on the API and the screen (owner decision 2026-10-13).
+- **Remaining:** browser verification. With no period chosen, the report covers the current Kuwait week (Saturday–Friday); a lone from/to date covers 7 days; a period is at most 31 days, on the API and the screen (owner decisions 2026-10-13).
 
 ### G13 — WhatsApp send is recorded
 
@@ -175,11 +175,11 @@ Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, sch
 - **Old:** a success message plus two buttons, «إرسال الحجز واتساب للحلاق» and «لا ترسل، رجوع لصفحة حجوزات اليوم».
 - **New (S7 built):** a dialog offers «إرسال الحجز واتساب للحلاق» (records the action, opens WhatsApp and the booking) or «لا ترسل، رجوع لحجوزات اليوم». Browser-verified.
 
-### G16 — Visit length step (decision)
+### G16 — Visit length step (decided and built, S8)
 
 - **Old:** one start time; a booking blocks only its own half-hour (overlaps are possible).
 - **New:** start + length; the web offers 30-minute increments up to 4 hours, and the API accepts 20 minutes–4 hours. The whole window is blocked (no overlaps). The form already preselects 30 minutes.
-- **Remaining (S8, Q4):** confirm whether the owner wants to keep 30 minutes or change to 60. The preselection exists; the owner decision and browser verification remain pending.
+- **Decision (S8, Q4, 2026-10-13):** the owner confirmed 30 minutes. Existing preselection is retained; the admin can change it. Targeted checks passed; browser verification remains.
 
 ### G17 — Editing past bookings (decided and built, S15)
 
@@ -282,7 +282,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, sch
 1. **Price without branches (G1/G3):** if barbers have no branch, does a home visit use one business-wide adult/child price, or does the admin type the amount (as in the old app)? **Answered 2026-10-12:** the administrator types the booking price as cash + link; there is no branch price (S10).
 2. **Money entry (G3):** keep per-booking payments (admin only), add a daily per-barber collection entry like the old «ادخال تحصيلات الحلاقين», or both? May one visit be paid partly in cash and partly by link? **Answered 2026-10-12:** both — per-booking payments stay, and a daily per-barber entry is added that the reports read; a barber sees their own entries read-only (S11).
 3. **Language:** do the barbers need English screens?
-4. **Default visit length (G16):** 30 or 60 minutes?
+4. **Default visit length (G16) — answered 2026-10-13:** 30 minutes, confirmed by the owner. Keep the existing preselection; the administrator can change it per booking (S8).
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
 6. **Client name (G6):** may a new client be saved with only a phone number?
 7. **Areas list (G8):** do you want a fixed, searchable areas list again?
@@ -295,12 +295,15 @@ Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, sch
 
 ## 9. Suggested order
 
-Built and browser-verified: G1, G2, G3, G4 (pills), G5, G7, G8 (extras), G9, G10 (expiry), G13, G14, G15, G17. Built, not yet browser-verified: G12 (S12). What remains, in order:
+Built and browser-verified: G1, G2, G3, G4 (pills), G5, G7, G8 (extras), G9, G10 (expiry), G13, G14, G15, G17. Built, not yet browser-verified: G12 (S12) and G16 (S8). What remains, in order:
 
-1. Browser-verify S12 (G12).
-2. S0: deploy the latest `main` to the server, record the commit and show the client.
-3. Ask the client the open questions (Q3, Q4, Q5, Q6, Q7, Q11).
-4. Then, depending on the answers: S8 (G16), S3 (G4 item 6), S6 → S9 (G8 areas, G6), and S16 (G11) last before S17.
+S0 is complete (owner-confirmed 2026-10-13). S12 browser verification is deferred for now and does not hold up the remaining build slices.
+
+1. S8 is built: the owner confirmed the existing 30-minute default; browser verification remains.
+2. Next build decision: resolve Q11 for S3 (manual half-hour locks), then Q7 for S6 (areas list) and Q6 for S9 (phone-first client step).
+3. Build the approved slices: S3, S6 → S9 (S6 only if approved).
+4. Resolve Q5 and build S16 (roles) last before S17. Q3 (English screens) also needs an answer; no implementation slice is currently defined for it.
+5. Complete S8 and S12 browser verification before S17, then client review and production rollout.
 
 ---
 
@@ -327,7 +330,7 @@ The work above is split into small slices you can check one at a time. Each slic
 
 | Slice | Name | Gaps | Depends on | Blocked by | Migration | Size | Status | Verified |
 |---|---|---|---|---|---|---|---|---|
-| S0 | Starting point and deploy check | — | — | — | No | XS | Ready | [ ] |
+| S0 | Starting point and deploy check | — | — | — | No | XS | Verified (owner-confirmed) | [x] |
 | S1 | Payments are admin-only | G2 | S0 | — | No | S | Verified | [x] |
 | S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Verified | [x] |
 | S3 | Admin locks a single half-hour | G4 (item 6) | S2 | Q11 | Yes | M | Blocked | [ ] |
@@ -335,11 +338,11 @@ The work above is split into small slices you can check one at a time. Each slic
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Verified | [x] |
 | S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Verified | [x] |
-| S8 | Default visit length | G16 | S2 | Q4 | No | XS | Blocked | [ ] |
+| S8 | Default visit length | G16 | S2 | — | No | XS | Done | [ ] |
 | S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Verified | [x] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Verified | [x] |
-| S12 | Booking tracking report | G12 | S7 | — | No | M | Done | [ ] |
+| S12 | Booking tracking report | G12 | S7 | — | No | M | Done; browser verification deferred | [ ] |
 | S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Verified | [x] |
 | S14 | Barber account expiry | G10 | S0 | Q8 | Yes | S | Verified | [x] |
 | S15 | Corrections on finished visits | G17 | S10, S11 | Q10 | Maybe | M | Verified | [x] |
@@ -360,7 +363,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   - Confirm the VPS runs the latest `main` (at least `287a57f`, the branch removal, plus any later S12 commit); if not, redeploy with `scripts/deploy.sh`. `15db80f` (parity phase 6) predates every slice.
 - **End:** `pnpm check` green; the server version is recorded below.
 - **How to verify:** log in on the live site as admin; the home page shows barber cards with «حجز لهذا الحلاق».
-- Evidence:
+- Evidence: 2026-10-13 — owner confirmed S0 is already complete. No new checks or deployment were performed for this status update; the exact deployed commit is not recorded here.
 
 ### S1 — Payments are admin-only (G2)
 
@@ -485,13 +488,13 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S8 — Default visit length (G16)
 
-- **Blocked by:** Q4.
+- **Decision:** Q4 answered by the owner on 2026-10-13: 30 minutes.
 - **Start:** S2 verified; Q4 answered.
 - **Goal:** the visit length is preselected, so booking is: barber → tap a pill.
 - **Work:** default length in `bookings/new`; the admin can still change it.
 - **End:** `apps/web` green.
 - **How to verify:** open «حجز لحلاق»: the length is already set, and tapping a free pill selects it straight away.
-- Evidence:
+- Evidence: 2026-10-13 — owner confirmed 30 minutes. No implementation change was needed: `bookings/new/page.tsx` already initializes duration to 30, offers an editable duration selector, clears the selected time when duration changes, and selects a free pill's start/end window on tap. Legacy reference: `other/admin-booking.php` generates 30-minute pills; `other/temp_bookings.php` offers times every 30 minutes but stores identical start/end times, so the legacy grid alone does not define an actual visit length. Existing targeted tests passed: `day.test.ts` and `booking.test.ts`, 2 files / 19 tests (30-minute windows, working hours, overlap blocking, duration bounds). Targeted ESLint for the booking page and day/booking helpers, web typecheck, and web production build passed. Contract updated. Browser verification remains; not marked Verified.
 
 ### S9 — Phone-first client step (G6)
 
@@ -559,6 +562,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S12 — Booking tracking report (G12)
 
+- **Browser verification:** deferred for now by the owner on 2026-10-13. Implementation remains Done; verification is still required before S17.
 - **Goal:** one printable timeline of everything that happened to bookings, by barber or client, over a period.
 - **Start:** S7 verified (so WhatsApp sends appear too).
 - **Work:**
@@ -567,7 +571,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 - **Tests:** API: filters, ordering, admin-only. Web: renders the events.
 - **End: Full check.**
 - **How to verify:** pick a barber and a week. Each booking lists created → sent → arrived → completed → paid, with who did each step and when, and prints cleanly.
-- Evidence: 2026-10-13. Contracts: strict `bookingTrackingQuerySchema` (barber/client/from/to, valid dates and ordered inclusive range) and grouped timeline response. API: admin-only `GET /reports/tracking` merges visit events, reservation revisions/corrections, payment events (including undo and historical adjustments), recoverable receipts and WhatsApp sends, with actor/name/role/time/reason; creation uses the shared visit-history serializer, recovering older creation rows from existing booking data without writing new records. The period selects Kuwait visit dates; bookings order by visit date/start/id descending, then all their events by time ascending (version/type/id break ties). Web: Arabic «تتبع الحجوزات» tab at `/reports/tracking`, period/barber/searchable-client filters (including stopped clients), shared per-booking history labels/details, phone cards and printable wide tables using the existing reports layout/print button/styles. No migration or new tables. Tests (red → green): contracts +2 query-validation tests, `apps/api/tests/booking-tracking.test.ts` +4 (admin/employee/unauthenticated, read-only GET without CSRF, filters/inclusive boundaries/empty period, ordering, every source, actor roles/reasons, creation reuse and receipt deduplication), `apps/web/tests/booking-tracking.test.ts` +2 grouping/label/detail tests and `booking-tracking-report.test.tsx` +4 rendering/mobile/print/filter/tab tests. Baseline green: 33 files / 200 tests plus touched-package lint/typecheck/build. Targeted green: 40 files / 276 tests plus touched-package lint/typecheck/build. Full `pnpm check` green: lint, typecheck, 59 files / 371 tests and build. Not yet browser-verified. Follow-up 2026-10-13 (owner decision): with no period chosen, the report covers the current Kuwait week, Saturday–Friday (shared `currentKuwaitWeek` in contracts, applied by the API and by the web filters/scope; the address keeps only what was chosen); tests (red → green): contracts week boundaries, API default week and an explicit single bound kept as-is, web period fallback and the prefilled form. Full `pnpm check` green: lint, typecheck, 59 files / 374 tests and build.
+- Evidence: 2026-10-13. Contracts: strict `bookingTrackingQuerySchema` (barber/client/from/to, valid dates and ordered inclusive range) and grouped timeline response. API: admin-only `GET /reports/tracking` merges visit events, reservation revisions/corrections, payment events (including undo and historical adjustments), recoverable receipts and WhatsApp sends, with actor/name/role/time/reason; creation uses the shared visit-history serializer, recovering older creation rows from existing booking data without writing new records. The period selects Kuwait visit dates; bookings order by visit date/start/id descending, then all their events by time ascending (version/type/id break ties). Web: Arabic «تتبع الحجوزات» tab at `/reports/tracking`, period/barber/searchable-client filters (including stopped clients), shared per-booking history labels/details, phone cards and printable wide tables using the existing reports layout/print button/styles. No migration or new tables. Tests (red → green): contracts +2 query-validation tests, `apps/api/tests/booking-tracking.test.ts` +4 (admin/employee/unauthenticated, read-only GET without CSRF, filters/inclusive boundaries/empty period, ordering, every source, actor roles/reasons, creation reuse and receipt deduplication), `apps/web/tests/booking-tracking.test.ts` +2 grouping/label/detail tests and `booking-tracking-report.test.tsx` +4 rendering/mobile/print/filter/tab tests. Baseline green: 33 files / 200 tests plus touched-package lint/typecheck/build. Targeted green: 40 files / 276 tests plus touched-package lint/typecheck/build. Full `pnpm check` green: lint, typecheck, 59 files / 371 tests and build. Not yet browser-verified. Follow-up 2026-10-13 (owner decision): with no period chosen, the report covers the current Kuwait week, Saturday–Friday (shared `currentKuwaitWeek` in contracts, applied by the API and by the web filters/scope; the address keeps only what was chosen); tests (red → green): contracts week boundaries, API default week and an explicit single bound kept as-is, web period fallback and the prefilled form. Full `pnpm check` green: lint, typecheck, 59 files / 374 tests and build. CodeRabbit review of `6ad10c3..f6e1af3` (2 minor findings), fixed 2026-10-13: the period is capped at 31 days and a lone bound becomes a 7-day week (shared `trackingPeriod`/`TRACKING_MAX_DAYS`, API 400 and an Arabic form error); history rows are grouped per booking once; README and the product contract no longer describe branches on barbers/bookings and document the tracking report. Full `pnpm check` green: lint, typecheck, 59 files / 376 tests and build.
 
 ### S13 — "New booking" dot for barbers (G14)
 
@@ -706,11 +710,11 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-As of 2026-10-13: S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S12 is **Done** (browser verification remains). Lanes B and D are finished. No build slice is ready without a client answer; S0 (deploy check) can run at any time.
+As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S8 is **Done** (30-minute default confirmed; browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes B and D have no remaining implementation work. No build slice is ready without a client answer; S12 verification does not block those build slices.
 
 Everything else waits on a client answer:
 
-- S3 (Q11) and S8 (Q4) — S2 is verified.
+- S3 (Q11) — S2 is verified. S8's Q4 is answered and its implementation is Done.
 - S6 (Q7), then S9 (Q6) — S5 is verified.
 - **S16 runs last** (before S17), after Q5. It adds roles that need a permission check on every endpoint, including ones the other slices add.
 

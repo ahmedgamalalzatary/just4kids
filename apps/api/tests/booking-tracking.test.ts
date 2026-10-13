@@ -149,9 +149,12 @@ describe("booking tracking report", () => {
     expect(result.status).toBe(200);
     expect(result.body.bookings.map((row: { booking: { id: string } }) => row.booking.id)).toEqual([thisWeek]);
     expect(result.body.bookings[0].booking.date >= week.from && result.body.bookings[0].booking.date <= week.to).toBe(true);
-    // An explicit bound keeps its meaning: only a fully missing period falls back to the week.
+    // A lone bound covers 7 days from (or up to) that day, never an open-ended history.
     const from = await request(app).get("/reports/tracking").set("Cookie", admin).query({ employeeId: barberA, from: "2096-04-11" });
     expect(from.body.bookings.map((row: { booking: { id: string } }) => row.booking.id)).toEqual([ids[3], ids[1]]);
+    const to = await request(app).get("/reports/tracking").set("Cookie", admin).query({ employeeId: barberA, to: "2096-04-11" });
+    expect(to.body.bookings.map((row: { booking: { id: string } }) => row.booking.id)).toEqual([ids[1], ids[0]]);
+    expect((await report({ from: "2096-03-01", to: "2096-04-11" })).status).toBe(400);
   });
   it("rejects invalid queries and returns an empty period", async () => {
     for (const query of [{ from: "2096-04-12", to: "2096-04-10" }, { employeeId: "1" }, { from: "2096-02-30" }, { status: "completed" }]) expect((await report(query)).status).toBe(400);
