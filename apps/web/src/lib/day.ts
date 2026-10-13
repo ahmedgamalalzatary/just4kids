@@ -14,12 +14,13 @@ const blocking = new Set<VisitStatus>(["booked", "arrived", "completed"]);
 const open = new Set<VisitStatus>(["booked", "arrived"]);
 
 type Interval = { startTime: string; endTime: string };
-type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[] }[]; exceptions: { date: string; intervals: Interval[] }[] };
+type TimeBlock = Interval & { id: string; date: string; reason: string | null };
+type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[] }[]; exceptions: { date: string; intervals: Interval[] }[]; blocks?: TimeBlock[] };
 type Visit = Interval & { visitStatus: VisitStatus };
 
 export type SlotState = "free" | "booked" | "past" | "blocked" | "locked";
-export type SlotReason = "break" | "day-off";
-export type Slot<T extends Visit> = { startTime: string; endTime: string; state: SlotState; booking?: T; reason?: SlotReason };
+export type SlotReason = "break" | "day-off" | "manual";
+export type Slot<T extends Visit> = { startTime: string; endTime: string; state: SlotState; booking?: T; reason?: SlotReason; block?: TimeBlock };
 
 // Pills span the whole day the client is used to (the old app's 09:00 list up to midnight) so a closed or idle half
 // hour is shown blue instead of hidden. The span still reaches any shift that starts earlier than 09:00.
@@ -62,6 +63,8 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, duration
   const starts: number[] = [];
   for (let minute = firstMinute; minute + SLOT_MINUTES <= lastMinute; minute += SLOT_MINUTES) starts.push(minute);
   const holding = bookings.filter(booking => blocking.has(booking.visitStatus));
+  const blocks = (schedule.blocks ?? []).filter(block => block.date === date);
+  const blockedBy = (startTime: string, endTime: string) => blocks.find(block => startTime < block.endTime && endTime > block.startTime);
   const overlapping = (startTime: string, endTime: string) => holding.find(booking => startTime < booking.endTime && endTime > booking.startTime);
   return starts.map(minute => {
     const startTime = timeOf(minute);
@@ -70,8 +73,10 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, duration
     const booking = overlapping(startTime, halfEndTime);
     if (booking) return { startTime, endTime, state: "booked", booking };
     if (kuwaitInstant(date, startTime) <= now) return { startTime, endTime, state: "past" };
+    const block = blockedBy(startTime, halfEndTime);
+    if (block) return { startTime, endTime, state: "locked", reason: "manual", block };
     if (intervals.length === 0 || !covered(intervals, startTime, halfEndTime)) return { startTime, endTime, state: "locked", reason: intervals.length === 0 ? "day-off" : "break" };
-    if (endTime === DAY_END || !covered(intervals, startTime, endTime) || overlapping(startTime, endTime)) return { startTime, endTime, state: "blocked" };
+    if (endTime === DAY_END || !covered(intervals, startTime, endTime) || overlapping(startTime, endTime) || blockedBy(startTime, endTime)) return { startTime, endTime, state: "blocked" };
     return { startTime, endTime, state: "free" };
   });
 }

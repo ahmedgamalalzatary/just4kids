@@ -19,14 +19,14 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S4, S5, S7, S8, S10, S11, S12, S13, S14 and S15 (12 slices). **Unfinished:** S3, S6, S9, S16 and S17 (5 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 12 built); S8 verification remains and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
+**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S3, S4, S5, S7, S8, S10, S11, S12, S13, S14 and S15 (13 slices). **Unfinished:** S6, S9, S16 and S17 (4 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 13 built); S3 and S8 verification remain and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
 
 | # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
 | G1 | Barbers without branches | Barbers stand alone | No branch on barbers or bookings (migration 0021); admin types booking cash/link price | Built (S10) |
 | G2 | Only the admin records payments | Admin enters money | Admin-only API and payment controls; barber reads amounts | Built (S1) |
 | G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | Built (S10, S11); split receipts remain excluded by contract |
-| G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks and closed days/exceptions | Built (S2); manual half-hour locks await Q11 (S3) |
+| G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks, closed days/exceptions and manual locks | S2 verified; S3 built, browser verification remains |
 | G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
 | G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Client search or «عميل جديد» dialog, then address selection | Awaiting Q6 (S9), and S6 if approved |
 | G7 | Booking notes | Notes shown to barber and in WhatsApp | Notes in create/edit, details, revisions and WhatsApp | Built (S4) |
@@ -48,7 +48,7 @@ Owner decisions already made (2026-10-12):
 | Complaint | Verdict | Details |
 |---|---|---|
 | 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). S0 is complete per owner confirmation; the exact deployed commit is not recorded in this document. |
-| 2. Time pills with red / blue / white | **Built** (S2) | Red (booked), white (free) and blue (locked) pills. Locking a single half-hour by hand waits on Q11 (S3). See G4. |
+| 2. Time pills with red / blue / white | **Built** (S2, S3) | Red (booked), white (free) and blue (locked) pills, including manual half-hour locks. S2 verified; S3 browser verification remains. See G4. |
 | 3. Barbers not tied to branches | **Built** (S10) | See G1. |
 
 ---
@@ -71,15 +71,15 @@ Built in S2: `buildSlots` in `apps/web/src/lib/day.ts` returns `free | booked | 
 
 - Half-hours outside the day's working intervals appear blue with a `break` reason; closed weekdays and closing exceptions use `day-off` («إجازة»).
 - Booked and already-past pills take precedence over the locked state. A future day off shows blue pills; elapsed times retain the past state.
-- `blocked` means the selected visit length would run into a booking or closing time, and remains visually distinct from blue.
+- `blocked` means the selected visit length would run into a booking, manual lock or closing time, and remains visually distinct from blue.
 - Hover shows booking details or Arabic time words; tapping a locked pill shows its reason.
 - Light/dark tokens `status-locked` / `status-locked-soft` are implemented.
 
-### Remaining change (S3, Q11)
+### Manual half-hour locks (S3, Q11 answered)
 
-**Open question:** should the admin lock one half-hour directly from the pills, without editing working hours? Item 6 of the original request remains unbuilt. It needs a time-block record that counts as unavailable but has no client or invoice. Dated schedule exceptions remain the available way to change hours for one date.
+**Owner decision (2026-10-13):** yes, the admin can lock/unlock a half-hour directly from the pills, without editing working hours. S3 implements separate time-block records with an optional reason, creator and time, but no client or invoice. On `/bookings/new`, «قفل / فتح الأوقات» switches to half-hour management; choose a free pill, optionally type a reason, then «قفل نصف الساعة». A blue manually locked pill shows its reason and offers «فتح نصف الساعة». Scheduled breaks and days off cannot be opened using this action. Locks must be future half-hours within working hours and one Kuwait day; midnight-crossing locks are refused. Dated exceptions still change working hours for one date.
 
-Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, schedule exceptions and time words. If Q11 is approved, S3 adds API availability tests for manual blocks. S2 is browser-verified.
+Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, duration conflicts and time words; `booking-slot-pills.test.tsx` covers lock/unlock controls, reason, half-hour scope, errors and employee permissions. API tests cover creation, edits, reassignment, AI, restoration and racing writes. S2 is browser-verified; S3 is Done with full checks green, browser verification remains.
 
 ---
 
@@ -289,21 +289,21 @@ Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, sch
 8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
 10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits? **Answered 2026-10-12:** yes, as a correction with a required reason and full history (S15).
-11. **Blue pill (G4):** should the admin lock a single half-hour directly from the pills, or is editing working hours enough?
+11. **Blue pill (G4) — answered 2026-10-13:** yes, the administrator can lock/unlock individual half-hours directly from the pills (S3), with an optional reason.
 
 ---
 
 ## 9. Suggested order
 
-Built and browser-verified: G1, G2, G3, G4 (pills), G5, G7, G8 (extras), G9, G10 (expiry), G13, G14, G15, G17. Built, not yet browser-verified: G12 (S12) and G16 (S8). What remains, in order:
+Built and browser-verified: G1, G2, G3, G4 (scheduled locks), G5, G7, G8 (extras), G9, G10 (expiry), G13, G14, G15, G17. Built, not yet browser-verified: G4 (manual locks, S3), G12 (S12) and G16 (S8). What remains, in order:
 
 S0 is complete (owner-confirmed 2026-10-13). S12 browser verification is deferred for now and does not hold up the remaining build slices.
 
 1. S8 is built: the owner confirmed the existing 30-minute default; browser verification remains.
-2. Next build decision: resolve Q11 for S3 (manual half-hour locks), then Q7 for S6 (areas list) and Q6 for S9 (phone-first client step).
-3. Build the approved slices: S3, S6 → S9 (S6 only if approved).
+2. S3 is built (manual half-hour locks; Q11 answered yes). Next build decision: Q7 for S6 (areas list), then Q6 for S9 (phone-first client step).
+3. Build the approved slices: S6 → S9 (S6 only if approved).
 4. Resolve Q5 and build S16 (roles) last before S17. Q3 (English screens) also needs an answer; no implementation slice is currently defined for it.
-5. Complete S8 and S12 browser verification before S17, then client review and production rollout.
+5. Complete S3, S8 and S12 browser verification before S17, then client review and production rollout.
 
 ---
 
@@ -333,7 +333,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S0 | Starting point and deploy check | — | — | — | No | XS | Verified (owner-confirmed) | [x] |
 | S1 | Payments are admin-only | G2 | S0 | — | No | S | Verified | [x] |
 | S2 | Blue locked pills, hover details, time words | G4, G5 | S0 | — | No | M | Verified | [x] |
-| S3 | Admin locks a single half-hour | G4 (item 6) | S2 | Q11 | Yes | M | Blocked | [ ] |
+| S3 | Admin locks a single half-hour | G4 (item 6) | S2 | — | Yes | M | Done | [ ] |
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Verified | [x] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Verified | [x] |
 | S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
@@ -402,24 +402,24 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S3 — Admin locks a single half-hour (G4 item 6)
 
-- **Blocked by:** Q11 (only if the answer is "yes").
+- **Decision:** Q11 answered yes by the owner on 2026-10-13.
 - **Goal:** the admin can lock or unlock one or more half-hours straight from the pills, with an optional reason.
 - **Start:** S2 verified; Q11 answered.
 - **Work:**
   - New "time block" table + migration.
   - Availability treats a block like a booking: no client, never invoiced.
   - Admin-only create/delete endpoints with CSRF.
-  - The pill menu offers «قفل» / «فتح»; blocks show as blue with their reason.
+  - «قفل / فتح الأوقات» switches the pills to half-hour management; «قفل نصف الساعة» / «فتح نصف الساعة» apply the action, and blocks show as blue with their reason.
 - **Tests:**
   - API: a block makes a new booking, an edit, or a reassignment into that time fail.
   - API: an employee cannot create a block.
   - Web: the pill shows as locked.
 - **End: Full check.**
 - **How to verify:**
-  1. Lock 13:00 for a barber: the pill turns blue.
+  1. Open `/bookings/new` for a barber on a future working date; click «قفل / فتح الأوقات», choose 13:00, add an optional reason and click «قفل نصف الساعة»: the pill turns blue.
   2. Try to book 12:30 with a 60-minute visit: it is refused.
-  3. Unlock: the time can be booked again.
-- Evidence:
+  3. Tap the manually locked pill, click «فتح نصف الساعة», then switch back to booking mode: the time can be booked again, subject to working hours and any other bookings.
+- Evidence: 2026-10-13 — Q11 answered yes by the owner. DB: migration `0022_open_valkyrie` adds `employee_time_blocks`, unique barber/date/start, with half-hour start/end, optional reason, creator and timestamp; applied to test and development. Contracts: strict create/response schemas and `scheduleResponseSchema.blocks` (defaults to an empty array). API: admin-only, origin/CSRF-protected `POST /schedules/:id/blocks` and `DELETE /schedules/:id/blocks/:blockId`; future whole half-hours within one day's working hours, rejecting occupied/duplicate/nonworking times, and deletion scoped to the barber. Shared availability reads locks under the existing employee transaction lock for manual/AI creation, edits/reassignment and visit restoration; eligibility excludes overlapping locks. No client, booking or invoice is created. Web: extracted `SlotPills` to `components/booking-slot-pills.tsx`; management mode uses 30-minute windows independently of booking length, inline optional reason, blue manual locks and unlock action, role-gated writes, loading/error recovery and availability cache refresh. Selected booking time clears on lock-management changes; barber/date/duration changes reset the controls. Tests (red → green): contract validation, shared availability boundaries, manual pill reasons/duration conflicts, API permissions/CSRF/scoped reads and deletes/validation/no bookings or invoices/AI/edit/reassignment/restoration/concurrent lock and booking races; real UI controls, HTTP payload and CSRF, unlock, scheduled-break protection, server errors and employee read-only behavior. Baseline full `pnpm check` green: 59 files / 376 tests. Targeted green: 10 files / 102 tests, touched-package lint/typecheck/build. Final full `pnpm check` green: lint, typecheck, 61 files / 388 tests and build. UI detector reported no findings. Product contract and README updated. Browser inventory exposed no available browser session; browser verification remains, not marked Verified.
 
 ### S4 — Booking notes (G7)
 
@@ -661,7 +661,7 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 | S0 | — | every slice | — |
 | S1 | S0 | S10, S11 | — |
 | S2 | S0 | S3, S8, S16 | — |
-| S3 | S2 | S16 (if approved) | Q11 |
+| S3 | S2 | S16 | — (Q11 answered yes) |
 | S4 | S0 | — | — |
 | S5 | S0 | S6, S9 | — |
 | S6 | S5 | S9 (if approved) | Q7 |
@@ -683,7 +683,7 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### Why some slices cannot run side by side even without a dependency
 
-1. **Database migrations.** Drizzle numbers migrations in order (the latest is `0021_…`, so the next is `0022_…`) and keeps one shared journal (`packages/db/drizzle/meta`). Two branches that each generate a migration both create the same number, and the merge breaks. **Rule: only one worktree with a migration at a time.** If a second one is needed, delete its migration after the first merges, rebase, and run `pnpm db:generate` again.
+1. **Database migrations.** Drizzle numbers migrations in order (the latest is `0022_…`, so the next is `0023_…`) and keeps one shared journal (`packages/db/drizzle/meta`). Two branches that each generate a migration both create the same number, and the merge breaks. **Rule: only one worktree with a migration at a time.** If a second one is needed, delete its migration after the first merges, rebase, and run `pnpm db:generate` again.
 2. **Shared test database.** Every worktree's `.env.test` points at the same `just4kids_test` database, and `pnpm test` migrates and resets it. Two worktrees testing at once corrupt each other's runs. **Rule: each worktree uses its own test database** (e.g. `just4kids_test_s2` in that worktree's `.env.test`, created once), or tests run one worktree at a time.
 3. **Ports.** Dev servers use fixed ports (API 4000/4001, web 3000). Run the app from one worktree at a time, or change `PORT` in that worktree's `.env`.
 4. **Hot files** that several slices edit (expect small merge conflicts if they run together):
@@ -710,11 +710,11 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S8 is **Done** (30-minute default confirmed; browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes B and D have no remaining implementation work. No build slice is ready without a client answer; S12 verification does not block those build slices.
+As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S3 and S8 are **Done** (browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes A, B and D have no remaining implementation work. No build slice is ready without a client answer; S12 verification does not block those build slices.
 
 Everything else waits on a client answer:
 
-- S3 (Q11) — S2 is verified. S8's Q4 is answered and its implementation is Done.
+- S3's Q11 is answered yes and S8's Q4 is answered; both are Done, with browser verification remaining.
 - S6 (Q7), then S9 (Q6) — S5 is verified.
 - **S16 runs last** (before S17), after Q5. It adds roles that need a permission check on every endpoint, including ones the other slices add.
 

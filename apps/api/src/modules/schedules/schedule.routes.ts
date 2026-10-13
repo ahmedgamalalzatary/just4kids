@@ -8,6 +8,8 @@ export function createScheduleRouter(auth: AuthModule, controller: ReturnType<ty
   router.use(auth.requireAuth);
   router.get("/me", controller.me);
   router.get("/:id", controller.get);
+  router.post("/:id/blocks", auth.requireAdmin, auth.requireCsrf, controller.createBlock);
+  router.delete("/:id/blocks/:blockId", auth.requireAdmin, auth.requireCsrf, controller.deleteBlock);
   router.put("/:id/weekly", auth.requireAdmin, auth.requireCsrf, controller.replaceWeekly);
   router.put("/:id/exceptions/:date", auth.requireAdmin, auth.requireCsrf, controller.replaceException);
   router.delete("/:id/exceptions/:date", auth.requireAdmin, auth.requireCsrf, controller.deleteException);

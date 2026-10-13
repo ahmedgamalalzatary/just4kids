@@ -3,7 +3,7 @@ import type {
   accountSchema, addressResponseSchema, barberCollectionEventSchema, barberCollectionReportResponseSchema, barberCollectionResponseSchema, bookingMessageResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchResponseSchema, clientReportResponseSchema,
   clientResponseSchema, clientStatusEventSchema, clientSummarySchema, eligibilityResponseSchema, employeeReportResponseSchema, employeeResponseSchema, haircutReportResponseSchema, invoiceReportResponseSchema,
   comprehensiveReportResponseSchema, invoiceResponseSchema, paymentEventResponseSchema, paymentMethodSchema, paymentResponseSchema, reservationReportResponseSchema,
-  salonEntryEventSchema, salonEntryResponseSchema, salonReportResponseSchema, scheduleResponseSchema, sessionResponseSchema, visitEventResponseSchema,
+  salonEntryEventSchema, salonEntryResponseSchema, salonReportResponseSchema, scheduleResponseSchema, sessionResponseSchema, timeBlockResponseSchema, visitEventResponseSchema,
 } from "@just4kids/contracts";
 
 export type Account = z.output<typeof accountSchema>;
@@ -11,6 +11,7 @@ export type Session = z.output<typeof sessionResponseSchema>;
 export type Branch = z.output<typeof branchResponseSchema>;
 export type Employee = z.output<typeof employeeResponseSchema>;
 export type Schedule = z.output<typeof scheduleResponseSchema>;
+export type TimeBlock = z.output<typeof timeBlockResponseSchema>;
 export type Eligibility = z.output<typeof eligibilityResponseSchema>;
 export type ClientSummary = z.output<typeof clientSummarySchema>;
 export type Client = z.output<typeof clientResponseSchema>;

@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray } from "drizzle-orm";
 import type { Database } from "@just4kids/db";
-import { accounts, employees, bookings, employeeWorkIntervals, employeeScheduleExceptions, employeeExceptionIntervals } from "@just4kids/db/schema";
+import { accounts, employees, bookings, employeeWorkIntervals, employeeScheduleExceptions, employeeExceptionIntervals, employeeTimeBlocks } from "@just4kids/db/schema";
 import { HttpError } from "../../lib/http-error.js";
 import { isWindowAvailable } from "./availability.service.js";
 
@@ -20,6 +20,9 @@ export async function readWorkingHours(transaction: Transaction, employeeId: str
 }
 export async function readBlockingBookings(transaction: Transaction, employeeId: string, date?: string) {
   return transaction.select().from(bookings).where(and(eq(bookings.employeeId, employeeId), inArray(bookings.visitStatus, ["booked", "arrived", "completed"]), date ? eq(bookings.date, date) : undefined)).for("update");
+}
+export async function readTimeBlocks(transaction: Transaction, employeeId: string, date: string) {
+  return transaction.select().from(employeeTimeBlocks).where(and(eq(employeeTimeBlocks.employeeId, employeeId), eq(employeeTimeBlocks.date, date))).for("update");
 }
 export async function assertSchedulePreservesBookings(transaction: Transaction, employeeId: string) {
   const now = Date.now();

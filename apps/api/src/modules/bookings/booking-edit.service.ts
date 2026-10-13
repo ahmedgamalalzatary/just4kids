@@ -5,7 +5,7 @@ import { accounts, bookings, invoices, clientAddresses, bookingRevisions, cashPa
 import type { Account } from "@just4kids/contracts";
 import { bookingEditSchema, bookingCreateSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
-import { lockEmployee, readBlockingBookings, readWorkingHours } from "../availability/availability.repository.js";
+import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 import { assertFutureStart } from "./booking.repository.js";
 import { serializeBooking } from "./booking.service.js";
@@ -55,7 +55,8 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         if (reassigned || windowChanged) {
           const hours = await readWorkingHours(transaction, targetId, merged.date);
           const existing = await readBlockingBookings(transaction, targetId, merged.date);
-          if (!barber.account.enabled || !isWindowAvailable({ date: merged.date, startTime: merged.startTime, endTime: merged.endTime }, hours.days, hours.exception, existing.filter(row => row.id !== id).map(row => ({ ...row, status: row.visitStatus })))) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
+          const blocks = await readTimeBlocks(transaction, targetId, merged.date);
+          if (!barber.account.enabled || !isWindowAvailable({ date: merged.date, startTime: merged.startTime, endTime: merged.endTime }, hours.days, hours.exception, existing.filter(row => row.id !== id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
         }
         let addressSnapshot = booking.addressSnapshot;
         if (input.addressId !== undefined) {

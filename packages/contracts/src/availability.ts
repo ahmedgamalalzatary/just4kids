@@ -30,6 +30,16 @@ export const weeklyScheduleSchema = z.strictObject({
 
 export const scheduleExceptionSchema = z.strictObject({ intervals: intervalsSchema });
 export const scheduleDateSchema = dateSchema;
+export const timeBlockCreateSchema = z.strictObject({
+  date: dateSchema,
+  startTime: timeSchema.refine(time => minuteOfDay(time) % 30 === 0 && minuteOfDay(time) + 30 < 1440, "Locks must be a whole half-hour within one day"),
+  reason: z.string().trim().max(500).optional(),
+});
+export const timeBlockResponseSchema = z.strictObject({
+  id: z.uuid(), employeeId: z.uuid(), date: dateSchema, startTime: timeSchema, endTime: timeSchema,
+  reason: z.string().max(500).nullable(), createdBy: z.uuid(), createdAt: z.iso.datetime(),
+});
+export type TimeBlockCreate = z.infer<typeof timeBlockCreateSchema>;
 export const eligibilityQuerySchema = z.strictObject({ date: dateSchema, startTime: timeSchema, endTime: timeSchema })
   .refine(value => {
     const duration = minuteOfDay(value.endTime) - minuteOfDay(value.startTime);
@@ -40,6 +50,7 @@ export const scheduleResponseSchema = z.strictObject({
   employeeId: z.uuid(),
   days: weeklyScheduleSchema.shape.days,
   exceptions: z.array(z.strictObject({ date: dateSchema, intervals: intervalsSchema })),
+  blocks: z.array(timeBlockResponseSchema).default([]),
 });
 export const eligibilityResponseSchema = z.strictObject({
   date: dateSchema,

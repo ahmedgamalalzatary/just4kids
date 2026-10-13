@@ -5,7 +5,7 @@ import { accounts, clients, clientAddresses, bookings, invoices, bookingVisitEve
 import type { Account, BookingCreate, BookingListQuery } from "@just4kids/contracts";
 import { bookingAddressSnapshotSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
-import { lockEmployee, readWorkingHours, readBlockingBookings } from "../availability/availability.repository.js";
+import { lockEmployee, readWorkingHours, readBlockingBookings, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 
 // Only trusted server code constructs this context. WhatsApp client identity must come from the authenticated sender, never model arguments.
@@ -52,8 +52,9 @@ export function createBookingRepository(connection: ReturnType<typeof createData
         if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
         const hours = await readWorkingHours(transaction, input.employeeId, input.date);
         const existing = await readBlockingBookings(transaction, input.employeeId, input.date);
+        const blocks = await readTimeBlocks(transaction, input.employeeId, input.date);
         assertFutureStart(input);
-        if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })))) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
+        if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
         const now = new Date(), id = randomUUID();
         const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
         const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };

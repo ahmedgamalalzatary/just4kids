@@ -5,6 +5,14 @@ const query = { date: "2026-10-05", startTime: "10:00", endTime: "10:20" };
 const monday = [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }] }];
 
 describe("shared availability decision", () => {
+  it("blocks manual locks across the full window but permits touching endpoints and other dates", () => {
+    const blocks = [{ date: query.date, startTime: "10:00", endTime: "10:30" }];
+    expect(isWindowAvailable(query, monday, undefined, [], blocks)).toBe(false);
+    expect(isWindowAvailable({ ...query, startTime: "09:30", endTime: "10:30" }, monday, undefined, [], blocks)).toBe(false);
+    expect(isWindowAvailable({ ...query, startTime: "09:30", endTime: "10:00" }, monday, undefined, [], blocks)).toBe(true);
+    expect(isWindowAvailable({ ...query, startTime: "10:30", endTime: "11:00" }, monday, undefined, [], blocks)).toBe(true);
+    expect(isWindowAvailable(query, monday, undefined, [], [{ ...blocks[0]!, date: "2026-10-06" }])).toBe(true);
+  });
   it("accepts a full window inside weekly hours and adjacent bookings", () => {
     expect(isWindowAvailable(query, monday, undefined, [{ date: query.date, startTime: "09:20", endTime: "10:00", status: "booked" }, { date: query.date, startTime: "10:20", endTime: "11:00", status: "arrived" }])).toBe(true);
   });

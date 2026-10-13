@@ -11,6 +11,19 @@ function handleError(error: unknown, response: Response, next: NextFunction) {
 }
 
 export function createScheduleController(service: ScheduleService, auth: AuthModule) {
+  const createBlock: RequestHandler = async (request, response, next) => {
+    try {
+      const block = await service.createBlock(String(request.params.id), request.body, (response.locals.auth as Authenticated).account);
+      response.status(201).json(block);
+    } catch (error) { handleError(error, response, next); }
+  };
+  const deleteBlock: RequestHandler = async (request, response, next) => {
+    try {
+      const found = await service.deleteBlock(String(request.params.id), String(request.params.blockId), (response.locals.auth as Authenticated).account);
+      if (!found) { deny(response, 404, "NOT_FOUND", "القفل غير موجود لهذا الحلاق، أعد تحميل الأوقات"); return; }
+      response.status(204).end();
+    } catch (error) { handleError(error, response, next); }
+  };
   const get: RequestHandler = async (request, response, next) => {
     try {
       const id = String(request.params.id);
@@ -53,5 +66,5 @@ export function createScheduleController(service: ScheduleService, auth: AuthMod
     try { response.json(await service.eligible(request.query)); }
     catch (error) { handleError(error, response, next); }
   };
-  return { get, me, replaceWeekly, replaceException, deleteException, eligible };
+  return { get, me, replaceWeekly, replaceException, deleteException, eligible, createBlock, deleteBlock };
 }

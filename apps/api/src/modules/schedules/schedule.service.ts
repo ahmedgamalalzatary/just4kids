@@ -1,5 +1,6 @@
-import { eligibilityQuerySchema, eligibilityResponseSchema, scheduleDateSchema, scheduleExceptionSchema, scheduleResponseSchema, weeklyScheduleSchema } from "@just4kids/contracts";
-import type { WorkInterval } from "@just4kids/contracts";
+import { eligibilityQuerySchema, eligibilityResponseSchema, scheduleDateSchema, scheduleExceptionSchema, scheduleResponseSchema, weeklyScheduleSchema, timeBlockCreateSchema, timeBlockResponseSchema } from "@just4kids/contracts";
+import type { Account, WorkInterval } from "@just4kids/contracts";
+import { z } from "zod";
 import { isWindowAvailable } from "../availability/availability.service.js";
 import type { ScheduleRepository } from "./schedule.repository.js";
 
@@ -8,11 +9,18 @@ function serialize(row: NonNullable<Awaited<ReturnType<ScheduleRepository["get"]
     .map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) })).filter(day => day.intervals.length > 0);
   const exceptions = row.exceptions.map(exception => ({ date: exception.date, intervals: row.intervals
     .filter(interval => interval.exceptionId === exception.id).map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) }));
-  return scheduleResponseSchema.parse({ employeeId: row.employeeId, days, exceptions });
+  return scheduleResponseSchema.parse({ employeeId: row.employeeId, days, exceptions, blocks: row.blocks.map(block => ({ ...block, createdAt: block.createdAt.toISOString() })) });
 }
 
 export function createScheduleService(repository: ScheduleRepository) {
   return {
+    async createBlock(id: string, body: unknown, actor: Account) {
+      const block = await repository.createBlock(id, timeBlockCreateSchema.parse(body), actor);
+      return timeBlockResponseSchema.parse({ ...block, createdAt: block.createdAt.toISOString() });
+    },
+    async deleteBlock(id: string, blockId: string, actor: Account) {
+      return repository.deleteBlock(id, z.uuid().parse(blockId), actor);
+    },
     async get(id: string) { const row = await repository.get(id); return row ? serialize(row) : undefined; },
     async replaceWeekly(id: string, body: unknown) {
       const schedule = weeklyScheduleSchema.parse(body);
@@ -50,7 +58,7 @@ export function createScheduleService(repository: ScheduleRepository) {
         const days = [...(workByEmployee.get(barber.id) ?? new Map<number, WorkInterval[]>())]
           .sort(([firstDay], [secondDay]) => firstDay - secondDay)
           .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals }));
-        return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), rows.visits.filter(visit => visit.employeeId === barber.id).map(visit => ({ ...visit, status: visit.visitStatus })));
+        return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), rows.visits.filter(visit => visit.employeeId === barber.id).map(visit => ({ ...visit, status: visit.visitStatus })), rows.blocks.filter(block => block.employeeId === barber.id));
       }).map(barber => ({ id: barber.id, displayName: barber.displayName }));
       return eligibilityResponseSchema.parse({ date: query.date, startTime: query.startTime, endTime: query.endTime, timeZone: "Asia/Kuwait", barbers });
     },

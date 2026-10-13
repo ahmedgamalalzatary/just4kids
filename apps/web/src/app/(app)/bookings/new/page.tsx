@@ -11,7 +11,7 @@ import { EmployeeAvatar } from "@/components/avatar";
 import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
-import { VisitStatusBadge, visitStatusLabels } from "@/components/status";
+import { SlotPills } from "@/components/booking-slot-pills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,12 +20,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
-import { useClient, useClients, useCreateBooking, useDayBookings, useEmployees, useSchedule, useSendToBarber } from "@/lib/api/hooks";
-import type { Booking, Employee } from "@/lib/api/types";
+import { useClient, useClients, useCreateBooking, useEmployees, useSendToBarber } from "@/lib/api/hooks";
+import type { Booking } from "@/lib/api/types";
 import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
-import { buildSlots, durationOptions, haircutSummary, timeWords, whatsAppLink, type Slot } from "@/lib/day";
-import { formatDate, formatDuration, formatTime, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
+import { durationOptions, whatsAppLink } from "@/lib/day";
+import { formatDate, formatDuration, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal, typedPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -71,81 +71,6 @@ function BarberPicker({ onPick }: { onPick: (id: string) => void }) {
           <span className="font-medium">{employee.displayName}</span>
         </button>
       ))}
-    </div>
-  );
-}
-
-const slotStyles: Record<Slot<Booking>["state"], string> = {
-  free: "border-border bg-card hover:border-primary hover:bg-accent",
-  booked: "border-status-no-show/30 bg-status-no-show-soft text-status-no-show line-through decoration-1",
-  past: "border-transparent bg-muted text-muted-foreground opacity-60",
-  blocked: "border-dashed border-border text-muted-foreground opacity-60",
-  locked: "border-status-locked/30 bg-status-locked-soft text-status-locked",
-};
-
-/** The barber's day as 30-minute pills: free to pick, booked with the visit's details on tap, the rest unavailable. */
-function SlotPills({ barber, date, duration, selected, onSelect }: { barber: Employee; date: string; duration: number; selected: string | null; onSelect: (slot: { startTime: string; endTime: string }) => void }) {
-  const schedule = useSchedule(barber.id);
-  const day = useDayBookings(date, barber.id);
-  const [shown, setShown] = useState<Booking | null>(null);
-  const [locked, setLocked] = useState<Slot<Booking> | null>(null);
-  if (schedule.isPending || day.isPending) return <LoadingRows rows={2} />;
-  if (schedule.isError) return <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} />;
-  if (day.isError) return <ErrorState error={day.error} onRetry={() => day.refetch()} />;
-  const slots = buildSlots({ date, schedule: schedule.data, bookings: day.data.bookings, duration });
-  const details = shown && day.data.bookings.find(booking => booking.id === shown.id);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="وقت البداية">
-        {slots.map(slot => {
-          const isSelected = slot.startTime === selected && slot.state === "free";
-          const reasonText = slot.reason === "day-off" ? "إجازة / استثناء" : "استراحة";
-          const label = slot.state === "booked" ? `${formatTime(slot.startTime)}، محجوز`
-            : slot.state === "free" ? formatTime(slot.startTime)
-            : slot.state === "locked" ? `${formatTime(slot.startTime)}، مغلق: ${reasonText}`
-            : `${formatTime(slot.startTime)}، غير متاح`;
-          const tooltip = slot.state === "booked" && slot.booking
-            ? `${timeWords(slot.startTime)} · ${slot.booking.client.name} · ${slot.booking.address.area} · ${slot.booking.client.phone} · ${haircutSummary(slot.booking)} · ${visitStatusLabels[slot.booking.visitStatus]}`
-            : slot.state === "free" ? timeWords(slot.startTime)
-            : slot.state === "locked" ? `${timeWords(slot.startTime)} · مغلق: ${reasonText}`
-            : formatTime(slot.startTime);
-          return (
-            <button key={slot.startTime} type="button" role="radio" aria-checked={isSelected} aria-label={label} title={tooltip}
-              disabled={slot.state === "past" || slot.state === "blocked"}
-              onClick={() => {
-                if (slot.state === "booked") { setLocked(null); setShown(slot.booking ?? null); }
-                else if (slot.state === "locked") { setShown(null); setLocked(slot); }
-                else { setShown(null); setLocked(null); onSelect(slot); }
-              }}
-              className={cn("min-w-[5.5rem] rounded-full border px-3 py-1.5 text-sm transition-colors", slotStyles[slot.state], isSelected && "border-primary bg-primary text-primary-foreground hover:bg-primary")}
-              data-numeric>
-              {formatTime(slot.startTime)}
-            </button>
-          );
-        })}
-      </div>
-      <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full border border-border bg-card" aria-hidden />متاح</span>
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-status-no-show-soft ring-1 ring-status-no-show/40" aria-hidden />محجوز (اضغط للتفاصيل)</span>
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-status-locked-soft ring-1 ring-status-locked/40" aria-hidden />مغلق (استراحة أو إجازة)</span>
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-muted" aria-hidden />غير متاح لمدة {formatDuration(duration)}</span>
-      </p>
-      {locked ? (
-        <p className="text-sm text-muted-foreground" role="status">مغلق: {locked.reason === "day-off" ? "إجازة / استثناء" : "استراحة"}</p>
-      ) : null}
-      {details ? (
-        <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-status-no-show/30 bg-status-no-show-soft/50 px-3 py-2.5 text-sm" role="status">
-          <div className="min-w-0">
-            <p className="font-medium"><span data-numeric>{formatWindow(details.startTime, details.endTime)}</span> · {details.client.name} <Ltr className="text-muted-foreground">{details.client.phone}</Ltr></p>
-            <p className="text-muted-foreground">{details.address.area}، {haircutSummary(details)}</p>
-            <VisitStatusBadge status={details.visitStatus} className="mt-1" />
-          </div>
-          <div className="flex items-center gap-1">
-            <Button asChild variant="outline" size="sm"><Link href={`/bookings/${details.id}`}>فتح الحجز</Link></Button>
-            <Button variant="ghost" size="icon-sm" aria-label="إغلاق" onClick={() => setShown(null)}><X /></Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -283,7 +208,7 @@ function NewBookingScreen() {
                     </Select>
                   </Field>
                 </div>
-                <SlotPills barber={barber} date={date} duration={duration} selected={slot?.startTime ?? null} onSelect={setSlot} />
+                <SlotPills key={`${barber.id}:${date}:${duration}`} barber={barber} date={date} duration={duration} selected={slot?.startTime ?? null} onSelect={setSlot} onAvailabilityChange={() => setSlot(null)} />
                 <p className="text-sm" role="status">
                   {slot ? <>الموعد: {formatDate(date)}، <span className="font-medium" data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : <span className="text-muted-foreground">لم يتم اختيار وقت بعد.</span>}
                 </p>

@@ -5,7 +5,7 @@ import { accounts, bookings, invoices, bookingVisitEvents, bookingMessages } fro
 import type { Account, VisitStatus, VisitCorrection, VisitTransition } from "@just4kids/contracts";
 import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema, bookingMessageResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
-import { lockEmployee, readBlockingBookings, readWorkingHours } from "../availability/availability.repository.js";
+import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 import { serializeBooking } from "./booking.service.js";
 
@@ -48,8 +48,9 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
       if (correction && blocking.has(input.status)) {
         const hours = await readWorkingHours(transaction, booking.employeeId, booking.date);
         const existing = await readBlockingBookings(transaction, booking.employeeId, booking.date);
+        const blocks = await readTimeBlocks(transaction, booking.employeeId, booking.date);
         const window = { date: booking.date, startTime: booking.startTime, endTime: booking.endTime };
-        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, existing.filter(row => row.id !== booking.id).map(row => ({ ...row, status: row.visitStatus })))) throw new HttpError(409, "BARBER_UNAVAILABLE", "لا يمكن استعادة الزيارة لأن الموظف غير متاح");
+        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, existing.filter(row => row.id !== booking.id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "لا يمكن استعادة الزيارة لأن الموظف غير متاح");
       }
       const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
       if (!invoice) throw new Error("Booking invoice missing");

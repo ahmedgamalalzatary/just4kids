@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { check, date, foreignKey, int, mysqlTable, primaryKey, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { check, date, datetime, foreignKey, int, mysqlTable, primaryKey, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { accounts } from "./auth.js";
 import { employees } from "./organization.js";
 
 export const employeeWorkIntervals = mysqlTable("employee_work_intervals", {
@@ -31,4 +32,20 @@ export const employeeExceptionIntervals = mysqlTable("employee_exception_interva
   primaryKey({ columns: [table.exceptionId, table.startTime] }),
   foreignKey({ name: "exception_interval_fk", columns: [table.exceptionId], foreignColumns: [employeeScheduleExceptions.id] }).onDelete("cascade"),
   check("exception_time_order", sql`${table.startTime} < ${table.endTime}`),
+]);
+
+export const employeeTimeBlocks = mysqlTable("employee_time_blocks", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  employeeId: varchar("employee_id", { length: 36 }).notNull(),
+  date: date("date", { mode: "string" }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  reason: varchar("reason", { length: 500 }),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
+}, table => [
+  uniqueIndex("time_block_employee_date_start_unique").on(table.employeeId, table.date, table.startTime),
+  foreignKey({ name: "time_block_employee_fk", columns: [table.employeeId], foreignColumns: [employees.accountId] }).onDelete("cascade"),
+  foreignKey({ name: "time_block_creator_fk", columns: [table.createdBy], foreignColumns: [accounts.id] }).onDelete("restrict"),
+  check("time_block_time_order", sql`${table.startTime} < ${table.endTime}`),
 ]);

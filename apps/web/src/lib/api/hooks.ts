@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BookingTrackingResponse, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
-  EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, BarberCollectionCreate, BarberCollectionUpdate, ScheduleException, VisitCorrection, VisitTransition, WeeklySchedule,
+  EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, BarberCollectionCreate, BarberCollectionUpdate, ScheduleException, TimeBlockCreate, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
 import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
@@ -11,7 +11,7 @@ import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
   Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
-  PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, VisitEvent,
+  PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, TimeBlock, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -122,6 +122,20 @@ export function useReplaceException() {
 export function useDeleteException() {
   return useApiMutation(({ id, date }: { id: string; date: string }, csrfToken) => apiRequest<void>(`/schedules/${id}/exceptions/${date}`, { method: "DELETE", csrfToken }), {
     invalidate: (_output, input) => [keys.schedule(input.id), ["availability"], keys.reports],
+  });
+}
+
+export function useCreateTimeBlock() {
+  return useApiMutation(({ id, ...input }: TimeBlockCreate & { id: string }, csrfToken) =>
+    apiRequest<TimeBlock>(`/schedules/${id}/blocks`, { method: "POST", body: input, csrfToken }), {
+    invalidate: (_output, input) => [keys.schedule(input.id), keys.mySchedule, ["availability"]],
+  });
+}
+
+export function useDeleteTimeBlock() {
+  return useApiMutation(({ id, blockId }: { id: string; blockId: string }, csrfToken) =>
+    apiRequest<void>(`/schedules/${id}/blocks/${blockId}`, { method: "DELETE", csrfToken }), {
+    invalidate: (_output, input) => [keys.schedule(input.id), keys.mySchedule, ["availability"]],
   });
 }
 

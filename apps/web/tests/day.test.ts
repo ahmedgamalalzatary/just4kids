@@ -9,6 +9,20 @@ const visit = (startTime: string, endTime: string, visitStatus: "booked" | "arri
 const early = new Date("2099-01-01T00:00:00+03:00");
 
 describe("buildSlots", () => {
+  it("shows manual locks with their reason and blocks longer visits that cross them", () => {
+    const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: "موعد خاص" }];
+    const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 60, now: early });
+    expect(slots.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "locked", reason: "manual", block: blocks[0] });
+    expect(slots.find(slot => slot.startTime === "09:30")).toMatchObject({ state: "blocked" });
+    expect(slots.find(slot => slot.startTime === "09:00")).toMatchObject({ state: "free" });
+    expect(slots.find(slot => slot.startTime === "10:30")).toMatchObject({ state: "blocked" });
+    const adjacent = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 30, now: early });
+    expect(adjacent.find(slot => slot.startTime === "10:30")).toMatchObject({ state: "free" });
+    const otherDate = buildSlots({ date, schedule: { ...schedule, blocks: [{ ...blocks[0]!, date: "2099-01-06" }] }, bookings: [], duration: 30, now: early });
+    expect(otherDate.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "free" });
+    const past = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 30, now: new Date(`${date}T10:01:00+03:00`) });
+    expect(past.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "past" });
+  });
   it.each(["08:15", "08:45"])("keeps on-the-hour pills when another weekday or exception starts at %s", startTime => {
     for (const offGridSchedule of [
       { ...schedule, days: [...schedule.days, { dayOfWeek: 2, intervals: [{ startTime, endTime: "11:00" }] }] },
