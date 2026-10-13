@@ -162,6 +162,13 @@
       "when": 1791888041591,
       "tag": "0022_open_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1791889449265,
+      "tag": "0023_tearful_next_avengers",
+      "breakpoints": true
     }
   ]
 }

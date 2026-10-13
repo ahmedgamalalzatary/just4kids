@@ -5,6 +5,7 @@ import { clientAddresses, clients, clientStatusEvents } from "@just4kids/db/sche
 import { addressCreateSchema } from "@just4kids/contracts";
 import type { AddressCreate, AddressUpdate, ClientCreate, ClientSearch, ClientUpdate } from "@just4kids/contracts";
 import { HttpError } from "../../lib/http-error.js";
+import { verifyAddressArea } from "../areas/area.repository.js";
 
 function addressValues(address: AddressCreate) {
   return {
@@ -74,6 +75,7 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
       const id = randomUUID();
       const now = new Date();
       await db.transaction(async transaction => {
+        await verifyAddressArea(transaction, input.address);
         await transaction.insert(clients).values({ id, name: input.name, phone: input.phone, createdAt: now, updatedAt: now });
         await transaction.insert(clientAddresses).values({ id: randomUUID(), clientId: id, ...addressValues(input.address), createdAt: now, updatedAt: now });
       });
@@ -93,6 +95,7 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
       const found = await db.transaction(async transaction => {
         const [client] = await transaction.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).for("update");
         if (!client) return false;
+        await verifyAddressArea(transaction, input);
         const now = new Date();
         await transaction.insert(clientAddresses).values({ id, clientId, ...addressValues(input), createdAt: now, updatedAt: now });
         return true;
@@ -107,6 +110,7 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
           .where(and(eq(clientAddresses.clientId, clientId), eq(clientAddresses.id, addressId))).for("update");
         if (!current) return false;
         const validated = addressCreateSchema.parse({ ...addressValues(current), ...patch });
+        await verifyAddressArea(transaction, validated);
         await transaction.update(clientAddresses).set({ ...addressValues(validated), updatedAt: new Date() })
           .where(and(eq(clientAddresses.clientId, clientId), eq(clientAddresses.id, addressId)));
         return true;

@@ -19,6 +19,7 @@ const googleMapsUrl = z.url().max(2048).refine(value => {
 });
 
 const addressFields = z.strictObject({
+  areaId: z.uuid().optional(),
   area: addressPart,
   block: addressPart,
   street: z.string().trim().min(1).max(200),

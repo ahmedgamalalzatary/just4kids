@@ -19,7 +19,7 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S3, S4, S5, S7, S8, S10, S11, S12, S13, S14 and S15 (13 slices). **Unfinished:** S6, S9, S16 and S17 (4 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 13 built); S3 and S8 verification remain and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
+**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S3, S4, S5, S6, S7, S8, S10, S11, S12, S13, S14 and S15 (14 slices). **Unfinished:** S9, S16 and S17 (3 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 14 built); S3, S6 and S8 verification remain and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
 
 | # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
@@ -28,9 +28,9 @@ Owner decisions already made (2026-10-12):
 | G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | Built (S10, S11); split receipts remain excluded by contract |
 | G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks, closed days/exceptions and manual locks | S2 verified; S3 built, browser verification remains |
 | G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
-| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Client search or «عميل جديد» dialog, then address selection | Awaiting Q6 (S9), and S6 if approved |
+| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Client search or «عميل جديد» dialog, then address selection | Awaiting Q6 (S9) and S6 verification |
 | G7 | Booking notes | Notes shown to barber and in WhatsApp | Notes in create/edit, details, revisions and WhatsApp | Built (S4) |
-| G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras included; area still free text | Extras built (S5); areas list awaits Q7 (S6) |
+| G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras and searchable Arabic areas; old free-text addresses preserved | Built (S5, S6); S6 browser verification remains |
 | G9 | Local Kuwaiti phone | Type 8 digits | Web accepts 8 digits; stores international format | Built (S5) |
 | G10 | Barber account fields | Username, full name, gender, nationality, expiry | Phone login, display name, photo, enabled, expiry | Expiry built (S14); phone login retained; gender/nationality not added |
 | G11 | More roles | superadmin, admin, **carecenter**, **moder** | One admin + barbers | Awaiting Q5 (S16) |
@@ -132,8 +132,8 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 ### G8 — Extra address fields and area list
 
 - **Old fields:** Area (searchable list from the `areas` table), Block, Street, House, Floor, Apartment, **Avenue (جادة)**, **Gate (G)**, **Blue number (blue)**, map link. The admin's add-customer form also has Route (طريق) and Chalet (شالية).
-- **New fields:** area (free text), block, street, house number, building name, floor, apartment, instructions, Maps link, pin, plus optional `avenue`, `gate` and `blueNumber` (S5 built). Extras appear in address displays, booking snapshots and WhatsApp text.
-- **Remaining:** the managed searchable areas list (S6) awaits Q7. Address extras are browser-verified.
+- **New fields:** area (searchable Arabic list for new dashboard addresses; old free text preserved), block, street, house number, building name, floor, apartment, instructions, Maps link, pin, plus optional `avenue`, `gate` and `blueNumber` (S5 built). Extras appear in address displays, booking snapshots and WhatsApp text.
+- **Status:** the managed searchable areas list is built (S6); browser verification remains. Address extras are browser-verified.
 
 ### G9 — Local Kuwaiti phone typing
 
@@ -205,7 +205,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 | `newbarber.php`, `edit_barber.php`, `barbers-list.php` | Add / edit / list / stop barbers | `/employees`, `/employees/[id]` | G1, G10. |
 | `Working_hours.php` | One start–end per weekday + on/off switch | `/employees/[id]` schedule | New is richer: several shifts per day and dated exceptions. |
 | `newcustomer.php`, `editcustomer.php`, `customers_list.php` | Add / edit / stop clients; one address per client | `/clients`, `/clients/[id]` | New allows many addresses and needs a reason to stop a client. G8, G9. |
-| `newarea.php` | Manage areas list | — | Left out (Q7). |
+| `newarea.php` | Manage areas list | `/areas` | Built (S6); names are Arabic per owner decision, instead of the old English names. |
 | `newservice.php` | Services & prices (not in menu, prices never used) | — | Not needed: the admin types each booking's cash/link price (S10). |
 | `tadeltahsel.php` «ادخال تحصيلات الحلاقين» | Daily barber money entry | `/collections` | Covered (S11). |
 | `hlaktahsel.php` «تقرير تحصيلات الحلاقين» | Per barber over a period: clients, normal/special kids, cash, link, total, share | `/reports/barbers` | Covered (S11): reads the daily collections, as in the old app. |
@@ -285,7 +285,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 4. **Default visit length (G16) — answered 2026-10-13:** 30 minutes, confirmed by the owner. Keep the existing preselection; the administrator can change it per booking (S8).
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
 6. **Client name (G6):** may a new client be saved with only a phone number?
-7. **Areas list (G8):** do you want a fixed, searchable areas list again?
+7. **Areas list (G8) — answered 2026-10-13:** yes, proceed with the managed searchable list from the old app; the owner chose Arabic names (the old management page used English). S6 is built.
 8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
 10. **Past bookings (G17):** must the admin be able to fix counts or times on finished visits? **Answered 2026-10-12:** yes, as a correction with a required reason and full history (S15).
@@ -300,10 +300,10 @@ Built and browser-verified: G1, G2, G3, G4 (scheduled locks), G5, G7, G8 (extras
 S0 is complete (owner-confirmed 2026-10-13). S12 browser verification is deferred for now and does not hold up the remaining build slices.
 
 1. S8 is built: the owner confirmed the existing 30-minute default; browser verification remains.
-2. S3 is built (manual half-hour locks; Q11 answered yes). Next build decision: Q7 for S6 (areas list), then Q6 for S9 (phone-first client step).
-3. Build the approved slices: S6 → S9 (S6 only if approved).
+2. S3 is built (manual half-hour locks; Q11 answered yes). S6 is built (Arabic areas list; Q7 answered); browser verification remains.
+3. Next build slice: S9 (phone-first client step), after resolving Q6 and verifying S6. Use `other/` for old-app behavior; ask the owner only for unresolved requirements.
 4. Resolve Q5 and build S16 (roles) last before S17. Q3 (English screens) also needs an answer; no implementation slice is currently defined for it.
-5. Complete S3, S8 and S12 browser verification before S17, then client review and production rollout.
+5. Complete S3, S6, S8 and S12 browser verification before S17, then client review and production rollout.
 
 ---
 
@@ -336,10 +336,10 @@ The work above is split into small slices you can check one at a time. Each slic
 | S3 | Admin locks a single half-hour | G4 (item 6) | S2 | — | Yes | M | Done | [ ] |
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Verified | [x] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Verified | [x] |
-| S6 | Areas list | G8 | S5 | Q7 | Yes | M | Blocked | [ ] |
+| S6 | Areas list | G8 | S5 | — | Yes | M | Done | [ ] |
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Verified | [x] |
 | S8 | Default visit length | G16 | S2 | — | No | XS | Done | [ ] |
-| S9 | Phone-first client step | G6 | S5, S6 (if approved) | Q6 | No | M | Blocked | [ ] |
+| S9 | Phone-first client step | G6 | S5, S6 | Q6 | No | M | Blocked | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Verified | [x] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Verified | [x] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Done; browser verification deferred | [ ] |
@@ -459,18 +459,18 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S6 — Areas list (G8)
 
-- **Blocked by:** Q7.
+- **Decision:** Q7 answered 2026-10-13: restore the old managed searchable areas list; use Arabic names per owner choice.
 - **Start:** S5 verified; Q7 answered.
 - **Goal:** pick the area from a searchable list managed by the admin.
 - **Work:**
-  - `areas` table (Arabic name, active flag) + admin screen (add/edit/stop).
+  - `areas` table (Arabic name, active flag) + admin screen (add/edit/stop/reactivate).
   - The address form uses a searchable picker.
   - Existing free-text areas are kept and shown as they are.
 - **End: Full check.**
 - **How to verify:**
   1. Add «الفنطاس»: it appears in the picker.
   2. Stop it: it disappears from new addresses but stays on old ones.
-- Evidence:
+- Evidence (2026-10-13): restored the old `other/newarea.php` add/edit/stop/reactivate behavior with Arabic names per owner choice. Migration `0023_tearful_next_avengers.sql` adds the initially empty `areas` catalogue (unique name, enabled flag, timestamps); applied to test and development databases. Admin-only `GET/POST /areas` and `PATCH /areas/:id` provide search/status filters, duplicate-name validation and CSRF/origin protection. `/areas` uses the existing Arabic interface with add/rename, search/status filters and stop/reactivate controls. Shared `AddressFields` searches active areas; new-client/new-address forms submit the chosen ID and name, rechecked under the client/address transaction with a share lock. Missing/stopped/renamed selections return `AREA_UNAVAILABLE` (409); failed client creation rolls back. Saved address text and booking snapshots never follow catalogue changes, and edits can retain old free-text/stopped names. Legacy API callers may still send free-text `area` without `areaId`; there is no service-area enforcement. Tests (red → green): `apps/api/tests/areas.test.ts` (permissions, CSRF/origin, duplicates, search, rename/stop/reactivate, stale choices and atomic failure), `apps/web/tests/area-picker.test.tsx` (Arabic search/selection, legacy retention, recoverable errors), `apps/web/tests/areas-screen.test.tsx` (management flow and full client-form payload/CSRF). Baseline: 5 files / 23 tests plus affected-package lint/typecheck/build; targeted: 7 files / 28 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 64 files / 396 tests, lint, typecheck and build. Also corrected obsolete branch-page descriptions of booking pricing/barber links. No browser was available in this session; owner browser verification remains.
 
 ### S7 — WhatsApp send recorded + after-save choices (G13, G15)
 
@@ -500,7 +500,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 - **Blocked by:** Q6.
 - **Goal:** the client step starts with the phone number, like the old form.
-- **Start:** S5 verified (8-digit typing); S6 verified if Q7 was "yes" (the inline address form uses the areas picker).
+- **Start:** S5 verified (8-digit typing); S6 verified (the inline address form uses the areas picker; Q7 answered yes).
 - **Work:**
   - Phone box with live lookup.
   - **Found:** pick the client and their last-used address.
@@ -664,10 +664,10 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 | S3 | S2 | S16 | — (Q11 answered yes) |
 | S4 | S0 | — | — |
 | S5 | S0 | S6, S9 | — |
-| S6 | S5 | S9 (if approved) | Q7 |
+| S6 | S5 | S9 | — (Q7 answered) |
 | S7 | S0 | S12 | — |
-| S8 | S2 | — | Q4 |
-| S9 | S5, S6 (if approved) | — | Q6 |
+| S8 | S2 | — | — (Q4 answered) |
+| S9 | S5, S6 | — | Q6 |
 | S10 | S1 | S11, S15 | Q1 |
 | S11 | S1, S10 | S15, S16 | Q2 |
 | S12 | S7 | — | — |
@@ -683,7 +683,7 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### Why some slices cannot run side by side even without a dependency
 
-1. **Database migrations.** Drizzle numbers migrations in order (the latest is `0022_…`, so the next is `0023_…`) and keeps one shared journal (`packages/db/drizzle/meta`). Two branches that each generate a migration both create the same number, and the merge breaks. **Rule: only one worktree with a migration at a time.** If a second one is needed, delete its migration after the first merges, rebase, and run `pnpm db:generate` again.
+1. **Database migrations.** Drizzle numbers migrations in order (the latest is `0023_…`, so the next is `0024_…`) and keeps one shared journal (`packages/db/drizzle/meta`). Two branches that each generate a migration both create the same number, and the merge breaks. **Rule: only one worktree with a migration at a time.** If a second one is needed, delete its migration after the first merges, rebase, and run `pnpm db:generate` again.
 2. **Shared test database.** Every worktree's `.env.test` points at the same `just4kids_test` database, and `pnpm test` migrates and resets it. Two worktrees testing at once corrupt each other's runs. **Rule: each worktree uses its own test database** (e.g. `just4kids_test_s2` in that worktree's `.env.test`, created once), or tests run one worktree at a time.
 3. **Ports.** Dev servers use fixed ports (API 4000/4001, web 3000). Run the app from one worktree at a time, or change `PORT` in that worktree's `.env`.
 4. **Hot files** that several slices edit (expect small merge conflicts if they run together):
@@ -710,12 +710,12 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S3 and S8 are **Done** (browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes A, B and D have no remaining implementation work. No build slice is ready without a client answer; S12 verification does not block those build slices.
+As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S3, S6 and S8 are **Done** (browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes A, B and D have no remaining implementation work. S9 is the next build slice after Q6 and S6 verification; S12 verification does not block those build slices.
 
 Everything else waits on a client answer:
 
 - S3's Q11 is answered yes and S8's Q4 is answered; both are Done, with browser verification remaining.
-- S6 (Q7), then S9 (Q6) — S5 is verified.
+- S6's Q7 is answered and S6 is Done. S9 (Q6) follows S6 verification.
 - **S16 runs last** (before S17), after Q5. It adds roles that need a permission check on every endpoint, including ones the other slices add.
 
 ### Merge routine for every worktree

@@ -10,6 +10,7 @@ import { createBranches } from "./modules/branches/index.js";
 import { createEmployees } from "./modules/employees/index.js";
 import { createSchedules } from "./modules/schedules/index.js";
 import { createClients } from "./modules/clients/index.js";
+import { createAreas } from "./modules/areas/index.js";
 import { createBookings } from "./modules/bookings/index.js";
 import { createSalon } from "./modules/salon/index.js";
 import { createCollections } from "./modules/collections/index.js";
@@ -28,6 +29,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     if (options.connection) app.use("/branches", createBranches(options.connection, options.auth));
     if (options.connection && options.env) app.use("/employees", createEmployees(options.connection, options.auth, options.env));
     if (options.connection) app.use("/clients", createClients(options.connection, options.auth));
+    if (options.connection) app.use("/areas", createAreas(options.connection, options.auth));
     if (options.connection) app.use("/bookings", createBookings(options.connection, options.auth));
     if (options.connection) app.use("/salon", createSalon(options.connection, options.auth));
     if (options.connection) app.use("/collections", createCollections(options.connection, options.auth));

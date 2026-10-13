@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
+  AreaCreate, AreaUpdate,
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BookingTrackingResponse, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
   EmployeeAdminUpdate, EmployeeCreate, SalonEntryCreate, SalonEntryUpdate, BarberCollectionCreate, BarberCollectionUpdate, ScheduleException, TimeBlockCreate, VisitCorrection, VisitTransition, WeeklySchedule,
 } from "@just4kids/contracts";
@@ -10,11 +11,13 @@ import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
+  Area,
   Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
   PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, TimeBlock, VisitEvent,
 } from "./types";
 
 export const keys = {
+  areas: ["areas"] as const,
   branches: ["branches"] as const,
   employees: ["employees"] as const,
   employee: (id: string) => ["employees", id] as const,
@@ -149,6 +152,18 @@ export function useEligibleBarbers(query: EligibilityQuery | null) {
 }
 
 // Clients --------------------------------------------------------------------
+
+export function useAreas(status: "all" | "active" | "stopped" = "all", enabled = true) {
+  return useQuery({ queryKey: [...keys.areas, status], queryFn: ({ signal }) => apiRequest<{ areas: Area[] }>("/areas", { query: { status }, signal }).then(result => result.areas), enabled });
+}
+
+export function useCreateArea() {
+  return useApiMutation((input: AreaCreate, csrfToken) => apiRequest<Area>("/areas", { method: "POST", body: input, csrfToken }), { invalidate: () => [keys.areas] });
+}
+
+export function useUpdateArea() {
+  return useApiMutation(({ id, ...input }: AreaUpdate & { id: string }, csrfToken) => apiRequest<Area>(`/areas/${id}`, { method: "PATCH", body: input, csrfToken }), { invalidate: () => [keys.areas] });
+}
 
 export function useClients(q: string, offset: number, status: ClientStatusFilter = "all") {
   return useQuery({

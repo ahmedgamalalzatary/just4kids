@@ -43,7 +43,7 @@ function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; o
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{branch ? "تعديل الفرع" : "إضافة فرع"}</DialogTitle>
-          <DialogDescription>تطبَّق الأسعار الجديدة على الحجوزات الجديدة فقط؛ الفواتير السابقة تحتفظ بأسعارها.</DialogDescription>
+          <DialogDescription>الفروع لإدخالات الصالون وتقاريره؛ هذه الأسعار والمدد لا تحدد سعر الحجز أو نافذته.</DialogDescription>
         </DialogHeader>
         <form id="branch-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field label="اسم الفرع" error={errors.name?.message} className="sm:col-span-2"><Input {...form.register("name")} /></Field>
@@ -70,10 +70,10 @@ function BranchesScreen() {
 
   return (
     <>
-      <PageHeader title="الفروع" description="أسعار الحلاقة ومدة كل خدمة لكل فرع." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
+      <PageHeader title="الفروع" description="فروع الصالون وأسعار الخدمات ومددها للعرض فقط." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
       <Card>
         {branches.isPending ? <LoadingRows rows={3} /> : branches.isError ? <ErrorState error={branches.error} onRetry={() => branches.refetch()} /> : branches.data.length === 0 ? (
-          <EmptyState icon={Store} title="لا توجد فروع بعد" description="أضف الفرع الأول لتحديد الأسعار وربط الحلاقين به." action={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
+          <EmptyState icon={Store} title="لا توجد فروع بعد" description="أضف الفرع الأول لتسجيل تحصيلات الصالون وعرض تقاريره." action={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
         ) : (
           <>
             <Table className="hidden md:table">

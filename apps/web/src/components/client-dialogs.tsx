@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { useAddAddress, useCreateClient, useUpdateAddress, useUpdateClient } from "@/lib/api/hooks";
+import { useAddAddress, useAreas, useCreateClient, useUpdateAddress, useUpdateClient } from "@/lib/api/hooks";
 import type { Address, Client } from "@/lib/api/types";
 import { addressFormSchema, clientFormSchema, emptyAddress } from "@/lib/forms";
 
@@ -20,14 +20,21 @@ type DialogProps = { open: boolean; onOpenChange: (open: boolean) => void };
 
 export function CreateClientDialog({ open, onOpenChange, onCreated }: DialogProps & { onCreated: (client: Client) => void }) {
   const create = useCreateClient();
+  const areas = useAreas("active", open);
   const form = useForm<z.input<typeof createSchema>, unknown, z.output<typeof createSchema>>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: "", phone: "", address: emptyAddress },
   });
   const errors = form.formState.errors;
-  const submit = form.handleSubmit(values => create.mutate(values, {
-    onSuccess: client => { toast.success("تمت إضافة العميل"); onOpenChange(false); form.reset(); onCreated(client); },
-  }));
+  const areaValue = useWatch({ control: form.control, name: "address.area" });
+  const submit = form.handleSubmit(values => {
+    const area = areas.data?.find(area => area.name === values.address.area);
+    if (!area) { form.setError("address.area", { message: "اختر منطقة متاحة من القائمة" }); return; }
+    create.mutate({ ...values, address: { ...values.address, areaId: area.id } }, {
+      onSuccess: client => { toast.success("تمت إضافة العميل"); onOpenChange(false); form.reset(); onCreated(client); },
+      onError: () => { void areas.refetch(); },
+    });
+  });
 
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) create.reset(); onOpenChange(value); }}>
@@ -43,7 +50,7 @@ export function CreateClientDialog({ open, onOpenChange, onCreated }: DialogProp
           </div>
           <Separator />
           <p className="text-sm font-medium">عنوان الزيارة</p>
-          <AddressFields register={name => form.register(`address.${name}`)} errors={errors.address ?? {}} />
+          <AddressFields register={name => form.register(`address.${name}`)} errors={errors.address ?? {}} areaValue={areaValue} />
         </form>
         <FormAlert error={create.error} />
         <DialogFooter><Button type="submit" form="client-form" disabled={create.isPending}>إضافة العميل</Button></DialogFooter>
@@ -92,14 +99,20 @@ export function AddressDialog({ clientId, address, open, onOpenChange, onSaved }
   const add = useAddAddress();
   const update = useUpdateAddress();
   const mutation = address ? update : add;
+  const areas = useAreas("active", open);
   const form = useForm<z.input<typeof addressFormSchema>, unknown, z.output<typeof addressFormSchema>>({
     resolver: zodResolver(addressFormSchema),
     values: address ? toForm(address) : emptyAddress,
   });
+  const areaValue = useWatch({ control: form.control, name: "area" });
   const submit = form.handleSubmit(values => {
+    const area = areas.data?.find(area => area.name === values.area);
+    if (!area && (!address || values.area !== address.area)) { form.setError("area", { message: "اختر منطقة متاحة من القائمة" }); return; }
+    const input = { ...values, ...(area ? { areaId: area.id } : {}) };
     const done = (saved: Address) => { toast.success(address ? "تم حفظ العنوان" : "تمت إضافة العنوان"); onOpenChange(false); onSaved?.(saved); };
-    if (address) update.mutate({ clientId, addressId: address.id, ...values }, { onSuccess: done });
-    else add.mutate({ clientId, ...values }, { onSuccess: done });
+    const onError = () => { void areas.refetch(); };
+    if (address) update.mutate({ clientId, addressId: address.id, ...input }, { onSuccess: done, onError });
+    else add.mutate({ clientId, ...input }, { onSuccess: done, onError });
   });
 
   return (
@@ -109,7 +122,7 @@ export function AddressDialog({ clientId, address, open, onOpenChange, onSaved }
           <DialogTitle>{address ? "تعديل العنوان" : "عنوان جديد"}</DialogTitle>
           <DialogDescription>{address ? "التعديل يظهر في الحجوزات الجديدة فقط؛ الحجوزات السابقة تحتفظ بعنوانها كما كان." : "يمكن للعميل أن يكون له أكثر من عنوان."}</DialogDescription>
         </DialogHeader>
-        <form id="address-form" onSubmit={submit} noValidate><AddressFields register={name => form.register(name)} errors={form.formState.errors} /></form>
+        <form id="address-form" onSubmit={submit} noValidate><AddressFields register={name => form.register(name)} errors={form.formState.errors} areaValue={areaValue} originalArea={address?.area ?? ""} /></form>
         <FormAlert error={mutation.error} />
         <DialogFooter><Button type="submit" form="address-form" disabled={mutation.isPending}>{address ? "حفظ العنوان" : "إضافة العنوان"}</Button></DialogFooter>
       </DialogContent>

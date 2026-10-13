@@ -5,14 +5,15 @@ import { Field } from "@/components/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { AddressForm } from "@/lib/forms";
+import { AreaPicker } from "@/components/area-picker";
 
 type Errors = Partial<Record<keyof AddressForm, { message?: string | undefined } | undefined>>;
 
 /** Kuwaiti service-address fields. Works inside any form through the given `register`. */
-export function AddressFields({ register, errors }: { register: (name: keyof AddressForm) => UseFormRegisterReturn; errors: Errors }) {
+export function AddressFields({ register, errors, areaValue, originalArea = "" }: { register: (name: keyof AddressForm) => UseFormRegisterReturn; errors: Errors; areaValue: string; originalArea?: string }) {
   return (
     <div className="grid gap-4 sm:grid-cols-6">
-      <Field label="المنطقة" error={errors.area?.message} className="sm:col-span-3"><Input {...register("area")} /></Field>
+      <AreaPicker registration={register("area")} value={areaValue} originalArea={originalArea} error={errors.area?.message} />
       <Field label="القطعة" error={errors.block?.message} className="sm:col-span-3"><Input {...register("block")} /></Field>
       <Field label="الشارع" error={errors.street?.message} className="sm:col-span-6"><Input {...register("street")} /></Field>
       <Field label="رقم المنزل" error={errors.houseNumber?.message} className="sm:col-span-3" hint="أو اكتب اسم المبنى."><Input {...register("houseNumber")} /></Field>
