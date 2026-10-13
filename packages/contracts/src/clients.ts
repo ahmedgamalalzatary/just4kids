@@ -66,6 +66,7 @@ export const clientCreateSchema = z.strictObject({ name, phone: phoneSchema, add
 export const clientUpdateSchema = z.strictObject({ name: name.optional(), phone: phoneSchema.optional() }).refine(value => Object.keys(value).length > 0);
 export const clientSummarySchema = z.strictObject({ id: z.uuid(), name, phone: phoneSchema, enabled: z.boolean(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
 export const clientResponseSchema = clientSummarySchema.extend({ addresses: z.array(addressResponseSchema) });
+export const clientLookupResponseSchema = clientResponseSchema.extend({ lastUsedAddressId: z.uuid().nullable() });
 export const clientSearchSchema = z.strictObject({
   q: z.string().trim().max(120).default(""),
   status: z.enum(["all", "active", "stopped"]).default("all"),

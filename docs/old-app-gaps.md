@@ -19,7 +19,7 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S3, S4, S5, S6, S7, S8, S10, S11, S12, S13, S14 and S15 (14 slices). **Unfinished:** S9, S16 and S17 (3 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 14 built); S3, S6 and S8 verification remain and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
+**Starting point:** S0 complete (owner-confirmed). **Built:** S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14 and S15 (15 slices). **Unfinished:** S16 and S17 (2 slices). **Browser-verified:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 of 15 built); S3, S6, S8 and S9 verification remain and S12 verification is deferred for now. “Done” means implemented with recorded green checks; it does not confirm client acceptance.
 
 | # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ Owner decisions already made (2026-10-12):
 | G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | Built (S10, S11); split receipts remain excluded by contract |
 | G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks, closed days/exceptions and manual locks | S2 verified; S3 built, browser verification remains |
 | G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
-| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Client search or «عميل جديد» dialog, then address selection | Awaiting Q6 (S9) and S6 verification |
+| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Phone lookup selects client and last-used address; inline optional name/address for a new phone, saved atomically with the booking | Built (S9); browser verification remains |
 | G7 | Booking notes | Notes shown to barber and in WhatsApp | Notes in create/edit, details, revisions and WhatsApp | Built (S4) |
 | G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras and searchable Arabic areas; old free-text addresses preserved | Built (S5, S6); S6 browser verification remains |
 | G9 | Local Kuwaiti phone | Type 8 digits | Web accepts 8 digits; stores international format | Built (S5) |
@@ -117,12 +117,12 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 ### G6 — Phone-first booking form
 
 - **Old flow:** barber card → date → tap a pill (select) or **double-tap** (open the form) → a form that starts with the WhatsApp phone. While typing, it looks up the client. If found, it fills in the name and the whole address. If not found, saving creates the client. The name is optional and defaults to the phone number. Saving also updates the client's address.
-- **New flow:** barber → date + length → pill → search a client (or a «عميل جديد» dialog) → pick or add an address → counts → save.
-- **Change:** make step 3 a single phone box with a live lookup:
+- **New flow (S9 built):** barber → date + length → pill → phone lookup and address → counts → save.
+- **Implemented:** step 3 starts with a single phone box and live lookup:
   - **Found:** select the client and the last-used address.
   - **Not found:** show inline name + address fields and create the client and address together on save.
 
-  Keep the server rules (one client per phone, required address parts). Decide whether the name may default to the phone (Q6).
+  Server rules remain one client per phone and required address parts. Q6 is resolved from `other/temp_bookings.php` per owner direction: a blank name defaults to the international phone number. New client/address/booking/invoice/history save in one transaction; existing client details are never silently overwritten. Browser verification remains.
 
 ### G7 — Booking notes
 
@@ -163,7 +163,8 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 ### G13 — WhatsApp send is recorded
 
 - **Old:** «واتساب» goes through `tawgeh.php?wa_id=` / `send_whatsapp.php`, which saves "إرسال تفاصيل الحجز إلى الحلاق عبر واتساب" in the booking's log before opening `wa.me`.
-- **New (S7 built):** `POST /api/bookings/:id/sent-to-barber` records the acting admin and time before the browser opens `wa.me`. The day list, booking detail and after-save send action use it; booking history shows the event. This records the action, not WhatsApp delivery confirmation. The sends also appear in the G12 tracking report (S12). Browser-verified.
+- **New (S7 built):** `POST /api/bookings/:id/sent-to-barber` records the acting admin and time. The day list, booking detail and after-save send action use it; booking history shows the event. This records the action, not WhatsApp delivery confirmation. The sends also appear in the G12 tracking report (S12). Browser-verified.
+- **Follow-up found during S9 (2026-10-13):** the existing after-save action calls `send.mutate` and immediately opens WhatsApp/navigates, before the server acknowledges the record. A failed request can therefore leave an opened message without a recorded action. This remains a separate follow-up; S9 changes only client lookup and booking creation.
 
 ### G14 — "New booking" marker for barbers
 
@@ -197,7 +198,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 |---|---|---|---|
 | `admin-dashboard.php` | Sidebar (Barbers / System / Reports), barber cards (photo, Live/Offline, location, "Now with … expected end", «كلف الحلاق بمهمة», «Loc now»), 4 tiles: توجيه الحجز, شغل الحلاقين, شغل الصالون, تقرير الصالون | `/` admin home | Same layout idea. New cards show current/next visit and today's count. Live location, GPS overlay, notifications popup and sound are left out. |
 | `admin-booking.php?barber_id=` | Barber header, date, 30-min pills (red booked with hover details, selected orange), double-tap opens the form | `/bookings/new?barber=` steps 1–2 | Visit length added (G16). Hover details and tap both work (G5); blue locked pills for breaks and days off (G4). Steps on one page instead of a second page. |
-| `temp_bookings.php` | Phone-first form: kids/special (1–10), area list, address, map link, notes, date, time; save → WhatsApp / back | `/bookings/new` steps 3–5 | G6, G7, G8, G15. New also counts adults. |
+| `temp_bookings.php` | Phone-first form: kids/special (1–10), area list, address, map link, notes, date, time; save → WhatsApp / back | `/bookings/new` steps 3–4 | G6, G7, G8, G15 built. New also counts adults and saves new clients atomically with bookings. |
 | `tawgeh.php` «توجيه الحجز» | Date filter; table: barber photo, date, time chip with period, customer ID, kids, special; WhatsApp / edit / cancel | `/bookings` day view | New adds a barber filter and prev/next day. Cancel now asks for a reason (better). WhatsApp send is recorded (G13). |
 | `edit_appointment.php` | Edit date, time, kids, address, notes | Booking detail → edit dialog | G7, G17. New can reassign the barber. |
 | `admin-order-view.php` | Booking details + change status (unlinked in current menu) | `/bookings/[id]` | Covered. |
@@ -284,7 +285,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 3. **Language:** do the barbers need English screens?
 4. **Default visit length (G16) — answered 2026-10-13:** 30 minutes, confirmed by the owner. Keep the existing preselection; the administrator can change it per booking (S8).
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
-6. **Client name (G6):** may a new client be saved with only a phone number?
+6. **Client name (G6) — resolved 2026-10-13:** yes, follow `other/temp_bookings.php` (lines 252–255) per owner's instruction to use the old app for requirements. The inline booking name is optional and defaults to the international-format phone number. Standalone client creation still requires a name. S9 is built.
 7. **Areas list (G8) — answered 2026-10-13:** yes, proceed with the managed searchable list from the old app; the owner chose Arabic names (the old management page used English). S6 is built.
 8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
@@ -301,9 +302,9 @@ S0 is complete (owner-confirmed 2026-10-13). S12 browser verification is deferre
 
 1. S8 is built: the owner confirmed the existing 30-minute default; browser verification remains.
 2. S3 is built (manual half-hour locks; Q11 answered yes). S6 is built (Arabic areas list; Q7 answered); browser verification remains.
-3. Next build slice: S9 (phone-first client step), after resolving Q6 and verifying S6. Use `other/` for old-app behavior; ask the owner only for unresolved requirements.
+3. S9 is built (phone-first client step; Q6 resolved from the old app per owner direction); browser verification remains.
 4. Resolve Q5 and build S16 (roles) last before S17. Q3 (English screens) also needs an answer; no implementation slice is currently defined for it.
-5. Complete S3, S6, S8 and S12 browser verification before S17, then client review and production rollout.
+5. Complete S3, S6, S8, S9 and S12 browser verification before S17, then client review and production rollout.
 
 ---
 
@@ -339,7 +340,7 @@ The work above is split into small slices you can check one at a time. Each slic
 | S6 | Areas list | G8 | S5 | — | Yes | M | Done | [ ] |
 | S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Verified | [x] |
 | S8 | Default visit length | G16 | S2 | — | No | XS | Done | [ ] |
-| S9 | Phone-first client step | G6 | S5, S6 | Q6 | No | M | Blocked | [ ] |
+| S9 | Phone-first client step | G6 | S5, S6 | — | No | M | Done | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | Q1 | Yes | L | Verified | [x] |
 | S11 | Daily barber collections | G3 | S1, S10 | Q2 | Yes | L | Verified | [x] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Done; browser verification deferred | [ ] |
@@ -498,13 +499,13 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
 
 ### S9 — Phone-first client step (G6)
 
-- **Blocked by:** Q6.
+- **Decision:** Q6 resolved from `other/temp_bookings.php` per owner direction: optional inline name, defaulting to the phone number. Owner requested the next build slice with the same verification/commit/push workflow while S6 browser verification remained pending; S6 remains Done, not Verified.
 - **Goal:** the client step starts with the phone number, like the old form.
 - **Start:** S5 verified (8-digit typing); S6 verified (the inline address form uses the areas picker; Q7 answered yes).
 - **Work:**
   - Phone box with live lookup.
   - **Found:** pick the client and their last-used address.
-  - **Not found:** inline name (or phone-as-name, per Q6) + address fields. Saving creates the client and address, then the booking.
+  - **Not found:** inline optional name (phone-as-name when empty) + address fields. Saving creates the client, address, booking, invoice and initial history in one transaction.
   - Server rules stay: one client per phone, required address parts.
 - **Tests:** API: create-with-new-client succeeds, or fails as a whole (nothing half-saved). Web: found, not-found and stopped-client cases.
 - **End: Full check.**
@@ -512,7 +513,7 @@ S10 and S11 must be planned together (Q1 and Q2 answered at the same time) becau
   1. Type a known number: the name and address fill in.
   2. Type a new number, fill in the address and save: the client, the address and the booking all exist.
   3. Type a stopped client's number: a clear Arabic message, and no booking.
-- Evidence:
+- Evidence (2026-10-13): Q6 resolved from `other/temp_bookings.php` lines 252–255 per owner direction; blank inline name uses the international phone number. Contracts add `bookingWithClientCreateSchema` (shared booking window/count/price validation, strict client fields, required catalogue area ID) and `clientLookupResponseSchema.lastUsedAddressId`. Admin-only `POST /bookings/with-client` shares the normal booking transaction's barber lock, availability/manual locks, snapshots, invoice and history logic; it inserts the new client/address inside that transaction, so any failure rolls everything back. Phone uniqueness is enforced by the existing database index; a concurrent/existing registration returns 409 `PHONE_ALREADY_USED` without rewriting the existing client. No migration. Lookup selects the address of the most recently created booking, falling back to the newest saved address; reads still include stopped status. Web step 3 is phone-first (8 local Kuwaiti digits accepted): existing client/address selected, unknown phone gets inline optional name and S6 address fields, stopped client or lookup error blocks saving, and a changed phone clears selection with late responses isolated by query identity. Existing client links prefill the phone; another saved address can still be selected or added. New-client saves issue one atomic booking request; standalone client forms retain their required name. Tests (red → green): `apps/api/tests/phone-booking.test.ts` (admin/CSRF/origin, phone-as-name, last-used address, duplicate phone, rollback and simultaneous saves), `apps/web/tests/phone-booking-client.test.tsx` (found/new/stopped/error and late response), `apps/web/tests/phone-booking-page.test.tsx` (full existing/new save flows, endpoint/payload/CSRF, one POST). Baseline: 6 files / 52 tests plus affected-package lint/typecheck/build. Targeted: 11 files / 70 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 67 files / 407 tests, lint, typecheck and build. UI detector returned no findings; no browser was available, so owner browser verification remains. Existing after-save WhatsApp acknowledgement issue is recorded under G13 as a separate follow-up.
 
 ### S10 — Barbers without branches + price source (G1)
 
@@ -667,7 +668,7 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 | S6 | S5 | S9 | — (Q7 answered) |
 | S7 | S0 | S12 | — |
 | S8 | S2 | — | — (Q4 answered) |
-| S9 | S5, S6 | — | Q6 |
+| S9 | S5, S6 | — | — (Q6 resolved) |
 | S10 | S1 | S11, S15 | Q1 |
 | S11 | S1, S10 | S15, S16 | Q2 |
 | S12 | S7 | — | — |
@@ -710,12 +711,12 @@ S0 ─┬─ S1 ── S10 ── S11 ─┬─ S15
 
 ### What can start in parallel right now
 
-As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S3, S6 and S8 are **Done** (browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes A, B and D have no remaining implementation work. S9 is the next build slice after Q6 and S6 verification; S12 verification does not block those build slices.
+As of 2026-10-13: S0 is **Verified** (owner-confirmed); S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 are **Verified**; S3, S6, S8 and S9 are **Done** (browser verification remains); S12 is **Done** (browser verification deferred for now). Lanes A, B, C and D have no remaining implementation work. S16 is the next build slice after Q5 and its required verification; S12 verification does not block S16.
 
 Everything else waits on a client answer:
 
 - S3's Q11 is answered yes and S8's Q4 is answered; both are Done, with browser verification remaining.
-- S6's Q7 is answered and S6 is Done. S9 (Q6) follows S6 verification.
+- S6's Q7 is answered and S9's Q6 is resolved; both are Done, with browser verification remaining.
 - **S16 runs last** (before S17), after Q5. It adds roles that need a permission check on every endpoint, including ones the other slices add.
 
 ### Merge routine for every worktree

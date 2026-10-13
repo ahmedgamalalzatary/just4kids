@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useDeferredValue, useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ChevronRight, Loader2, MapPin, MessageCircle, Minus, Plus, Search, UserPlus, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
-import { AddressDialog, CreateClientDialog } from "@/components/client-dialogs";
+import { PhoneBookingClient, type BookingClientSelection } from "@/components/phone-booking-client";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { SlotPills } from "@/components/booking-slot-pills";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,9 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
-import { useClient, useClients, useCreateBooking, useEmployees, useSendToBarber } from "@/lib/api/hooks";
+import { keys, useCreateBooking, useCreateBookingWithClient, useEmployees, useSendToBarber } from "@/lib/api/hooks";
 import type { Booking } from "@/lib/api/types";
-import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem } from "@/lib/booking";
 import { durationOptions, whatsAppLink } from "@/lib/day";
 import { formatDate, formatDuration, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
@@ -75,43 +73,6 @@ function BarberPicker({ onPick }: { onPick: (id: string) => void }) {
   );
 }
 
-function ClientPicker({ onPick }: { onPick: (id: string) => void }) {
-  const [search, setSearch] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const query = useDeferredValue(search.trim());
-  const clients = useClients(query, 0);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <label className="relative flex-1">
-          <span className="sr-only">بحث عن عميل</span>
-          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث برقم الهاتف أو الاسم" className="ps-9" />
-        </label>
-        <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}><UserPlus aria-hidden />عميل جديد</Button>
-      </div>
-      {clients.isPending ? <LoadingRows rows={3} /> : clients.isError ? <ErrorState error={clients.error} onRetry={() => clients.refetch()} /> : clients.data.clients.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">{query ? "لا يوجد عميل مطابق. أضفه كعميل جديد." : "لا يوجد عملاء بعد. أضف العميل الأول."}</p>
-      ) : (
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {clients.data.clients.slice(0, 8).map(client => (
-            <li key={client.id}>
-              <button type="button" disabled={!client.enabled} onClick={() => onPick(client.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium">{client.name}</span>
-                  {client.enabled ? null : <Badge variant="muted">موقوف</Badge>}
-                </span>
-                <Ltr className="text-sm text-muted-foreground">{client.phone}</Ltr>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <CreateClientDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={client => onPick(client.id)} />
-    </div>
-  );
-}
-
 function NewBookingScreen() {
   const router = useRouter();
   const params = useSearchParams();
@@ -120,9 +81,7 @@ function NewBookingScreen() {
   const [date, setDate] = useState(() => params.get("date") || kuwaitNow().date);
   const [duration, setDuration] = useState<number>(30);
   const [slot, setSlot] = useState<{ startTime: string; endTime: string } | null>(null);
-  const [clientId, setClientId] = useState<string | null>(params.get("client"));
-  const [addressId, setAddressId] = useState<string | null>(null);
-  const [addressOpen, setAddressOpen] = useState(false);
+  const [clientSelection, setClientSelection] = useState<BookingClientSelection>(null);
   const [adultCount, setAdultCount] = useState(0);
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
@@ -132,32 +91,34 @@ function NewBookingScreen() {
   const [created, setCreated] = useState<Booking | null>(null);
 
   const employees = useEmployees();
-  const client = useClient(clientId);
   const create = useCreateBooking();
+  const createNew = useCreateBookingWithClient();
+  const mutation = clientSelection?.kind === "new" ? createNew : create;
   const send = useSendToBarber();
 
   const barber = employees.data?.find(employee => employee.id === barberId) ?? null;
-  const address = client.data?.addresses.find(candidate => candidate.id === addressId)
-    ?? (client.data?.addresses.length === 1 ? client.data.addresses[0] : undefined);
   const haircuts = adultCount + childCount;
   const specialProblem = specialChildrenProblem(childCount, specialChildCount);
   // The administrator types the visit price; there is no branch-derived price.
   const price = typedPrice({ amountCash, amountLink });
   const total = price ? invoiceTotal(price) : null;
-  const ready = Boolean(barber?.enabled && slot && client.data && address && haircuts > 0 && !specialProblem && price);
+  const ready = Boolean(barber?.enabled && slot && clientSelection && haircuts > 0 && !specialProblem && price);
 
   const pickBarber = (id: string | null) => { setBarberId(id); setSlot(null); };
-  const pickClient = (id: string | null) => { setClientId(id); setAddressId(null); };
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const submit = () => {
-    if (!ready || !barber || !slot || !client.data || !address || !price) return;
-    create.mutate({ clientId: client.data.id, addressId: address.id, employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) }, {
-      onSuccess: booking => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
-      onError: error => {
-        // Someone else took the time (or the hours changed): reload the pills and ask for another time.
+    if (!ready || !barber || !slot || !clientSelection || !price) return;
+    const details = { employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) };
+    const options = {
+      onSuccess: (booking: Booking) => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
+      onError: (error: Error) => {
         if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setSlot(null); void queryClient.invalidateQueries({ queryKey: ["bookings", "list"] }); void queryClient.invalidateQueries({ queryKey: ["schedules", barber.id] }); }
+        if (error instanceof ApiError && ["PHONE_ALREADY_USED", "CLIENT_DISABLED"].includes(error.code)) void queryClient.invalidateQueries({ queryKey: keys.clients });
+        if (error instanceof ApiError && error.code === "AREA_UNAVAILABLE") void queryClient.invalidateQueries({ queryKey: keys.areas });
       },
-    });
+    };
+    if (clientSelection.kind === "new") createNew.mutate({ ...details, client: clientSelection.client }, options);
+    else create.mutate({ ...details, clientId: clientSelection.client.id, addressId: clientSelection.address.id }, options);
   };
   // G15: after saving, offer to send the details to the barber on WhatsApp or return to today's list.
   const sendCreated = () => {
@@ -173,7 +134,7 @@ function NewBookingScreen() {
       <PageHeader
         back={<Link href="/" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden />لوحة التحكم</Link>}
         title={barber ? `حجز جديد مع ${barber.displayName}` : "حجز جديد"}
-        description="اختر الحلاق ثم وقت البداية، ثم العميل وعنوان الزيارة وعدد الحلاقات."
+        description="اختر الحلاق ثم وقت البداية، ثم رقم هاتف العميل وعنوان الزيارة وعدد الحلاقات."
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-4">
@@ -216,40 +177,11 @@ function NewBookingScreen() {
             )}
           </Step>
 
-          <Step number={3} title="العميل" done={Boolean(client.data)}>
-            {clientId === null ? <ClientPicker onPick={pickClient} /> : client.isPending ? <LoadingRows rows={1} /> : client.isError ? (
-              <ErrorState error={client.error} onRetry={() => pickClient(null)} />
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <UserRound className="size-5 text-muted-foreground" aria-hidden />
-                  <div><p className="font-medium">{client.data.name}</p><Ltr className="text-sm text-muted-foreground">{client.data.phone}</Ltr></div>
-                </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => pickClient(null)}><X aria-hidden />تغيير</Button>
-              </div>
-            )}
+          <Step number={3} title="العميل وعنوان الزيارة" done={Boolean(clientSelection)}>
+            <PhoneBookingClient initialClientId={params.get("client")} onSelection={setClientSelection} />
           </Step>
 
-          <Step number={4} title="عنوان الزيارة" done={Boolean(address)}>
-            {!client.data ? <p className="text-sm text-muted-foreground">اختر العميل أولاً.</p> : (
-              <div className="flex flex-col gap-2" role="radiogroup" aria-label="عنوان الزيارة">
-                {client.data.addresses.map(option => {
-                  const selected = option.id === address?.id;
-                  return (
-                    <button key={option.id} type="button" role="radio" aria-checked={selected} onClick={() => setAddressId(option.id)}
-                      className={cn("flex items-start gap-3 rounded-md border px-3 py-3 text-start text-sm transition-colors", selected ? "border-primary bg-accent" : "border-border hover:bg-muted/50")}>
-                      <MapPin className={cn("mt-0.5 size-4 shrink-0", selected ? "text-primary" : "text-muted-foreground")} aria-hidden />
-                      <span>{formatAddress(option)}{option.instructions ? <span className="mt-0.5 block text-xs text-muted-foreground">{option.instructions}</span> : null}</span>
-                    </button>
-                  );
-                })}
-                <Button type="button" variant="ghost" size="sm" className="w-fit text-primary" onClick={() => setAddressOpen(true)}><Plus aria-hidden />عنوان آخر</Button>
-                <AddressDialog clientId={client.data.id} address={null} open={addressOpen} onOpenChange={setAddressOpen} onSaved={saved => setAddressId(saved.id)} />
-              </div>
-            )}
-          </Step>
-
-          <Step number={5} title="عدد الحلاقات" done={haircuts > 0 && !specialProblem}>
+          <Step number={4} title="عدد الحلاقات" done={haircuts > 0 && !specialProblem}>
             <div className="grid gap-3 sm:grid-cols-3">
               <Counter label="أطفال" value={childCount} onChange={setChildren} />
               <Counter label="احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
@@ -267,7 +199,7 @@ function NewBookingScreen() {
             <dl className="flex flex-col gap-3 px-5 py-4 text-sm">
               <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? barber.displayName : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">الموعد</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">العميل</dt><dd>{client.data?.name ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">العميل</dt><dd>{clientSelection ? clientSelection.client.name?.trim() || clientSelection.client.phone : "—"}</dd></div>
             </dl>
             <div className="border-t border-border px-5 py-4 text-sm">
               <div className="grid grid-cols-2 gap-3">
@@ -284,9 +216,9 @@ function NewBookingScreen() {
               <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
-              <FormAlert error={create.error} />
-              <Button size="lg" variant="sun" onClick={submit} disabled={!ready || create.isPending}>
-                {create.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              <FormAlert error={mutation.error} />
+              <Button size="lg" variant="sun" onClick={submit} disabled={!ready || create.isPending || createNew.isPending || created !== null}>
+                {create.isPending || createNew.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
                 حفظ الحجز وإصدار الفاتورة
               </Button>
             </div>

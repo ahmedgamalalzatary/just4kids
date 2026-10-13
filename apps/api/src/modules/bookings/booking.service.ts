@@ -1,6 +1,6 @@
-import { bookingCreateSchema, bookingListQuerySchema, bookingResponseSchema } from "@just4kids/contracts";
+import { bookingCreateSchema, bookingListQuerySchema, bookingResponseSchema, bookingWithClientCreateSchema } from "@just4kids/contracts";
 import type { Account } from "@just4kids/contracts";
-import { ForbiddenError } from "../../lib/http-error.js";
+import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import type { BookingActor, BookingRepository } from "./booking.repository.js";
 
 export function serializeBooking(row: NonNullable<Awaited<ReturnType<BookingRepository["get"]>>>) {
@@ -17,6 +17,15 @@ export function serializeBooking(row: NonNullable<Awaited<ReturnType<BookingRepo
 export function createBookingService(repository: BookingRepository) {
   return {
     async create(body: unknown, actor: BookingActor) { return serializeBooking(await repository.create(bookingCreateSchema.parse(body), actor)); },
+    async createWithClient(body: unknown, accountId: string) {
+      const input = bookingWithClientCreateSchema.parse(body);
+      try { return serializeBooking(await repository.createWithClient(input, accountId)); }
+      catch (error) {
+        const underlying = typeof error === "object" && error !== null && "cause" in error ? error.cause : error;
+        if (typeof underlying === "object" && underlying !== null && "code" in underlying && underlying.code === "ER_DUP_ENTRY") throw new HttpError(409, "PHONE_ALREADY_USED", "رقم الهاتف أصبح مسجلاً؛ أعد التحقق من بيانات العميل");
+        throw error;
+      }
+    },
     async get(id: string, actor: Account) {
       const row = await repository.get(id);
       if (!row) return undefined;

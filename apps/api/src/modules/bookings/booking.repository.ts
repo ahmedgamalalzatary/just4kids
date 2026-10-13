@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, clients, clientAddresses, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
-import type { Account, BookingCreate, BookingListQuery } from "@just4kids/contracts";
+import type { Account, BookingCreate, BookingListQuery, BookingWithClientCreate } from "@just4kids/contracts";
 import { bookingAddressSnapshotSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readWorkingHours, readBlockingBookings, readTimeBlocks } from "../availability/availability.repository.js";
+import { addressValues } from "../clients/client.repository.js";
+import { verifyAddressArea } from "../areas/area.repository.js";
+import type { Transaction } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 
 // Only trusted server code constructs this context. WhatsApp client identity must come from the authenticated sender, never model arguments.
@@ -20,6 +23,43 @@ export function createBookingRepository(connection: ReturnType<typeof createData
   async function get(id: string) {
     const [row] = await db.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id)).where(eq(bookings.id, id));
     return row;
+  }
+  async function save(input: BookingCreate, actor: BookingActor, transaction: Transaction, newClient?: BookingWithClientCreate["client"]) {
+    const [creator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, actor.accountId), eq(accounts.role, "admin"), eq(accounts.enabled, true)));
+    if (!creator) throw new ForbiddenError();
+    const barber = await lockEmployee(transaction, input.employeeId);
+    if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
+    if (!barber.account.enabled) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح");
+    if (newClient) {
+      await verifyAddressArea(transaction, newClient.address);
+      const createdAt = new Date();
+      await transaction.insert(clients).values({ id: input.clientId, name: newClient.name?.trim() || newClient.phone, phone: newClient.phone, createdAt, updatedAt: createdAt });
+      await transaction.insert(clientAddresses).values({ id: input.addressId, clientId: input.clientId, ...addressValues(newClient.address), createdAt, updatedAt: createdAt });
+    }
+    const [client] = await transaction.select().from(clients).where(eq(clients.id, input.clientId)).for("update");
+    if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "العميل غير موجود");
+    if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "هذا العميل موقوف، لا يمكن إنشاء حجز جديد");
+    const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, input.addressId), eq(clientAddresses.clientId, input.clientId))).for("update");
+    if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
+    const hours = await readWorkingHours(transaction, input.employeeId, input.date);
+    const existing = await readBlockingBookings(transaction, input.employeeId, input.date);
+    const blocks = await readTimeBlocks(transaction, input.employeeId, input.date);
+    assertFutureStart(input);
+    if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
+    const now = new Date(), id = randomUUID();
+    const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
+    const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
+    const { amountCash, amountLink, ...details } = input;
+    const booking = {
+      id, reference, ...details, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+      clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
+      employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
+    };
+    const invoice = { id: randomUUID(), bookingId: id, amountCash, amountLink, total: money(fils(amountCash) + fils(amountLink)), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
+    await transaction.insert(bookings).values(booking);
+    await transaction.insert(invoices).values(invoice);
+    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: now });
+    return { booking, invoice };
   }
   return {
     get,
@@ -39,37 +79,12 @@ export function createBookingRepository(connection: ReturnType<typeof createData
     },
     async create(input: BookingCreate, actor: BookingActor) {
       if (actor.kind === "whatsapp" && actor.clientId !== input.clientId) throw new ForbiddenError();
-      return db.transaction(async transaction => {
-        const [creator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, actor.accountId), eq(accounts.role, "admin"), eq(accounts.enabled, true)));
-        if (!creator) throw new ForbiddenError();
-        const barber = await lockEmployee(transaction, input.employeeId);
-        if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
-        if (!barber.account.enabled) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح");
-        const [client] = await transaction.select().from(clients).where(eq(clients.id, input.clientId)).for("update");
-        if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "العميل غير موجود");
-        if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "هذا العميل موقوف، لا يمكن إنشاء حجز جديد");
-        const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, input.addressId), eq(clientAddresses.clientId, input.clientId))).for("update");
-        if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
-        const hours = await readWorkingHours(transaction, input.employeeId, input.date);
-        const existing = await readBlockingBookings(transaction, input.employeeId, input.date);
-        const blocks = await readTimeBlocks(transaction, input.employeeId, input.date);
-        assertFutureStart(input);
-        if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
-        const now = new Date(), id = randomUUID();
-        const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
-        const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
-        const { amountCash, amountLink, ...details } = input;
-        const booking = {
-          id, reference, ...details, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
-          clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
-          employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
-        };
-        const invoice = { id: randomUUID(), bookingId: id, amountCash, amountLink, total: money(fils(amountCash) + fils(amountLink)), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
-        await transaction.insert(bookings).values(booking);
-        await transaction.insert(invoices).values(invoice);
-        await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: now });
-        return { booking, invoice };
-      });
+      return db.transaction(transaction => save(input, actor, transaction));
+    },
+    async createWithClient(input: BookingWithClientCreate, accountId: string) {
+      const { client, ...details } = input;
+      const bookingInput = { ...details, clientId: randomUUID(), addressId: randomUUID() };
+      return db.transaction(transaction => save(bookingInput, { kind: "administrator", accountId }, transaction, client));
     },
   };
 }

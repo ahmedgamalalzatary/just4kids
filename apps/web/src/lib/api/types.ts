@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { clientLookupResponseSchema } from "@just4kids/contracts";
 import type {
   areaResponseSchema,
   accountSchema, addressResponseSchema, barberCollectionEventSchema, barberCollectionReportResponseSchema, barberCollectionResponseSchema, bookingMessageResponseSchema, bookingResponseSchema, bookingRevisionResponseSchema, branchResponseSchema, clientReportResponseSchema,
@@ -16,6 +17,7 @@ export type TimeBlock = z.output<typeof timeBlockResponseSchema>;
 export type Eligibility = z.output<typeof eligibilityResponseSchema>;
 export type ClientSummary = z.output<typeof clientSummarySchema>;
 export type Client = z.output<typeof clientResponseSchema>;
+export type ClientLookup = z.output<typeof clientLookupResponseSchema>;
 export type ClientStatusEvent = z.output<typeof clientStatusEventSchema>;
 export type Address = z.output<typeof addressResponseSchema>;
 export type Area = z.output<typeof areaResponseSchema>;

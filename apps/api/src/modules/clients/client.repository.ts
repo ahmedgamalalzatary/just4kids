@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { clientAddresses, clients, clientStatusEvents } from "@just4kids/db/schema";
+import { bookings, clientAddresses, clients, clientStatusEvents } from "@just4kids/db/schema";
 import { addressCreateSchema } from "@just4kids/contracts";
 import type { AddressCreate, AddressUpdate, ClientCreate, ClientSearch, ClientUpdate } from "@just4kids/contracts";
 import { HttpError } from "../../lib/http-error.js";
 import { verifyAddressArea } from "../areas/area.repository.js";
 
-function addressValues(address: AddressCreate) {
+export function addressValues(address: AddressCreate) {
   return {
     area: address.area,
     block: address.block,
@@ -42,6 +42,12 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
   return {
     get,
     getAddress,
+    async lastUsedAddressId(clientId: string) {
+      const [last] = await db.select({ id: clientAddresses.id }).from(bookings).innerJoin(clientAddresses, and(eq(clientAddresses.id, bookings.addressId), eq(clientAddresses.clientId, clientId))).where(eq(bookings.clientId, clientId)).orderBy(desc(bookings.createdAt), desc(bookings.id)).limit(1);
+      if (last) return last.id;
+      const [newest] = await db.select({ id: clientAddresses.id }).from(clientAddresses).where(eq(clientAddresses.clientId, clientId)).orderBy(desc(clientAddresses.createdAt), desc(clientAddresses.id)).limit(1);
+      return newest?.id ?? null;
+    },
     async findByPhone(phone: string) {
       const [row] = await db.select({ id: clients.id }).from(clients).where(eq(clients.phone, phone));
       return row ? get(row.id) : undefined;

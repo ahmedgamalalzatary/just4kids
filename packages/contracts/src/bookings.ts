@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eligibilityQuerySchema } from "./availability.js";
-import { addressResponseSchema } from "./clients.js";
+import { addressCreateSchema, addressResponseSchema } from "./clients.js";
 import { phoneSchema } from "./auth.js";
 import { kwdPriceSchema } from "./organization.js";
 import { cashReconciliationSchema } from "./cash.js";
@@ -26,17 +26,23 @@ export const bookingMessageResponseSchema = z.strictObject({
 export type BookingMessage = z.infer<typeof bookingMessageResponseSchema>;
 export type VisitTransition = z.infer<typeof visitTransitionSchema>;
 export type VisitCorrection = z.infer<typeof visitCorrectionSchema>;
-export const bookingCreateSchema = z.strictObject({
+const bookingFields = z.strictObject({
   clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0),
   // The administrator types the visit price as cash + link at booking time; there is no branch-derived price.
   amountCash: kwdPriceSchema, amountLink: kwdPriceSchema, notes: notes.optional(),
-}).superRefine((value, context) => {
+});
+function validateBooking(value: Pick<z.infer<typeof bookingFields>, "date" | "startTime" | "endTime" | "adultCount" | "childCount" | "specialChildCount">, context: z.RefinementCtx) {
   if (!eligibilityQuerySchema.safeParse({ date: value.date, startTime: value.startTime, endTime: value.endTime }).success) context.addIssue({ code: "custom", message: "Invalid booking window" });
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
   if (value.specialChildCount > value.childCount) context.addIssue({ code: "custom", path: ["specialChildCount"], message: "Special-needs children cannot exceed the child count" });
-});
+}
+export const bookingCreateSchema = bookingFields.superRefine(validateBooking);
+export const bookingWithClientCreateSchema = bookingFields.omit({ clientId: true, addressId: true }).extend({
+  client: z.strictObject({ phone: phoneSchema, name: z.string().trim().max(120).optional(), address: addressCreateSchema.safeExtend({ areaId: z.uuid() }) }),
+}).superRefine(validateBooking);
+export type BookingWithClientCreate = z.infer<typeof bookingWithClientCreateSchema>;
 // Historical JSON snapshots predate these optional address details; current client-address responses stay strict.
 export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: true, clientId: true, createdAt: true, updatedAt: true }).extend({
   avenue: addressResponseSchema.shape.avenue.default(null),

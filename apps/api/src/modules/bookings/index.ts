@@ -29,6 +29,9 @@ export function createBookings(connection: ReturnType<typeof createDatabase>, au
   router.post("/", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => {
     response.status(201).json(await service.create(request.body, { kind: "administrator", accountId: (response.locals.auth as Authenticated).account.id }));
   }));
+  router.post("/with-client", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => {
+    response.status(201).json(await service.createWithClient(request.body, (response.locals.auth as Authenticated).account.id));
+  }));
   router.post("/:id/visit", auth.requireCsrf, handle(async (request, response) => { response.json(await visits.transition(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
   router.patch("/:id", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => { response.json(await edits.edit(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
   router.get("/:id/revisions", handle(async (request, response) => { response.json(await edits.revisions(String(request.params.id), (response.locals.auth as Authenticated).account)); }));

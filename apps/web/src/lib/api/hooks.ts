@@ -1,6 +1,8 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { BookingWithClientCreate } from "@just4kids/contracts";
+import type { ClientLookup } from "./types";
 import type {
   AreaCreate, AreaUpdate,
   AddressCreate, AddressUpdate, BookingCreate, BookingEdit, BookingTrackingResponse, BranchCreate, BranchUpdate, ClientCreate, ClientUpdate, EligibilityQuery,
@@ -8,7 +10,7 @@ import type {
 } from "@just4kids/contracts";
 import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
-import { apiRequest, apiUpload } from "./client";
+import { ApiError, apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
   Area,
@@ -191,6 +193,16 @@ export function useClient(id: string | null) {
   return useQuery({ queryKey: keys.client(id ?? ""), queryFn: ({ signal }) => apiRequest<Client>(`/clients/${id}`, { signal }), enabled: id !== null });
 }
 
+export function usePhoneClient(phone: string | null) {
+  return useQuery({
+    queryKey: [...keys.clients, "lookup", phone], enabled: phone !== null, retry: false,
+    queryFn: async ({ signal }) => {
+      try { return await apiRequest<ClientLookup>("/clients/lookup", { query: { phone: phone ?? "" }, signal }); }
+      catch (error) { if (error instanceof ApiError && error.status === 404 && error.code === "NOT_FOUND") return null; throw error; }
+    },
+  });
+}
+
 export function useCreateClient() {
   return useApiMutation((input: ClientCreate, csrfToken) => apiRequest<Client>("/clients", { method: "POST", body: input, csrfToken }), { invalidate: () => [keys.clients] });
 }
@@ -204,14 +216,14 @@ export function useUpdateClient() {
 export function useAddAddress() {
   return useApiMutation(({ clientId, ...input }: AddressCreate & { clientId: string }, csrfToken) =>
     apiRequest<Address>(`/clients/${clientId}/addresses`, { method: "POST", body: input, csrfToken }), {
-    invalidate: (_output, input) => [keys.client(input.clientId)],
+    invalidate: (_output, input) => [keys.client(input.clientId), keys.clients],
   });
 }
 
 export function useUpdateAddress() {
   return useApiMutation(({ clientId, addressId, ...input }: AddressUpdate & { clientId: string; addressId: string }, csrfToken) =>
     apiRequest<Address>(`/clients/${clientId}/addresses/${addressId}`, { method: "PATCH", body: input, csrfToken }), {
-    invalidate: (_output, input) => [keys.client(input.clientId)],
+    invalidate: (_output, input) => [keys.client(input.clientId), keys.clients],
   });
 }
 
@@ -260,6 +272,12 @@ const bookingWrites = (id: string) => [keys.booking(id), [...keys.bookings, "lis
 export function useCreateBooking() {
   return useApiMutation((input: BookingCreate, csrfToken) => apiRequest<Booking>("/bookings", { method: "POST", body: input, csrfToken }), {
     invalidate: () => [[...keys.bookings, "list"], ["availability"], keys.reports],
+  });
+}
+
+export function useCreateBookingWithClient() {
+  return useApiMutation((input: BookingWithClientCreate, csrfToken) => apiRequest<Booking>("/bookings/with-client", { method: "POST", body: input, csrfToken }), {
+    invalidate: () => [keys.clients, [...keys.bookings, "list"], ["availability"], keys.reports],
   });
 }
 

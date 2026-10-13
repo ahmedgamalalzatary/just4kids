@@ -32,7 +32,7 @@ export function createClientService(repository: ClientRepository) {
     async findByPhone(phoneInput: unknown) {
       const phone = phoneSchema.parse(phoneInput);
       const row = await repository.findByPhone(phone);
-      return row ? serializeClient(row) : undefined;
+      return row ? { ...serializeClient(row), lastUsedAddressId: await repository.lastUsedAddressId(row.client.id) } : undefined;
     },
     async create(body: unknown) {
       const input = clientCreateSchema.parse(body);

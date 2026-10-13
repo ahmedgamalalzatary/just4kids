@@ -1,0 +1,51 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import NewBookingPage from "@/app/(app)/bookings/new/page";
+import { sessionKey } from "@/lib/api/session";
+import { bookingResponseSchema } from "@just4kids/contracts";
+
+const id = "11111111-1111-4111-8111-111111111111", addressId = "22222222-2222-4222-8222-222222222222", timestamp = "2026-10-13T00:00:00.000Z";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/bookings/new", useSearchParams: () => new URLSearchParams(`barber=${id}&date=2099-01-05`) }));
+const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
+function mount(known: boolean) {
+  const client = { id, name: "مريم", phone: "+96550000001", enabled: true, createdAt: timestamp, updatedAt: timestamp, lastUsedAddressId: addressId, addresses: [{ ...address, id: addressId, clientId: id, createdAt: timestamp, updatedAt: timestamp }] };
+  const invoice = { id: addressId, bookingId: id, reference: "J4K-TEST", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { name: known ? "مريم" : client.phone, phone: client.phone }, address, employee: { id, displayName: "سالم" } };
+  const saved = bookingResponseSchema.parse({ id, reference: invoice.reference, clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: invoice.client, address, employee: invoice.employee, invoice });
+  const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "/api/employees") return new Response(JSON.stringify({ employees: [{ id, displayName: "سالم", phone: "+96550000002", enabled: true, accessUntil: null, photoUpdatedAt: null, createdAt: timestamp, updatedAt: timestamp }] }));
+    if (url === `/api/schedules/${id}`) return new Response(JSON.stringify({ employeeId: id, days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] }));
+    if (url.startsWith("/api/bookings?") || url.startsWith("/api/clients?")) return new Response(JSON.stringify({ bookings: [], clients: [], total: 0, limit: 20, offset: 0 }));
+    if (url.startsWith("/api/areas")) return new Response(JSON.stringify({ areas: [{ id, name: address.area, enabled: true, createdAt: timestamp, updatedAt: timestamp }] }));
+    if (url.startsWith("/api/clients/lookup")) return known ? new Response(JSON.stringify(client)) : new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "غير موجود" } }), { status: 404 });
+    if ((url === "/api/bookings" || url === "/api/bookings/with-client") && init?.method === "POST") return new Response(JSON.stringify(saved), { status: 201 });
+    throw new Error(`Unexpected request ${url}`);
+  });
+  vi.stubGlobal("fetch", fetch);
+  const queries = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } } });
+  queries.setQueryData(sessionKey, { account: { id, phone: "+96550000000", role: "admin" }, csrfToken: "csrf", expiresAt: "2099-01-01T00:00:00.000Z" });
+  render(<QueryClientProvider client={queries}><NewBookingPage /></QueryClientProvider>);
+  return fetch;
+}
+afterEach(() => vi.unstubAllGlobals());
+it.each([true, false])("saves the phone-first booking through the correct atomic endpoint (known=%s)", async known => {
+  const fetch = mount(known);
+  await userEvent.type(screen.getByLabelText("رقم هاتف العميل"), "50000001");
+  await userEvent.click(await screen.findByRole("radio", { name: "1:00 م" }));
+  if (!known) {
+    await screen.findByRole("option", { name: "الفنطاس" });
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "المنطقة" }), "الفنطاس");
+    for (const [label, value] of [["القطعة", "1"], ["الشارع", "2"], ["رقم المنزل", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
+  }
+  await userEvent.type(screen.getByLabelText("نقدي (د.ك)"), "5");
+  const save = screen.getByRole("button", { name: "حفظ الحجز وإصدار الفاتورة" });
+  await waitFor(() => expect(save).toBeEnabled()); await userEvent.click(save);
+  await screen.findByText("تم حفظ الحجز");
+  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(call[0]).toBe(known ? "/api/bookings" : "/api/bookings/with-client");
+  expect(JSON.parse(String(call[1]?.body))).toMatchObject(known ? { clientId: id, addressId } : { client: { phone: "+96550000001", address: { areaId: id } } });
+  expect(new Headers(call[1]?.headers).get("X-CSRF-Token")).toBe("csrf");
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+});
