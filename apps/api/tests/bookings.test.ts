@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -16,7 +16,7 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchId = randomUUID(), transferBranchId = randomUUID(), employeeId = randomUUID(), otherEmployeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
+const employeeId = randomUUID(), otherEmployeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
 const employeePhone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; accountId: string };
@@ -40,11 +40,9 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date();
-  await connection.db.insert(branches).values({ id: branchId, name: "فرع الاختبار", location: "حولي", adultPrice: "5.125", childPrice: "3.001", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
-  await connection.db.insert(branches).values({ id: transferBranchId, name: "فرع آخر", location: "السالمية", adultPrice: "9.000", childPrice: "7.000", adultDurationMinutes: 30, childDurationMinutes: 30, createdAt: now, updatedAt: now });
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([{ id: employeeId, phone: employeePhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }, { id: otherEmployeeId, phone: otherPhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }]);
-  await connection.db.insert(employees).values([{ accountId: employeeId, branchId, displayName: "سالم", createdAt: now, updatedAt: now }, { accountId: otherEmployeeId, branchId, displayName: "علي", createdAt: now, updatedAt: now }]);
+  await connection.db.insert(employees).values([{ accountId: employeeId, displayName: "سالم", createdAt: now, updatedAt: now }, { accountId: otherEmployeeId, displayName: "علي", createdAt: now, updatedAt: now }]);
   await connection.db.insert(clients).values({ id: clientId, name: "مريم", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values(Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" })));
@@ -69,8 +67,6 @@ afterAll(async () => {
     await connection.db.delete(employees).where(eq(employees.accountId, id));
     await connection.db.delete(accounts).where(eq(accounts.id, id));
   }
-  await connection.db.delete(branches).where(eq(branches.id, branchId));
-  await connection.db.delete(branches).where(eq(branches.id, transferBranchId));
   await connection.pool.end();
 });
 describe("manual bookings and initial invoices", () => {
@@ -188,12 +184,13 @@ describe("manual bookings and initial invoices", () => {
     expect(created.body.invoice.total).toBe("1999999999.998");
     await expect(connection.pool.execute("INSERT INTO invoices (id, booking_id, amount_cash, amount_link, total, status, payment_status, issued_at) SELECT UUID(), booking_id, amount_cash, amount_link, total, status, payment_status, issued_at FROM invoices WHERE booking_id = ?", [created.body.id])).rejects.toMatchObject({ code: "ER_DUP_ENTRY" });
   });
-  it("preserves address, client, employee/branch, and price snapshots after current records change", async () => {
+  it("preserves address, client, employee, and price snapshots after current records change, without a branch", async () => {
     const before = (await request(app).get(`/bookings/${bookingId}`).set("Cookie", admin.cookie)).body;
+    expect(before).not.toHaveProperty("branchId");
+    expect(Object.keys(before.employee)).toEqual(["id", "displayName"]);
     await connection.db.update(clientAddresses).set({ street: "شارع جديد" }).where(eq(clientAddresses.id, addressId));
     await connection.db.update(clients).set({ name: "اسم جديد" }).where(eq(clients.id, clientId));
-    await connection.db.update(branches).set({ name: "فرع جديد", adultPrice: "99.000" }).where(eq(branches.id, branchId));
-    await connection.db.update(employees).set({ displayName: "اسم جديد", branchId: transferBranchId }).where(eq(employees.accountId, employeeId));
+    await connection.db.update(employees).set({ displayName: "اسم جديد" }).where(eq(employees.accountId, employeeId));
     const after = (await request(app).get(`/bookings/${bookingId}`).set("Cookie", admin.cookie)).body;
     expect(after.address).toEqual(before.address);
     expect(after.client).toEqual(before.client);

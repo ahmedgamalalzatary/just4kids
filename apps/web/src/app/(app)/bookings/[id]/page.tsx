@@ -106,7 +106,7 @@ function BookingScreen({ id }: { id: string }) {
                 <Detail label="الحلاق">
                   <span className="flex items-center gap-2">
                     <EmployeeAvatar employeeId={data.employee.id} name={data.employee.displayName} className="size-8" />
-                    <span>{data.employee.displayName}<span className="block text-xs text-muted-foreground">{data.employee.branchName}</span></span>
+                    <span>{data.employee.displayName}</span>
                   </span>
                 </Detail>
                 <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null, data.specialChildCount ? `${data.specialChildCount} من ذوي الاحتياجات الخاصة` : null].filter(Boolean).join("، ")}</Detail>

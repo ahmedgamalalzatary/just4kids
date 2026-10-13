@@ -85,15 +85,8 @@ export default function HaircutReportPage() {
       </Card>
       <Breakdown title="حسب التاريخ" label="التاريخ" rows={data.byDate} rowKey={row => row.date}
         name={row => <Link className={linkClass} href={reservationsHref(filters, { from: row.date, to: row.date })}>{formatDate(row.date)}</Link>} />
-      <Breakdown title="حسب الفرع" description="الفرع المسجل على كل حجز، حتى بعد نقل الحلاق." label="الفرع" rows={data.byBranch} rowKey={row => row.branchId ?? "none"}
-        name={row => isAdmin ? <Link className={linkClass} href={reservationsHref(filters, { ...(row.branchId ? { branchId: row.branchId } : {}) })}>{row.branchName}</Link> : row.branchName} />
-      <Breakdown title="حسب الحلاق" description="مقسمة حسب الفرع المسجل على الحجز." label="الحلاق" rows={data.byEmployee} rowKey={row => `${row.employeeId}:${row.branchId ?? "none"}`}
-        name={row => (
-          <>
-            {isAdmin ? <Link className={linkClass} href={reservationsHref(filters, { employeeId: row.employeeId, ...(row.branchId ? { branchId: row.branchId } : {}) })}>{row.displayName}</Link> : row.displayName}
-            <span className="block text-xs font-normal text-muted-foreground">{row.branchName}</span>
-          </>
-        )} />
+      <Breakdown title="حسب الحلاق" label="الحلاق" rows={data.byEmployee} rowKey={row => row.employeeId}
+        name={row => isAdmin ? <Link className={linkClass} href={reservationsHref(filters, { employeeId: row.employeeId })}>{row.displayName}</Link> : row.displayName} />
     </div>
   );
 }

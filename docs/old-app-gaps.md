@@ -2,6 +2,8 @@
 
 Created: 2026-10-12. Source: a full read of the old PHP app (`other/`, 65 files) compared with this repository. Product authority stays [project-contract.md](project-contract.md). Repository rules: [AGENTS.md](../AGENTS.md). This document supersedes the earlier `docs/parity-phases.md`, which has been removed.
 
+Updated: 2026-10-13. Current descriptions below reflect the implemented slices. Historical test results remain in each slice's evidence; this documentation update did not rerun application checks or verify the browser or production deployment.
+
 This doc answers three questions:
 
 1. What does the old app do that the new one does not? (sections 2–4)
@@ -17,25 +19,27 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-| # | Gap | Old app | New app | Size |
+**Built:** S1, S2, S4, S5, S7, S10, S11, S13, S14 and S15 (10 slices). **Unfinished:** S0, S3, S6, S8, S9, S12, S16 and S17 (8 slices). **Browser-verified:** none recorded. “Done” means implemented with recorded green checks; it does not confirm deployment or client acceptance.
+
+| # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
-| G1 | Barbers without branches | Barbers stand alone | Every barber must belong to a branch; prices come from the branch | Large |
-| G2 | Only the admin records payments | Admin enters the money; the barber's amount fields are switched off | Barber can press «تسجيل الدفع» | Small |
-| G3 | How money is entered | Admin types the amounts (cash + link), per booking or as one **daily total per barber** | Fixed invoice price from the branch, one method, full amount only | Large (needs decision) |
-| G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Lunch gaps are hidden; a day off shows "no times" | Small–medium |
-| G5 | Booking details on hover + Arabic time words | Hover tooltip; free pills show e.g. «الرابعة والنصف عصراً» | Tap only; no time words | Small |
-| G6 | Phone-first booking form | Type the phone → client found and address filled in; new client created in the same form | Search a client, or open a «عميل جديد» dialog, then pick an address in a separate step | Medium |
-| G7 | Booking notes | «ملاحظات» field, shown to the barber and in the WhatsApp message | None | Small |
-| G8 | Extra address fields | Avenue (جادة), Gate (G), Blue number (blue), area picked from a searchable list | Area typed by hand; no avenue/gate/blue | Small |
-| G9 | Local Kuwaiti phone | Type 8 digits | Full international format (`+965…`) | Small |
-| G10 | Barber account fields | Username login, full name, gender, nationality, **account expiry date** | Phone login, display name, branch, password, photo | Small–medium |
-| G11 | More roles | superadmin, admin, **carecenter**, **moder** | One admin + barbers | Medium |
-| G12 | Order tracking report | «تتبع الاوردرات»: every action on every booking for a barber, printable | History only inside one booking | Medium |
-| G13 | WhatsApp send is recorded | Sending to the barber is saved in the booking history | Link only, nothing saved | Small |
-| G14 | "New booking" marker for barbers | A dot on bookings the barber has not opened yet | None | Small |
-| G15 | After saving a booking | Two buttons: «إرسال الحجز واتساب للحلاق» / «لا ترسل، رجوع» | Goes straight to the booking page | Small |
-| G16 | Visit length step | Pick one start time only | Must also pick the visit length (window) | Decision |
-| G17 | Editing old bookings | Admin can edit any confirmed booking, including past ones and children counts | Only future, still-booked visits | Decision |
+| G1 | Barbers without branches | Barbers stand alone | Branch optional; admin types booking cash/link price | Built (S10) |
+| G2 | Only the admin records payments | Admin enters money | Admin-only API and payment controls; barber reads amounts | Built (S1) |
+| G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | Built (S10, S11); split receipts remain excluded by contract |
+| G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks and closed days/exceptions | Built (S2); manual half-hour locks await Q11 (S3) |
+| G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
+| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Client search or «عميل جديد» dialog, then address selection | Awaiting Q6 (S9), and S6 if approved |
+| G7 | Booking notes | Notes shown to barber and in WhatsApp | Notes in create/edit, details, revisions and WhatsApp | Built (S4) |
+| G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras included; area still free text | Extras built (S5); areas list awaits Q7 (S6) |
+| G9 | Local Kuwaiti phone | Type 8 digits | Web accepts 8 digits; stores international format | Built (S5) |
+| G10 | Barber account fields | Username, full name, gender, nationality, expiry | Phone login, display name, photo, enabled, expiry | Expiry built (S14); phone login retained; gender/nationality not added |
+| G11 | More roles | superadmin, admin, **carecenter**, **moder** | One admin + barbers | Awaiting Q5 (S16) |
+| G12 | Order tracking report | Printable cross-booking action timeline | Per-booking history and client report; no cross-booking timeline report | Unbuilt (S12); verify S7 first |
+| G13 | WhatsApp send is recorded | Logs the action before opening WhatsApp | Admin action recorded before opening `wa.me` | Built (S7); records the action, not delivery confirmation |
+| G14 | "New booking" marker for barbers | Dot until booking opened | Dot until assigned barber opens booking | Built (S13) |
+| G15 | After saving a booking | WhatsApp / back choices | Dialog offers send / return to today's bookings | Built (S7) |
+| G16 | Visit length step | Pick one start time | 30 minutes preselected; admin can change length; full window blocked | Confirm 30 vs 60 minutes with owner (Q4, S8) |
+| G17 | Editing old bookings | Admin can edit past confirmed bookings | Started/finished visits editable as corrections with required reason and history | Built (S15) |
 
 ---
 
@@ -43,7 +47,7 @@ Owner decisions already made (2026-10-12):
 
 | Complaint | Verdict | Details |
 |---|---|---|
-| 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). If the client still sees the old flow, the server was probably not redeployed after 2026-10-11. Check before anything else. |
+| 1. See all barbers after login and tap one to book | **Already built** (P6) | `/` shows barber cards with «حجز لهذا الحلاق» (`components/home.tsx`). The live server version is not recorded; confirm deployment in S0 before diagnosing a different live flow. |
 | 2. Time pills with red / blue / white | **Built** (S2) | Red (booked), white (free) and blue (locked) pills. Locking a single half-hour by hand waits on Q11 (S3). See G4. |
 | 3. Barbers not tied to branches | **Built** (S10) | See G1. |
 
@@ -63,22 +67,19 @@ Three pill colours on the barber-first booking screen (`/bookings/new`, `SlotPil
 
 ### What exists now
 
-`buildSlots` in `apps/web/src/lib/day.ts` builds pills only **inside** working hours. It returns `free | booked | past | blocked`:
+Built in S2: `buildSlots` in `apps/web/src/lib/day.ts` returns `free | booked | past | blocked | locked` across 09:00–24:00, extending earlier when the weekly schedule or a dated exception starts before 09:00.
 
-- The lunch gap between two shifts is **not shown at all**.
-- A day off (closed day or closing exception) shows the message "no times".
-- `blocked` (dashed, grey) means "this visit length would run into another booking or closing time".
+- Half-hours outside the day's working intervals appear blue with a `break` reason; closed weekdays and closing exceptions use `day-off` («إجازة»).
+- Booked and already-past pills take precedence over the locked state. A future day off shows blue pills; elapsed times retain the past state.
+- `blocked` means the selected visit length would run into a booking or closing time, and remains visually distinct from blue.
+- Hover shows booking details or Arabic time words; tapping a locked pill shows its reason.
+- Light/dark tokens `status-locked` / `status-locked-soft` are implemented.
 
-### Proposed change
+### Remaining change (S3, Q11)
 
-1. Build pills across the barber's **whole day span**: from the earliest normal start to the latest normal end across the week, or a fixed span such as 09:00–24:00 to match the old app's 09:00–23:30 list.
-2. Add a `locked` state for half-hours outside the day's working intervals: lunch gaps, before/after the shift, and a closed day or exception. Colour it blue (new tokens `status-locked` / `status-locked-soft`, light and dark).
-3. On a day off, show the full row of blue pills with the label «إجازة» instead of the empty message.
-4. Tapping a blue pill shows «مغلق: استراحة» (between shifts) or «مغلق: إجازة / استثناء» (closed day).
-5. Keep `past` and `blocked` as they are, but make them look clearly different from blue.
-6. **Open question:** should the admin be able to lock one half-hour directly from the pills, without editing working hours? That needs a small backend feature (a "time block" record that counts as unavailable, like a booking, but has no client). Today the only way is a dated schedule exception.
+**Open question:** should the admin lock one half-hour directly from the pills, without editing working hours? Item 6 of the original request remains unbuilt. It needs a time-block record that counts as unavailable but has no client or invoice. Dated schedule exceptions remain the available way to change hours for one date.
 
-Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day). If item 6 is approved, add API tests for availability.
+Recorded tests: `apps/web/tests/day.test.ts` covers lunch gaps, closed days, schedule exceptions and time words. If Q11 is approved, S3 adds API availability tests for manual blocks. S2 still needs browser verification.
 
 ---
 
@@ -87,37 +88,31 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 ### G1 — Barbers without branches
 
 - **Old:** barbers are just users with `role = barber`. There is no branch. The money reports are per barber, plus one salon row.
-- **New:** `employees.branch_id` is required. Bookings save the barber's branch and price that branch's adult/child prices. Reports group by branch.
+- **New (S10 built, branch removed 2026-10-13):** migration 0021 drops `employees.branch_id` and `bookings.branch_id` and strips the branch from stored booking snapshots; old history JSON is read without it. Barbers and bookings (old and new) have no branch. The admin types each booking's cash/link price. The booking-based «الفروع» report tab, the haircut «حسب الفرع» breakdown and the booking-report branch filter are gone; branches remain only for daily salon entries (salon/comprehensive reports).
 - **Client wants:** barbers without a branch. Branches exist only for money and reports.
-- **Change touches:** DB (`employees.branch_id` nullable or removed), contracts, the employee form, booking pricing, booking snapshots, branch and performance reports, the contract text.
-- **Blocked by G3:** if barbers have no branch, where does a home visit's price come from? See section 8, Q1.
+- **Implemented:** DB, contracts, API, barber forms without «الفرع», booking pricing/snapshots, reports. Barbers without a branch now appear in availability. Existing booking amounts remain unchanged.
+- **Decision:** Q1 answered: the admin types cash + link; no branch-derived booking price. Browser verification remains.
 
-### G2 — Only the admin records payments (decided)
+### G2 — Only the admin records payments (built, S1)
 
 - **Old:** the barber's "Accept" page has its children and money fields commented out (`barber-order-accept.php`). The barber only marks the visit done. The admin enters the money (`tadeltahsel.php`).
-- **New:** `POST /api/bookings/:id/payment` is open to the assigned barber, and the barber sees «تسجيل الدفع» (`components/booking-actions.tsx`).
-- **Change:**
-  - Add `auth.requireAdmin` to the record-payment route.
-  - Hide «تسجيل الدفع» for employees; barbers keep the read-only payment view.
-  - Update the contract line "Assigned employees can … record a full payment" and the tests (`apps/api/tests/payments.test.ts`, web tests).
+- **New:** `POST /api/bookings/:id/payment` requires `auth.requireAdmin`. Payment controls are hidden for barbers; invoice and payment history remain read-only.
+- **Implemented:** API, both web payment-control call sites, contract and permission tests. Browser verification remains.
 
-### G3 — How money is entered (needs decision)
+### G3 — How money is entered (decided and built, S10/S11)
 
 - **Old app, two ways:**
   1. Per booking: cash + link typed freely, total = cash + link. The barber's form for this is now switched off.
   2. **Daily per barber** («ادخال تحصيلات الحلاقين»): admin picks barber + date and types normal children, special children, cash and link. There is one row per barber per day, and the inputs are pre-filled from that day's completed bookings. The barber collections report («تقرير تحصيلات الحلاقين») and the comprehensive report («التقرير الشامل») read **these daily rows**, not the bookings.
-- **New:** each booking has an invoice priced from its branch. One payment covers the full amount with one method (cash, link or KNET). Reports read those payments. Salon daily entry (P5) already works the "daily total" way, but only for the salon.
-- **Options:**
-  - A. Keep per-booking invoices, admin-only (after G2). This needs a price source once branches are gone (Q1).
-  - B. Add a «تحصيلات الحلاقين» daily entry per barber, like the salon entry. Barber money is then typed by the admin, no prices are needed, and reports read the daily rows, as in the old app.
-  - C. Both: bookings stay without money, and only daily entries count.
-- Also decide: can one booking be paid partly in cash and partly by link? The old app allowed it; the new one does not.
+- **New:** each booking's invoice uses the admin's typed cash + link price. Per-booking receipts remain admin-only: one receipt covers the full invoice under one method (cash, link or KNET).
+- **Decision (Q2):** keep per-booking payments and add daily barber collections. `/collections` supports one entry per barber/date, normal/special children, cash/link/KNET, a server-computed total and edit history. Barbers read only their own entries.
+- **Reports:** barber and comprehensive collection money, and the invoice/cash collection summary, read daily barber collections. These are separate from per-booking invoice values and receipts. Salon daily entry remains separate.
+- **Limit:** typed cash/link invoice fields and daily method totals do not enable split per-booking receipts. The current contract explicitly excludes partial/split receipts; changing that needs an explicit decision. Browser verification remains.
 
 ### G5 — Hover details and Arabic time words
 
 - **Old:** hovering over a booked pill (desktop) shows the time in words, customer, area, phone, children (special) and status. Hovering over a free pill shows the time in words, e.g. «الرابعة والنصف عصراً».
-- **New:** tapping a booked pill shows the details below the pills. No hover, no time words.
-- **Change:** add a hover tooltip on devices that have a mouse (keep tap for phones), and add the Arabic time-words helper (صباحاً / ظهراً / عصراً / مساءً / ليلاً).
+- **New (S2 built):** hover tooltips show booked-pill details and Arabic time words (صباحاً / ظهراً / عصراً / مساءً / ليلاً); tap details remain for phones. Browser verification remains.
 
 ### G6 — Phone-first booking form
 
@@ -132,26 +127,24 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 ### G7 — Booking notes
 
 - **Old:** «ملاحظات / Notes» on create and edit. Shown on the barber's order details and added to the WhatsApp message.
-- **New:** there are only per-address «instructions». The booking itself has no notes.
-- **Change:** add optional `notes` to the booking (contracts, DB, edit and revision history). Show it in the booking detail, the barber views and the WhatsApp text.
+- **New (S4 built):** optional booking `notes` (max 1000 characters) in create/edit, DB, responses and revision history. Notes show in booking details, barber visit cards, invoices and WhatsApp text, separately from address instructions. Browser verification remains.
 
 ### G8 — Extra address fields and area list
 
 - **Old fields:** Area (searchable list from the `areas` table), Block, Street, House, Floor, Apartment, **Avenue (جادة)**, **Gate (G)**, **Blue number (blue)**, map link. The admin's add-customer form also has Route (طريق) and Chalet (شالية).
-- **New fields:** area (free text), block, street, house number, building name, floor, apartment, instructions, Maps link, pin.
-- **Change:** add optional `avenue`, `gate` and `blueNumber`, and include them in the WhatsApp text. A managed areas list was **left out** in parity scope; ask the client again (Q7), because the old form uses it for every booking.
+- **New fields:** area (free text), block, street, house number, building name, floor, apartment, instructions, Maps link, pin, plus optional `avenue`, `gate` and `blueNumber` (S5 built). Extras appear in address displays, booking snapshots and WhatsApp text.
+- **Remaining:** the managed searchable areas list (S6) awaits Q7. Address extras still need browser verification.
 
 ### G9 — Local Kuwaiti phone typing
 
 - **Old:** client phone is 8 local digits; barber phone gets `965` added automatically.
-- **New:** international format is required.
-- **Change (web only):** accept 8 digits and add `+965` automatically in the phone inputs. The stored value stays international.
+- **New (S5 built, web):** client, employee and login phone inputs accept 8 digits and normalize them to `+965…`; explicit international numbers remain supported. Stored values stay international. Browser verification remains.
 
 ### G10 — Barber account fields and expiry
 
 - **Old:** username + password login (min 6), name and full name, WhatsApp phone, gender, nationality (list), photo, active, **account expiry date**. Login is refused after the expiry date ("حسابك منتهى الصلاحية").
-- **New:** phone + password login (min 8), display name, branch, photo, enabled.
-- **Gap:** account expiry date. Gender and nationality were stored but never shown anywhere, so they are low value. Username login: the contract chose phone login. Ask only if the client complains (Q8).
+- **New:** phone + password login (min 8), display name, photo, enabled and optional account expiry date (`accessUntil`, S14 built). Expired accounts cannot log in and their existing sessions are ended.
+- **Decision (Q8):** phone login stays; expiry is needed and implemented. Gender and nationality were not added. Browser verification remains.
 
 ### G11 — Extra roles
 
@@ -165,36 +158,34 @@ Tests: extend `apps/web/tests/day.test.ts` (lunch gap, closed day, exception day
 - **Old «تتبع الاوردرات»:** pick a barber, then optionally a booking. Shows each booking with its status and every logged action (created, WhatsApp sent, updated, cancelled, completed) with actor, role, time and note. Has a print version.
 - **Old «تقرير اوردات عميل»:** search a client by name and period. Shows totals (completed, cancelled, kids, cash, link) and each booking's action timeline.
 - **New:** per-booking history (`booking-history.tsx`) and client history report (`/reports/clients`), but no cross-booking action timeline per barber.
-- **Change:** add a «تتبع الحجوزات» report that lists history events for a barber or client over a period, with print. The data already exists in the visit, revision and payment history tables.
+- **Change (S12 unbuilt):** add a «تتبع الحجوزات» report that lists history events for a barber or client over a period, with print. The data already exists in the visit, revision, payment and WhatsApp history tables. Verify S7 first.
 
 ### G13 — WhatsApp send is recorded
 
 - **Old:** «واتساب» goes through `tawgeh.php?wa_id=` / `send_whatsapp.php`, which saves "إرسال تفاصيل الحجز إلى الحلاق عبر واتساب" in the booking's log before opening `wa.me`.
-- **New:** `lib/day.ts` builds the `wa.me` link in the browser and saves nothing.
-- **Change:** add a small endpoint that records a "sent to barber" history event, called just before the link opens. Show it in the booking history and in G12.
+- **New (S7 built):** `POST /api/bookings/:id/sent-to-barber` records the acting admin and time before the browser opens `wa.me`. The day list, booking detail and after-save send action use it; booking history shows the event. This records the action, not WhatsApp delivery confirmation. Inclusion in G12 remains pending; browser verification remains.
 
 ### G14 — "New booking" marker for barbers
 
 - **Old:** `is_seen_by_barber`. A dot shows on bookings the barber has not opened yet.
-- **Change:** store `seenByBarberAt` when the assigned barber first opens the booking, and show a dot in the barber's lists until then. Optional; ask (Q9).
+- **New (S13 built; Q9 answered yes):** `seenByBarberAt` is set when the assigned barber first opens the booking or invoice. A dot appears in barber home/day/list views until then; reassignment or a changed window resets it. Admin opens do not mark it seen. Browser verification remains.
 
 ### G15 — After saving a booking
 
 - **Old:** a success message plus two buttons, «إرسال الحجز واتساب للحلاق» and «لا ترسل، رجوع لصفحة حجوزات اليوم».
-- **New:** a toast, then the booking page.
-- **Change:** show the same two choices after create (WhatsApp uses G13).
+- **New (S7 built):** a dialog offers «إرسال الحجز واتساب للحلاق» (records the action, opens WhatsApp and the booking) or «لا ترسل، رجوع لحجوزات اليوم». Browser verification remains.
 
 ### G16 — Visit length step (decision)
 
 - **Old:** one start time; a booking blocks only its own half-hour (overlaps are possible).
-- **New:** start + length (20 min – 4 h); the whole window is blocked (no overlaps).
-- The new rule is safer. To keep the old speed, preselect a default length (e.g. 30 or 60 min) so the client only taps a pill. Ask which default (Q4).
+- **New:** start + length; the web offers 30-minute increments up to 4 hours, and the API accepts 20 minutes–4 hours. The whole window is blocked (no overlaps). The form already preselects 30 minutes.
+- **Remaining (S8, Q4):** confirm whether the owner wants to keep 30 minutes or change to 60. The preselection exists; the owner decision and browser verification remain pending.
 
-### G17 — Editing past bookings (decision)
+### G17 — Editing past bookings (decided and built, S15)
 
 - **Old:** the admin can edit date, time, children, address and notes of any confirmed booking (barber stays the same).
-- **New:** edits only while the visit is booked and starts in the future. The barber can be changed (better). Corrections after the visit are limited to status.
-- Ask whether the admin needs to fix counts on finished visits (Q10).
+- **New:** future booked visits retain reservation-edit rules. Started or finished visits are editable by the admin as corrections with a required reason, before/after history, and working-hours/overlap checks; past dates are allowed in correction mode. The barber can also be changed. Edits preserve the agreed invoice amount.
+- **Decision (Q10):** corrections are needed and implemented. Daily collection amounts are edited separately in `/collections`; a booking correction does not automatically rewrite those entries. Browser verification remains.
 
 ---
 

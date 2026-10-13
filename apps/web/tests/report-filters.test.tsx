@@ -55,7 +55,14 @@ describe("report filters", () => {
     expect(screen.getByRole("heading", { name: "تقرير الحلاقون" })).toBeInTheDocument();
     const scope = screen.getByText(/حسب تاريخ إنشاء الحجز/);
     expect(scope).toHaveTextContent("بتوقيت الكويت");
-    expect(scope).toHaveTextContent("الفرع: السالمية، الحلاق: أحمد، المصدر: عبر واتساب");
+    expect(scope).toHaveTextContent("الحلاق: أحمد، المصدر: عبر واتساب");
+    expect(scope).not.toHaveTextContent("الفرع");
+  });
+
+  it("offers the administrator no branch filter, since bookings have no branch", () => {
+    renderReport("admin");
+    expect(screen.queryByText("الفرع")).not.toBeInTheDocument();
+    expect(screen.getByText("الحلاق")).toBeInTheDocument();
   });
 
   it("offers barbers no branch or barber filters and states their own-record scope", () => {

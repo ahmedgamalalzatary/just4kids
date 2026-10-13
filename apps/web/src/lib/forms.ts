@@ -36,14 +36,12 @@ export const branchFormSchema = z.object({
 export const employeeCreateFormSchema = z.object({
   displayName: requiredText(120),
   phone: phoneField,
-  branchId: z.string().optional(),
   password: passwordField,
 });
 
 export const employeeEditFormSchema = z.object({
   displayName: requiredText(120),
   phone: phoneField,
-  branchId: z.string().optional(),
   enabled: z.boolean(),
   accessUntil: z.string().trim().transform(value => (value === "" ? null : value)).refine(value => value === null || z.iso.date().safeParse(value).success, "اكتب تاريخاً صحيحاً"),
 });

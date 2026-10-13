@@ -6,7 +6,7 @@ import { Detail, EmptyState, ErrorState, LoadingRows } from "@/components/page";
 import { PerformanceDetails, reservationsHref, useReportFilters } from "@/components/reports";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEmployeeReport } from "@/lib/api/hooks";
 import { formatDuration } from "@/lib/kuwait-time";
 import { utilisation } from "@/lib/reports";
@@ -33,10 +33,7 @@ export default function BarberReportPage() {
         return (
           <Card key={employee.employeeId}>
             <CardHeader>
-              <div>
-                <CardTitle className="flex flex-wrap items-center gap-2">{employee.displayName}{employee.enabled ? null : <Badge variant="muted">موقوف</Badge>}</CardTitle>
-                <CardDescription>الفرع الحالي: {employee.branchName}</CardDescription>
-              </div>
+              <CardTitle className="flex flex-wrap items-center gap-2">{employee.displayName}{employee.enabled ? null : <Badge variant="muted">موقوف</Badge>}</CardTitle>
               <CardAction data-print-hidden>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={reservationsHref(filters, isAdmin ? { employeeId: employee.employeeId } : {})}>عرض الحجوزات</Link>

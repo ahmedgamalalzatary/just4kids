@@ -28,12 +28,12 @@ function BookingRow({ booking, showBarber }: { booking: ReservationReport["booki
             <p className="text-sm font-semibold">{formatDate(booking.date)}</p>
             <p className="text-sm" data-numeric>{formatWindow(booking.startTime, booking.endTime)}</p>
           </div>
-          <Ltr className="shrink-0 text-xs text-muted-foreground">{booking.reference}</Ltr>
+          <Ltr className="min-w-0 break-all text-xs text-muted-foreground">{booking.reference}</Ltr>
         </div>
         <div className="min-w-0">
           <p className="truncate font-medium">{booking.client.name}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}${booking.employee.branchName ? ` (${booking.employee.branchName})` : ""}` : ""}
+            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={booking.source} />

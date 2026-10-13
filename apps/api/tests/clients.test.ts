@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, clientAddresses, clients, employees, loginAttempts } from "@just4kids/db/schema";
+import { accounts, clientAddresses, clients, employees, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { hashPassword } from "../src/lib/password.js";
@@ -14,7 +14,6 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchId = randomUUID();
 const employeeId = randomUUID();
 const employeePhone = `+965${randomInt(70000000, 79999999)}`;
 const phoneA = `+965${randomInt(30000000, 39999999)}`;
@@ -43,9 +42,8 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date();
-  await connection.db.insert(branches).values({ id: branchId, name: "حولي", location: "شارع 1", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
   await connection.db.insert(accounts).values({ id: employeeId, phone: employeePhone, role: "employee", passwordHash: await hashPassword("employee-password-123"), createdAt: now, updatedAt: now });
-  await connection.db.insert(employees).values({ accountId: employeeId, branchId, displayName: "سالم", createdAt: now, updatedAt: now });
+  await connection.db.insert(employees).values({ accountId: employeeId, displayName: "سالم", createdAt: now, updatedAt: now });
 });
 afterAll(async () => {
   for (const id of createdIds) {
@@ -54,7 +52,6 @@ afterAll(async () => {
   }
   await connection.db.delete(employees).where(eq(employees.accountId, employeeId));
   await connection.db.delete(accounts).where(eq(accounts.id, employeeId));
-  await connection.db.delete(branches).where(eq(branches.id, branchId));
   await connection.pool.end();
 });
 

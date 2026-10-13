@@ -1,19 +1,18 @@
 import { sql } from "drizzle-orm";
 import { check, date, datetime, decimal, index, int, json, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
-import { branches, employees } from "./organization.js";
+import { employees } from "./organization.js";
 import { clients, clientAddresses } from "./clients.js";
 
 // Snapshot types are structural so the server-only database package does not depend on contracts.
 type ClientSnapshot = { name: string; phone: string };
-type EmployeeSnapshot = { id: string; displayName: string; branchId?: string | null; branchName?: string | null; branchLocation?: string | null };
+type EmployeeSnapshot = { id: string; displayName: string };
 type AddressSnapshot = { area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue?: string | null; gate?: string | null; blueNumber?: string | null; floor: string | null; apartment: string | null; instructions: string | null; mapsUrl: string | null; latitude: string | null; longitude: string | null };
 export const bookings = mysqlTable("bookings", {
   id: varchar("id", { length: 36 }).primaryKey(), reference: varchar("reference", { length: 40 }).notNull(),
   clientId: varchar("client_id", { length: 36 }).notNull().references(() => clients.id, { onDelete: "restrict" }),
   addressId: varchar("address_id", { length: 36 }).notNull().references(() => clientAddresses.id, { onDelete: "restrict" }),
   employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.accountId, { onDelete: "restrict" }),
-  branchId: varchar("branch_id", { length: 36 }).references(() => branches.id, { onDelete: "restrict" }),
   createdBy: varchar("created_by", { length: 36 }).notNull().references(() => accounts.id, { onDelete: "restrict" }),
   date: date("date", { mode: "string" }).notNull(), startTime: varchar("start_time", { length: 5 }).notNull(), endTime: varchar("end_time", { length: 5 }).notNull(),
   adultCount: int("adult_count").notNull(), childCount: int("child_count").notNull(), specialChildCount: int("special_child_count").notNull().default(0),

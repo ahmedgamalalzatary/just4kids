@@ -44,7 +44,9 @@ export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: tru
   blueNumber: addressResponseSchema.shape.blueNumber.default(null),
 });
 export const bookingClientSnapshotSchema = z.strictObject({ name: z.string().min(1).max(120), phone: phoneSchema });
-export const bookingEmployeeSnapshotSchema = z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120), branchId: z.uuid().nullable().default(null), branchName: z.string().min(1).max(120).nullable().default(null), branchLocation: z.string().min(1).max(500).nullable().default(null) });
+// Snapshots saved while barbers and bookings had a branch still carry it; bookings no longer have one, so it is dropped on read.
+const withoutKeys = (keys: string[]) => (value: unknown) => typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key))) : value;
+export const bookingEmployeeSnapshotSchema = z.preprocess(withoutKeys(["branchId", "branchName", "branchLocation"]), z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120) }));
 const amount = z.string().regex(/^(0|[1-9][0-9]{0,20})\.[0-9]{3}$/);
 export const invoiceResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), reference: z.string().min(1).max(40), issuedAt: z.iso.datetime(), currency: z.literal("KWD"),
@@ -60,14 +62,15 @@ const invoiceSnapshotSchema = z.preprocess(value => {
   const current = Object.fromEntries(Object.entries(value).filter(([key]) => !legacyInvoiceKeys.includes(key)));
   return { ...current, amountCash: current.total, amountLink: "0.000" };
 }, invoiceResponseSchema);
-export const bookingResponseSchema = z.strictObject({
-  id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(), branchId: z.uuid().nullable(),
+export const bookingResponseObjectSchema = z.strictObject({
+  id: z.uuid(), reference: z.string().min(1).max(40), clientId: z.uuid(), addressId: z.uuid(), employeeId: z.uuid(),
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
   seenByBarberAt: z.iso.datetime().nullable().default(null),
   source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema, invoice: invoiceSnapshotSchema,
 });
+export const bookingResponseSchema = z.preprocess(withoutKeys(["branchId"]), bookingResponseObjectSchema);
 export const bookingListQuerySchema = z.strictObject({
   limit: z.string().regex(/^[0-9]+$/).default("20").transform(Number).pipe(z.number().int().min(1).max(100)),
   offset: z.string().regex(/^[0-9]+$/).default("0").transform(Number).pipe(z.number().int().min(0).max(1000000)),

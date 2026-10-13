@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, employees, employeeScheduleExceptions, employeeWorkIntervals, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, employeeScheduleExceptions, employeeWorkIntervals, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { hashPassword } from "../src/lib/password.js";
@@ -14,7 +14,6 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchId = randomUUID();
 const employeeIds = [randomUUID(), randomUUID()];
 const phone = `+965${randomInt(50000000, 59999999)}`;
 const disabledPhone = `+965${randomInt(60000000, 69999999)}`;
@@ -31,9 +30,8 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date();
-  await connection.db.insert(branches).values({ id: branchId, name: "حولي", location: "شارع 1", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
   await connection.db.insert(accounts).values(employeeIds.map((id, index) => ({ id, phone: index === 0 ? phone : disabledPhone, role: "employee" as const, passwordHash: "invalid-until-login", enabled: index === 0, createdAt: now, updatedAt: now })));
-  await connection.db.insert(employees).values(employeeIds.map((accountId, index) => ({ accountId, branchId, displayName: index === 0 ? "سالم" : "معطل", createdAt: now, updatedAt: now })));
+  await connection.db.insert(employees).values(employeeIds.map((accountId, index) => ({ accountId, displayName: index === 0 ? "سالم" : "معطل", createdAt: now, updatedAt: now })));
   await connection.db.update(accounts).set({ passwordHash: await hashPassword("employee-password-123") }).where(eq(accounts.id, employeeIds[0]!));
 });
 afterAll(async () => {
@@ -43,7 +41,6 @@ afterAll(async () => {
     await connection.db.delete(employees).where(eq(employees.accountId, employeeId));
     await connection.db.delete(accounts).where(eq(accounts.id, employeeId));
   }
-  await connection.db.delete(branches).where(eq(branches.id, branchId));
   await connection.pool.end();
 });
 
@@ -69,7 +66,7 @@ describe("barber schedules and eligibility", () => {
     expect(updated.body.days).toHaveLength(1);
     const eligible = await request(app).get("/availability/eligible?date=2026-10-05&startTime=09:00&endTime=09:20").set("Cookie", admin.cookie);
     expect(eligible.status).toBe(200);
-    expect(eligible.body.barbers).toEqual([{ id: employeeIds[0], displayName: "سالم", branch: { id: branchId, name: "حولي", location: "شارع 1" } }]);
+    expect(eligible.body.barbers).toEqual([{ id: employeeIds[0], displayName: "سالم" }]);
     expect((await request(app).get("/availability/eligible?date=2026-10-05&startTime=12:50&endTime=13:10").set("Cookie", admin.cookie)).body.barbers).toEqual([]);
     const exception = await request(app).put(`/schedules/${employeeIds[0]}/exceptions/2026-10-05`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
       .send({ intervals: [{ startTime: "10:00", endTime: "12:00" }] });

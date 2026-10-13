@@ -13,10 +13,12 @@ describe("branch and employee contracts", () => {
     expect(branchCreateSchema.safeParse(input).success).toBe(false);
   });
 
-  it("requires a named employee in one branch without accepting an injected role", () => {
-    const input = { displayName: "سالم", phone: "+96555550001", branchId: "3a4f26b1-b76a-47c0-976c-0d4618d9236b", password: "employee1234" };
+  it("requires a named employee without a branch or an injected role", () => {
+    const input = { displayName: "سالم", phone: "+96555550001", password: "employee1234" };
     expect(employeeCreateSchema.safeParse(input).success).toBe(true);
     expect(employeeCreateSchema.safeParse({ ...input, role: "admin" }).success).toBe(false);
+    expect(employeeCreateSchema.safeParse({ ...input, branchId: "3a4f26b1-b76a-47c0-976c-0d4618d9236b" }).success).toBe(false);
+    expect(employeeAdminUpdateSchema.safeParse({ branchId: null }).success).toBe(false);
   });
 
   it("limits employee self-editing to display name", () => {

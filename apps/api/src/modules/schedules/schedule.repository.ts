@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, branches, bookings, employees, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals } from "@just4kids/db/schema";
+import { accounts, bookings, employees, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals } from "@just4kids/db/schema";
 import type { WorkInterval, WeeklySchedule } from "@just4kids/contracts";
 import { assertSchedulePreservesBookings, lockEmployee } from "../availability/availability.repository.js";
 
@@ -63,8 +63,8 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
     },
     async eligibilityRows(date: string) {
       return db.transaction(async transaction => {
-        const barbers = await transaction.select({ id: employees.accountId, displayName: employees.displayName, branchId: branches.id, branchName: branches.name, branchLocation: branches.location })
-          .from(employees).innerJoin(accounts, eq(employees.accountId, accounts.id)).innerJoin(branches, eq(employees.branchId, branches.id))
+        const barbers = await transaction.select({ id: employees.accountId, displayName: employees.displayName })
+          .from(employees).innerJoin(accounts, eq(employees.accountId, accounts.id))
           .where(and(eq(accounts.role, "employee"), eq(accounts.enabled, true))).orderBy(asc(employees.displayName), asc(employees.accountId));
         const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
         const work = await transaction.select().from(employeeWorkIntervals).where(eq(employeeWorkIntervals.dayOfWeek, weekday));

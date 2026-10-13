@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { ChevronLeft, Plus, Scissors } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
-import { BranchSelect } from "@/components/branch-select";
 import { Field, FormAlert } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -17,16 +16,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useBranches, useCreateEmployee, useEmployees } from "@/lib/api/hooks";
-import type { Branch } from "@/lib/api/types";
+import { useCreateEmployee, useEmployees } from "@/lib/api/hooks";
 import { employeeCreateFormSchema } from "@/lib/forms";
 
-function CreateEmployeeDialog({ branches, open, onOpenChange }: { branches: Branch[]; open: boolean; onOpenChange: (open: boolean) => void }) {
+function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const create = useCreateEmployee();
-  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", phone: "", branchId: "", password: "" } });
+  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", phone: "", password: "" } });
   const errors = form.formState.errors;
-  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, phone: values.phone, password: values.password, ...(values.branchId ? { branchId: values.branchId } : {}) }, {
+  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, phone: values.phone, password: values.password }, {
     onSuccess: employee => { toast.success("تمت إضافة الحلاق"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
   }));
 
@@ -40,9 +38,6 @@ function CreateEmployeeDialog({ branches, open, onOpenChange }: { branches: Bran
         <form id="employee-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
           <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="رقم الهاتف" error={errors.phone?.message} hint="بالصيغة الدولية، مثل ‎+96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
-          <Field label="الفرع" optional error={errors.branchId?.message}>
-            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value ?? ""} onChange={field.onChange} />} />
-          </Field>
           <Field label="كلمة المرور" error={errors.password?.message} hint="8 أحرف على الأقل."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>
         <FormAlert error={create.error} />
@@ -54,7 +49,6 @@ function CreateEmployeeDialog({ branches, open, onOpenChange }: { branches: Bran
 
 function EmployeesScreen() {
   const employees = useEmployees();
-  const branches = useBranches();
   const [open, setOpen] = useState(false);
   const addButton = <Button onClick={() => setOpen(true)}><Plus aria-hidden />إضافة حلاق</Button>;
 
@@ -75,7 +69,7 @@ function EmployeesScreen() {
                       {employee.displayName}
                       {employee.enabled ? null : <Badge variant="muted">موقوف</Badge>}
                     </p>
-                    <p className="text-sm text-muted-foreground">{employee.branch?.name ?? "بدون فرع"}، <Ltr>{employee.phone}</Ltr></p>
+                    <p className="text-sm text-muted-foreground"><Ltr>{employee.phone}</Ltr></p>
                   </div>
                   <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
                 </Link>
@@ -84,7 +78,7 @@ function EmployeesScreen() {
           </ul>
         )}
       </Card>
-      {branches.data ? <CreateEmployeeDialog branches={branches.data} open={open} onOpenChange={setOpen} /> : null}
+      <CreateEmployeeDialog open={open} onOpenChange={setOpen} />
     </>
   );
 }

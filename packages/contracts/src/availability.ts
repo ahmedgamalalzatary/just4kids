@@ -49,7 +49,6 @@ export const eligibilityResponseSchema = z.strictObject({
   barbers: z.array(z.strictObject({
     id: z.uuid(),
     displayName: z.string().trim().min(1).max(120),
-    branch: z.strictObject({ id: z.uuid(), name: z.string().trim().min(1).max(120), location: z.string().trim().min(1).max(500) }),
   })),
 });
 

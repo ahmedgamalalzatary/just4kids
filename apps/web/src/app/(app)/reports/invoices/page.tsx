@@ -32,12 +32,12 @@ function InvoiceRow({ invoice, showBarber }: { invoice: InvoiceReport["invoices"
             <p className="text-sm font-semibold">{formatDate(invoice.date)}</p>
             <p className="text-sm" data-numeric>{formatWindow(invoice.startTime, invoice.endTime)}</p>
           </div>
-          <Ltr className="shrink-0 text-xs text-muted-foreground">{invoice.reference}</Ltr>
+          <Ltr className="min-w-0 break-all text-xs text-muted-foreground">{invoice.reference}</Ltr>
         </div>
         <div className="min-w-0">
           <p className="truncate font-medium">{invoice.client.name}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {invoice.address.area}، {lineItems(invoice)}{showBarber ? `، مع ${invoice.employee.displayName}${invoice.employee.branchName ? ` (${invoice.employee.branchName})` : ""}` : ""}
+            {invoice.address.area}، {lineItems(invoice)}{showBarber ? `، مع ${invoice.employee.displayName}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={invoice.source} />

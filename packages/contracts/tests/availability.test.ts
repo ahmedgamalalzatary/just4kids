@@ -27,7 +27,8 @@ describe("availability contracts", () => {
   it("exposes strict schedule and eligible-barber responses to the frontend", () => {
     const id = "3a4f26b1-b76a-47c0-976c-0d4618d9236b";
     expect(scheduleResponseSchema.safeParse({ employeeId: id, days: [], exceptions: [{ date: "2026-10-05", intervals: [] }] }).success).toBe(true);
-    expect(eligibilityResponseSchema.safeParse({ date: "2026-10-05", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait", barbers: [{ id, displayName: "سالم", branch: { id, name: "حولي", location: "شارع 1" } }] }).success).toBe(true);
-    expect(eligibilityResponseSchema.safeParse({ date: "2026-10-05", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait", barbers: [{ id, displayName: "سالم", branch: { id, name: "حولي", location: "شارع 1" }, passwordHash: "leak" }] }).success).toBe(false);
+    expect(eligibilityResponseSchema.safeParse({ date: "2026-10-05", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait", barbers: [{ id, displayName: "سالم" }] }).success).toBe(true);
+    expect(eligibilityResponseSchema.safeParse({ date: "2026-10-05", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait", barbers: [{ id, displayName: "سالم", passwordHash: "leak" }] }).success).toBe(false);
+    expect(eligibilityResponseSchema.safeParse({ date: "2026-10-05", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait", barbers: [{ id, displayName: "سالم", branch: { id, name: "حولي", location: "شارع 1" } }] }).success).toBe(false);
   });
 });

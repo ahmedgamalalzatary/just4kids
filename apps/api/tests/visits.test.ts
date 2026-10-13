@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -14,7 +14,7 @@ import { createVisitService } from "../src/modules/bookings/visit.service.js";
 const origin = "http://localhost:3000";
 const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DATABASE_URL, ADMIN_PHONE: "+96555551234", ADMIN_PASSWORD: "admin1234", AUTH_SECRET: "a".repeat(64), APP_ORIGIN: origin });
 const connection = createDatabase(env.DATABASE_URL), auth = createAuth(connection, env), app = createApp({ auth, connection, env });
-const branchId = randomUUID(), employeeId = randomUUID(), otherId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
+const employeeId = randomUUID(), otherId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
 const phone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session, other: Session;
@@ -35,9 +35,8 @@ const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00",
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
-  await connection.db.insert(branches).values({ id: branchId, name: "visit-test", location: "Kuwait", adultPrice: "5.125", childPrice: "3.001", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
   await connection.db.insert(accounts).values([{ id: employeeId, phone, role: "employee", passwordHash, createdAt: now, updatedAt: now }, { id: otherId, phone: otherPhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }]);
-  await connection.db.insert(employees).values([{ accountId: employeeId, branchId, displayName: "barber", createdAt: now, updatedAt: now }, { accountId: otherId, branchId, displayName: "other", createdAt: now, updatedAt: now }]);
+  await connection.db.insert(employees).values([{ accountId: employeeId, displayName: "barber", createdAt: now, updatedAt: now }, { accountId: otherId, displayName: "other", createdAt: now, updatedAt: now }]);
   await connection.db.insert(clients).values({ id: clientId, name: "client", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "area", block: "3", street: "street", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values(Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" })));
@@ -59,7 +58,6 @@ afterAll(async () => {
   await connection.db.delete(employeeWorkIntervals).where(eq(employeeWorkIntervals.employeeId, employeeId));
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.clientId, clientId)); await connection.db.delete(clients).where(eq(clients.id, clientId));
   for (const id of [employeeId, otherId]) { await connection.db.delete(employees).where(eq(employees.accountId, id)); await connection.db.delete(accounts).where(eq(accounts.id, id)); }
-  await connection.db.delete(branches).where(eq(branches.id, branchId)); await connection.pool.end();
 });
 describe("employee visit actions and history", () => {
   it.each(["booked", "arrived", "completed"])("allows new weekly hours without changing a past %s visit", async status => {

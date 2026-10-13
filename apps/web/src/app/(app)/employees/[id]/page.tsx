@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { ChevronRight, KeyRound } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
-import { BranchSelect } from "@/components/branch-select";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { ExceptionsCard, WeeklyScheduleEditor } from "@/components/schedule";
@@ -20,8 +19,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useBranches, useEmployee, useRemoveEmployeePhoto, useResetEmployeePassword, useSchedule, useUpdateEmployee, useUploadEmployeePhoto } from "@/lib/api/hooks";
-import type { Branch, Employee } from "@/lib/api/types";
+import { useEmployee, useRemoveEmployeePhoto, useResetEmployeePassword, useSchedule, useUpdateEmployee, useUploadEmployeePhoto } from "@/lib/api/hooks";
+import type { Employee } from "@/lib/api/types";
 import { employeeEditFormSchema, passwordResetFormSchema } from "@/lib/forms";
 
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -67,37 +66,29 @@ function PhotoCard({ employee }: { employee: Employee }) {
   );
 }
 
-function ProfileCard({ employee, branches }: { employee: Employee; branches: Branch[] }) {
+function ProfileCard({ employee }: { employee: Employee }) {
   const update = useUpdateEmployee();
   const form = useForm({
     resolver: zodResolver(employeeEditFormSchema),
-    values: { displayName: employee.displayName, phone: employee.phone, branchId: employee.branchId ?? "", enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
+    values: { displayName: employee.displayName, phone: employee.phone, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
   });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
-    // Send only what changed, so an unchanged phone or branch is never rewritten.
+    // Send only what changed, so an unchanged phone is never rewritten.
     const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => (employee[key as keyof typeof values] ?? "") !== value));
     if (Object.keys(changes).length === 0) return;
-    // An emptied branch clears the assignment; the API stores null.
-    if ("branchId" in changes) changes.branchId = changes.branchId || null;
     update.mutate({ id: employee.id, ...changes }, { onSuccess: () => toast.success("تم حفظ بيانات الحلاق") });
   });
 
   return (
     <Card>
       <CardHeader>
-        <div>
-          <CardTitle>بيانات الحساب</CardTitle>
-          <CardDescription>نقل الحلاق لفرع آخر لا يغيّر فرع وأسعار حجوزاته السابقة.</CardDescription>
-        </div>
+        <CardTitle>بيانات الحساب</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="رقم الهاتف" error={errors.phone?.message} hint="يستخدمه الحلاق لتسجيل الدخول."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
-          <Field label="الفرع" optional error={errors.branchId?.message}>
-            <Controller control={form.control} name="branchId" render={({ field }) => <BranchSelect branches={branches} value={field.value ?? ""} onChange={field.onChange} />} />
-          </Field>
           <div className="flex items-center gap-3 self-end pb-2">
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />
             <Label htmlFor="employee-enabled">الحساب مفعّل</Label>
@@ -143,26 +134,23 @@ function ResetPasswordDialog({ employee, open, onOpenChange }: { employee: Emplo
 
 function EmployeeScreen({ id }: { id: string }) {
   const employee = useEmployee(id);
-  const branches = useBranches();
   const schedule = useSchedule(id);
   const [resetOpen, setResetOpen] = useState(false);
 
   const back = <Link href="/employees" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden />الحلاقون</Link>;
-  if (employee.isPending || branches.isPending) return <>{back}<LoadingRows /></>;
+  if (employee.isPending) return <>{back}<LoadingRows /></>;
   if (employee.isError) return <>{back}<ErrorState error={employee.error} onRetry={() => employee.refetch()} /></>;
-  if (branches.isError) return <>{back}<ErrorState error={branches.error} onRetry={() => branches.refetch()} /></>;
 
   return (
     <>
       <PageHeader
         back={back}
         title={<span className="flex flex-wrap items-center gap-3">{employee.data.displayName}{employee.data.enabled ? null : <Badge variant="muted">موقوف</Badge>}</span>}
-        description={employee.data.branch?.name ?? "بدون فرع"}
         actions={<Button variant="outline" onClick={() => setResetOpen(true)}><KeyRound aria-hidden />تغيير كلمة المرور</Button>}
       />
       <div className="flex flex-col gap-6">
         <PhotoCard employee={employee.data} />
-        <ProfileCard employee={employee.data} branches={branches.data} />
+        <ProfileCard employee={employee.data} />
         {schedule.isPending ? <LoadingRows rows={3} /> : schedule.isError ? <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} /> : (
           <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr] xl:items-start">
             <WeeklyScheduleEditor key={JSON.stringify(schedule.data.days)} employeeId={id} schedule={schedule.data} />

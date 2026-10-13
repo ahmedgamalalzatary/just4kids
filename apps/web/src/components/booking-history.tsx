@@ -74,7 +74,7 @@ function revisionChanges(revision: BookingRevision): string[] {
   if (before.date !== after.date || before.startTime !== after.startTime || before.endTime !== after.endTime) {
     changes.push(`الموعد: من ${formatDate(before.date)} ${formatWindow(before.startTime, before.endTime)} إلى ${formatDate(after.date)} ${formatWindow(after.startTime, after.endTime)}`);
   }
-  if (before.employee.id !== after.employee.id) changes.push(`الحلاق: من ${before.employee.displayName} (${before.employee.branchName ?? "بدون فرع"}) إلى ${after.employee.displayName} (${after.employee.branchName ?? "بدون فرع"})`);
+  if (before.employee.id !== after.employee.id) changes.push(`الحلاق: من ${before.employee.displayName} إلى ${after.employee.displayName}`);
   if (formatAddress(before.address) !== formatAddress(after.address) || before.address.instructions !== after.address.instructions) changes.push(`العنوان: ${formatAddress(after.address)}`);
   if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
     changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل (${before.specialChildCount} احتياج خاص) إلى ${after.adultCount} بالغ و${after.childCount} طفل (${after.specialChildCount} احتياج خاص)`);

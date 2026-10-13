@@ -38,10 +38,7 @@ function BarberCard({ employee, bookings, time }: { employee: Employee; bookings
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <div>
-          <p className="text-lg font-semibold">{employee.displayName}</p>
-          <p className="text-xs text-muted-foreground">{employee.branch ? employee.branch.name : "بدون فرع"}</p>
-        </div>
+        <p className="text-lg font-semibold">{employee.displayName}</p>
         <div className="rounded-md bg-muted/70 px-3 py-2 text-sm">
           {focus ? (
             <>

@@ -64,12 +64,8 @@ export default function InvoicePage() {
             <h2 className="mb-1 text-xs text-muted-foreground">الحلاق</h2>
             <div className="flex items-center gap-2">
               <EmployeeAvatar employeeId={data.employee.id} name={data.employee.displayName} className="size-10" />
-              <div>
-                <p className="font-medium">{data.employee.displayName}</p>
-                <p>{data.employee.branchName}</p>
-              </div>
+              <p className="font-medium">{data.employee.displayName}</p>
             </div>
-            <p className="mt-1 text-muted-foreground">{data.employee.branchLocation}</p>
           </div>
         </section>
 

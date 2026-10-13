@@ -69,7 +69,6 @@ function BarberPicker({ onPick }: { onPick: (id: string) => void }) {
           className="flex flex-col items-center gap-2 rounded-lg border border-border px-3 py-4 text-center transition-colors hover:border-primary hover:bg-accent">
           <EmployeeAvatar employeeId={employee.id} name={employee.displayName} version={employee.photoUpdatedAt} className="size-16 text-xl" />
           <span className="font-medium">{employee.displayName}</span>
-          <span className="text-xs text-muted-foreground">{employee.branch ? employee.branch.name : "بدون فرع"}</span>
         </button>
       ))}
     </div>
@@ -264,7 +263,6 @@ function NewBookingScreen() {
                   <EmployeeAvatar employeeId={barber.id} name={barber.displayName} version={barber.photoUpdatedAt} className="size-14 text-lg" />
                   <div>
                     <p className="text-lg font-semibold">{barber.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{barber.branch ? `${barber.branch.name}، ${barber.branch.location}` : "بدون فرع"}</p>
                     {!barber.enabled ? <p className="text-sm text-destructive">هذا الحلاق موقوف، اختر حلاقاً آخر.</p> : null}
                   </div>
                 </div>
@@ -342,7 +340,7 @@ function NewBookingScreen() {
           <Card>
             <h2 className="border-b border-border px-5 py-4 text-base font-semibold">ملخص الحجز</h2>
             <dl className="flex flex-col gap-3 px-5 py-4 text-sm">
-              <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? `${barber.displayName}${barber.branch ? `، ${barber.branch.name}` : ""}` : "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? barber.displayName : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">الموعد</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">العميل</dt><dd>{client.data?.name ?? "—"}</dd></div>
             </dl>

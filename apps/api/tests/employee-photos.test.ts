@@ -7,7 +7,7 @@ import sharp from "sharp";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, employees, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { createAuth } from "../src/modules/auth/index.js";
@@ -26,7 +26,6 @@ const parsedEnv = () => apiEnvSchema.parse({ ...env, UPLOADS_DIR: uploadsDir });
 const connection = createDatabase(env.DATABASE_URL!);
 const auth = createAuth(connection, parsedEnv());
 let app: ReturnType<typeof createApp>;
-const branchA = randomUUID();
 const testPhones = ["+96555550101", "+96555550102", "+96555550103", "+96555550104"];
 
 async function signIn(phone: string, password: string) {
@@ -46,7 +45,7 @@ async function adminSession() {
 async function createEmployee(phone: string) {
   const admin = await adminSession();
   const created = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-    .send({ displayName: "سالم", phone, branchId: branchA, password: "employee-password-123" });
+    .send({ displayName: "سالم", phone, password: "employee-password-123" });
   expect(created.status).toBe(201);
   return { admin, created };
 }
@@ -65,8 +64,6 @@ beforeAll(async () => {
   app = createApp({ auth, connection, env: parsedEnv() });
   await connection.db.delete(loginAttempts);
   await auth.initialize();
-  const now = new Date();
-  await connection.db.insert(branches).values({ id: branchA, name: "حولي", location: "شارع 1", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
 });
 beforeEach(async () => { await connection.db.delete(loginAttempts); });
 
@@ -76,7 +73,6 @@ afterAll(async () => {
     await connection.db.delete(employees).where(eq(employees.accountId, account.id));
     await connection.db.delete(accounts).where(eq(accounts.id, account.id));
   }
-  await connection.db.delete(branches).where(eq(branches.id, branchA));
   await connection.pool.end();
   await rm(uploadsDir, { recursive: true, force: true });
 });

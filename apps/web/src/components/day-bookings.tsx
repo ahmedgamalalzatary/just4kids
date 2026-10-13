@@ -57,10 +57,7 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
       <div className="flex items-center justify-between gap-3 lg:contents">
         <div className="flex min-w-0 items-center gap-2.5">
           <EmployeeAvatar employeeId={booking.employee.id} name={booking.employee.displayName} version={photoVersion} className="size-10" />
-          <div className="min-w-0">
-            <p className="truncate font-medium">{booking.employee.displayName}</p>
-            <p className="truncate text-xs text-muted-foreground">{booking.employee.branchName}</p>
-          </div>
+          <p className="min-w-0 truncate font-medium">{booking.employee.displayName}</p>
         </div>
         <TimeChip booking={booking} />
       </div>

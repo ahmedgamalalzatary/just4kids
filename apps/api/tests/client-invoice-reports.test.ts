@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -14,26 +14,26 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchOne = randomUUID(), branchTwo = randomUUID(), barberX = randomUUID(), barberY = randomUUID(), barberZ = randomUUID();
+const barberX = randomUUID(), barberY = randomUUID(), barberZ = randomUUID();
 const clientOne = randomUUID(), clientTwo = randomUUID(), addressOne = randomUUID(), addressTwo = randomUUID();
 const phones: Record<string, string> = { [barberX]: `+965${randomInt(10000000, 19999999)}`, [barberY]: `+965${randomInt(20000000, 29999999)}`, [barberZ]: `+965${randomInt(30000000, 39999999)}` };
 const range = { from: "2098-05-01", to: "2098-05-03" };
 type Session = { cookie: string };
 let admin: Session, sessionX: Session, sessionY: Session;
-type Fixture = { date: string; employeeId: string; branchId: string; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; adult: number; child: number; cash?: string; edits?: number; corrections?: number };
+type Fixture = { date: string; employeeId: string; tier: 1 | 2; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; adult: number; child: number; cash?: string; edits?: number; corrections?: number };
 // f1: completed, paid, edited twice. f2: completed unpaid. f3: cancelled but paid with a correction. f4: no-show unpaid. f5: booked unpaid.
 const fixtures: Fixture[] = [
-  { date: "2098-05-01", employeeId: barberX, branchId: branchOne, clientId: clientOne, status: "completed", adult: 2, child: 1, cash: "13.000", edits: 2 },
-  { date: "2098-05-02", employeeId: barberX, branchId: branchOne, clientId: clientOne, status: "completed", adult: 1, child: 0 },
-  { date: "2098-05-02", employeeId: barberY, branchId: branchOne, clientId: clientTwo, status: "cancelled", adult: 0, child: 2, cash: "6.000", corrections: 1 },
-  { date: "2098-05-03", employeeId: barberZ, branchId: branchTwo, clientId: clientTwo, status: "no_show", adult: 1, child: 1 },
-  { date: "2098-05-03", employeeId: barberX, branchId: branchOne, clientId: clientOne, status: "booked", adult: 3, child: 0 },
+  { date: "2098-05-01", employeeId: barberX, tier: 1, clientId: clientOne, status: "completed", adult: 2, child: 1, cash: "13.000", edits: 2 },
+  { date: "2098-05-02", employeeId: barberX, tier: 1, clientId: clientOne, status: "completed", adult: 1, child: 0 },
+  { date: "2098-05-02", employeeId: barberY, tier: 1, clientId: clientTwo, status: "cancelled", adult: 0, child: 2, cash: "6.000", corrections: 1 },
+  { date: "2098-05-03", employeeId: barberZ, tier: 2, clientId: clientTwo, status: "no_show", adult: 1, child: 1 },
+  { date: "2098-05-03", employeeId: barberX, tier: 1, clientId: clientOne, status: "booked", adult: 3, child: 0 },
 ];
 const ids: string[] = fixtures.map(() => randomUUID());
 const references = ids.map(id => `J4K-CIR${id.replaceAll("-", "").slice(0, 11).toUpperCase()}`);
-const prices: Record<string, { adult: number; child: number }> = { [branchOne]: { adult: 5, child: 3 }, [branchTwo]: { adult: 6, child: 4 } };
+const prices: Record<1 | 2, { adult: number; child: number }> = { 1: { adult: 5, child: 3 }, 2: { adult: 6, child: 4 } };
 const invoiceTotals = fixtures.map(fixture => {
-  const price = prices[fixture.branchId]!;
+  const price = prices[fixture.tier];
   return fixture.adult * price.adult + fixture.child * price.child;
 });
 const invoiceIds: string[] = fixtures.map(() => randomUUID());
@@ -54,22 +54,20 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date();
-  await connection.db.insert(branches).values([branchOne, branchTwo].map(id => ({ id, name: id === branchOne ? "فرع العملاء الأول" : "فرع العملاء الثاني", location: "حولي", adultPrice: `${prices[id]!.adult}.000`, childPrice: `${prices[id]!.child}.000`, adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now })));
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([barberX, barberY, barberZ].map(id => ({ id, phone: phones[id]!, role: "employee" as const, passwordHash, createdAt: now, updatedAt: now })));
-  await connection.db.insert(employees).values([{ accountId: barberX, branchId: branchOne, displayName: "عميل تقرير أ" }, { accountId: barberY, branchId: branchOne, displayName: "عميل تقرير ب" }, { accountId: barberZ, branchId: branchTwo, displayName: "عميل تقرير ج" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
+  await connection.db.insert(employees).values([{ accountId: barberX, displayName: "عميل تقرير أ" }, { accountId: barberY, displayName: "عميل تقرير ب" }, { accountId: barberZ, displayName: "عميل تقرير ج" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
   await connection.db.insert(clients).values([{ id: clientOne, name: "نورة العملاء", phone: `+965${randomInt(85000000, 89999999)}` }, { id: clientTwo, name: "سلمى العملاء", phone: `+965${randomInt(90000000, 94999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
   await connection.db.insert(clientAddresses).values([{ id: addressOne, clientId: clientOne }, { id: addressTwo, clientId: clientTwo }].map(row => ({ ...row, area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", createdAt: now, updatedAt: now })));
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   for (const [index, fixture] of fixtures.entries()) {
-    const id = ids[index]!, price = prices[fixture.branchId]!;
-    const branchName = fixture.branchId === branchOne ? "فرع العملاء الأول" : "فرع العملاء الثاني";
+    const id = ids[index]!, price = prices[fixture.tier];
     const client = fixture.clientId === clientOne ? { name: "نورة العملاء", phone: "+96555000004" } : { name: "سلمى العملاء", phone: "+96555000005" };
     await connection.db.insert(bookings).values({
-      id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, branchId: fixture.branchId, createdBy: adminAccount!.id,
+      id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
       date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 3,
       clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
-      employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم", branchId: fixture.branchId, branchName, branchLocation: "حولي" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
+      employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
     });
     const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;
     await connection.db.insert(invoices).values({ id: invoiceIds[index]!, bookingId: id, amountCash: `${adultAmount}.000`, amountLink: `${childAmount}.000`, total: `${invoiceTotals[index]}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.cash ? "paid" : "unpaid", issuedAt: new Date(`2098-04-2${index}T08:00:00Z`) });
@@ -98,7 +96,6 @@ afterAll(async () => {
   await connection.db.delete(clients).where(inArray(clients.id, [clientOne, clientTwo]));
   await connection.db.delete(employees).where(inArray(employees.accountId, [barberX, barberY, barberZ]));
   await connection.db.delete(accounts).where(inArray(accounts.id, [barberX, barberY, barberZ]));
-  await connection.db.delete(branches).where(inArray(branches.id, [branchOne, branchTwo]));
   await connection.pool.end();
 });
 
@@ -167,7 +164,7 @@ describe("invoice and cash report", () => {
     });
   });
   it("hides the collections summary under filters the daily collections cannot follow", async () => {
-    for (const query of [{ branchId: branchTwo }, { clientId: clientOne }, { status: "completed" }, { source: "manual" }, { q: "سلمى" }, { paymentStatus: "paid" }]) {
+    for (const query of [{ clientId: clientOne }, { status: "completed" }, { source: "manual" }, { q: "سلمى" }, { paymentStatus: "paid" }]) {
       const response = await report("invoices", { ...range, ...query });
       expect(response.status).toBe(200);
       expect(response.body.summary.cash).toBeNull();
@@ -183,7 +180,7 @@ describe("invoice and cash report", () => {
     expect(first).toMatchObject({
       id: invoiceIds[0], reference: references[0], status: "issued", paymentStatus: "paid", currency: "KWD",
       adultCount: 2, childCount: 1, amountCash: "10.000", amountLink: "3.000", total: "13.000",
-      client: { name: "نورة العملاء", phone: "+96555000004" }, employee: { id: barberX, branchId: branchOne }, visitStatus: "completed", editCount: 2, correctionCount: 0,
+      client: { name: "نورة العملاء", phone: "+96555000004" }, employee: { id: barberX, displayName: "اسم قديم" }, visitStatus: "completed", editCount: 2, correctionCount: 0,
       cash: { amount: "13.000", status: "active", method: "cash" },
     });
     expect(first.date).toBe("2098-05-01");
@@ -194,12 +191,12 @@ describe("invoice and cash report", () => {
     const unpaid = response.body.invoices.find((row: { bookingId: string }) => row.bookingId === ids[4]);
     expect(unpaid).toMatchObject({ status: "issued", paymentStatus: "unpaid", total: "15.000", cash: null });
   });
-  it("applies search/date/branch/employee/client/status/source and payment filters, and paginates without changing the summary", async () => {
+  it("applies search/date/employee/client/status/source and payment filters, and paginates without changing the summary", async () => {
     const idsFor = async (query: Record<string, string>) => (await report("invoices", { ...range, ...query })).body.invoices.map((row: { bookingId: string }) => row.bookingId).sort();
     expect(await idsFor({ status: "completed" })).toEqual([ids[0], ids[1]].sort());
     expect(await idsFor({ paymentStatus: "paid" })).toEqual([ids[0], ids[2]].sort());
     expect(await idsFor({ source: "ai" })).toEqual([]);
-    expect(await idsFor({ branchId: branchTwo })).toEqual([ids[3]]);
+    expect((await report("invoices", { ...range, branchId: randomUUID() })).status).toBe(400);
     expect(await idsFor({ employeeId: barberY })).toEqual([ids[2]]);
     expect(await idsFor({ clientId: clientOne })).toEqual([ids[0], ids[1], ids[4]].sort());
     expect(await idsFor({ q: references[3]!.toLowerCase() })).toEqual([ids[3]]);

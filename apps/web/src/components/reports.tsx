@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { VisitStatus } from "@just4kids/contracts";
 import { Field } from "@/components/field";
 import { Detail, Ltr } from "@/components/page";
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBranches, useClient, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
-import type { BranchReport } from "@/lib/api/types";
+import type { ClientReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodOptions } from "@/lib/payments";
@@ -24,7 +24,7 @@ export const dateBasisLabels = { visit_date: "تاريخ الزيارة", create
 export const sourceLabels = { manual: "حجز يدوي", ai: "عبر واتساب" } as const;
 export const paymentStatusLabels = { paid: "مدفوعة", unpaid: "غير مدفوعة" } as const;
 
-/** The current report filters from the address; branch and barber filters apply to the administrator only. */
+/** The current report filters from the address; the barber filter applies to the administrator only. */
 export function useReportFilters() {
   const params = useSearchParams();
   const isAdmin = useSession().data?.account.role === "admin";
@@ -41,7 +41,6 @@ const tabs = [
   { href: "/reports", label: "الحجوزات" },
   { href: "/reports/haircuts", label: "الحلاقات" },
   { href: "/reports/barbers", label: "الحلاقون", employeeLabel: "أدائي" },
-  { href: "/reports/branches", label: "الفروع" },
   { href: "/reports/clients", label: "العملاء" },
   { href: "/reports/invoices", label: "الفواتير والنقد" },
   { href: "/reports/salon", label: "شغل الصالون", adminOnly: true },
@@ -56,9 +55,22 @@ export function reportTitle(pathname: string, isAdmin: boolean) {
 export function ReportTabs() {
   const pathname = usePathname();
   const { isAdmin, search } = useReportFilters();
+  const list = useRef<HTMLDivElement>(null);
+  // On a narrow screen the tabs scroll sideways; keep the open report's tab in view.
+  useEffect(() => {
+    const element = list.current;
+    if (!element) return;
+    const reveal = () => element.querySelector("[data-state=active]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    reveal();
+    // The strip narrows later, e.g. when the page scrollbar appears or the web font loads.
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(reveal);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [pathname, isAdmin]);
   return (
     <Tabs value={pathname} dir="rtl" activationMode="manual" data-print-hidden>
-      <TabsList className="w-full sm:w-fit">
+      <TabsList ref={list} className="w-full max-w-full justify-start overflow-x-auto [scrollbar-width:none] sm:w-fit">
         {tabs.filter(tab => isAdmin || !tab.adminOnly).map(tab => (
           <TabsTrigger key={tab.href} value={tab.href} asChild>
             <Link href={`${tab.href}${search}`}>{isAdmin ? tab.label : tab.employeeLabel ?? tab.label}</Link>
@@ -90,7 +102,6 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
   const router = useRouter();
   const pathname = usePathname();
   const [draft, setDraft] = useState(filters);
-  const branches = useBranches(isAdmin);
   const employees = useEmployees(isAdmin);
   const error = rangeError(draft.from, draft.to);
   const set = <Key extends keyof ReportFilters>(key: Key) => (value: ReportFilters[Key]) => setDraft(current => ({ ...current, [key]: value }));
@@ -119,14 +130,9 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
               <Input type="search" value={draft.q} maxLength={120} onChange={event => set("q")(event.target.value)} placeholder="المرجع أو اسم العميل أو هاتفه" />
             </Field>
             {isAdmin ? (
-              <>
-                <Field label="الفرع">
-                  <OptionSelect value={draft.branchId} onChange={set("branchId")} all="كل الفروع" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} />
-                </Field>
-                <Field label="الحلاق">
-                  <OptionSelect value={draft.employeeId} onChange={set("employeeId")} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
-                </Field>
-              </>
+              <Field label="الحلاق">
+                <OptionSelect value={draft.employeeId} onChange={set("employeeId")} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
+              </Field>
             ) : null}
             <Field label="حالة الزيارة">
               <OptionSelect value={draft.status} onChange={value => set("status")(value as VisitStatus | "")} all="كل الحالات"
@@ -218,13 +224,11 @@ export function SalonScope() {
 export function ReportScope() {
   const pathname = usePathname();
   const { filters, isAdmin } = useReportFilters();
-  const branches = useBranches(isAdmin);
   const employees = useEmployees(isAdmin);
   const client = useClient(isAdmin && filters.clientId ? filters.clientId : null);
   const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
     : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
   const applied = [
-    filters.branchId ? `الفرع: ${branches.data?.find(branch => branch.id === filters.branchId)?.name ?? "…"}` : null,
     filters.employeeId ? `الحلاق: ${employees.data?.find(employee => employee.id === filters.employeeId)?.displayName ?? "…"}` : null,
     filters.clientId ? `العميل: ${client.data?.name ?? "…"}` : null,
     filters.status ? `الحالة: ${visitStatusLabels[filters.status]}` : null,
@@ -266,7 +270,7 @@ export function Money({ value, unit }: { value: { count: number; total: string }
 
 export const reservedHoursLabel = "الساعات المحجوزة (تشمل التنقل)";
 
-type Collected = BranchReport["branches"][number]["cash"];
+type Collected = ClientReport["clients"][number]["cash"];
 
 /** Collected money with the overall total and its split across the used payment methods. */
 export function CashMoney({ value }: { value: Collected }) {
@@ -285,9 +289,9 @@ export function CollectedCash({ value }: { value: Collected | null }) {
   return value ? <CashMoney value={value} /> : <span className="text-xs text-muted-foreground">التحصيلات تُفلتر بالفترة والحلاق فقط</span>;
 }
 
-type Performance = Pick<BranchReport["branches"][number], "work" | "invoices"> & { cash: Collected | null };
+type Performance = Pick<ClientReport["clients"][number], "work" | "invoices"> & { cash: Collected | null };
 
-/** Work, time, and money measures shared by the barber and branch reports. Invoices and cash stay separate. */
+/** Work, time, and money measures shared by the barber and client reports. Invoices and cash stay separate. */
 export function PerformanceDetails({ value, children }: { value: Performance; children?: ReactNode }) {
   const { work, invoices, cash } = value;
   const group = "grid grid-cols-2 gap-4 sm:grid-cols-4";

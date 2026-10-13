@@ -140,7 +140,7 @@ Reports cover the data collected by every module, with search, applicable date/b
 - Label each report's date basis. Reserved hours include travel; they are not measured cutting time.
 - Reports cover these modules, not an unlimited custom-report builder or data the application does not collect.
 - Confirmed on 2026-10-08 for reservation and haircut reports: the date basis is selectable as the Kuwait visit date (default) or the Kuwait date the reservation was made. Haircut reports show every reserved haircut and separately the completed, still open (booked/arrived), cancelled, and no-show quantities. Reservation changes count administrator edits and administrator status corrections, shown separately.
-- Confirmed on 2026-10-08 for barber and branch reports: availability is the barber's scheduled working time (weekly hours and dated exceptions) across the selected visit dates; reserved hours count only booked, arrived, and completed windows; invoice and cash measures follow the report's selected date basis.
+- Confirmed on 2026-10-08 for barber reports (the booking-based branch report was removed on 2026-10-13: barbers and bookings have no branch; branches remain only for daily salon entries): availability is the barber's scheduled working time (weekly hours and dated exceptions) across the selected visit dates; reserved hours count only booked, arrived, and completed windows; invoice and cash measures follow the report's selected date basis.
 
 ## Infrastructure
 

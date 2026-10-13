@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eligibilityQuerySchema } from "./availability.js";
-import { bookingListQuerySchema, bookingResponseSchema, invoiceResponseSchema, visitStatusSchema } from "./bookings.js";
+import { bookingListQuerySchema, bookingResponseObjectSchema, invoiceResponseSchema, visitStatusSchema } from "./bookings.js";
 import { cashAmountSchema } from "./cash.js";
 import { paymentMethodSchema } from "./payments.js";
 import { phoneSchema } from "./auth.js";
@@ -10,7 +10,7 @@ export const reportDateBasisSchema = z.enum(["visit_date", "created_date"]);
 const filters = {
   dateBasis: reportDateBasisSchema.default("visit_date"),
   from: eligibilityQuerySchema.shape.date.optional(), to: eligibilityQuerySchema.shape.date.optional(),
-  branchId: z.uuid().optional(), employeeId: z.uuid().optional(), clientId: z.uuid().optional(),
+  employeeId: z.uuid().optional(), clientId: z.uuid().optional(),
   status: visitStatusSchema.optional(), source: z.enum(["manual", "ai"]).optional(),
   q: z.string().trim().max(120).default(""),
 };
@@ -29,7 +29,7 @@ export const reservationReportResponseSchema = z.strictObject({
     // Edits are administrator reservation revisions; corrections are administrator visit-status corrections.
     editedBookings: total, edits: total, correctedBookings: total, corrections: total,
   }),
-  bookings: z.array(bookingResponseSchema.extend({ editCount: total, correctionCount: total })),
+  bookings: z.array(bookingResponseObjectSchema.extend({ editCount: total, correctionCount: total })),
   total, limit: z.number().int(), offset: z.number().int(),
 });
 const quantities = z.strictObject({ adult: total, child: total, special: total });
@@ -39,8 +39,7 @@ export const haircutReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   totals: z.strictObject(haircutMeasures),
   byDate: z.array(z.strictObject({ date: eligibilityQuerySchema.shape.date, ...haircutMeasures })),
-  byBranch: z.array(z.strictObject({ branchId: z.uuid().nullable(), branchName: z.string(), ...haircutMeasures })),
-  byEmployee: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), branchId: z.uuid().nullable(), branchName: z.string().nullable(), ...haircutMeasures })),
+  byEmployee: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), ...haircutMeasures })),
 });
 export type ReportDateBasis = z.infer<typeof reportDateBasisSchema>;
 export type HaircutReportQuery = z.infer<typeof haircutReportQuerySchema>;
@@ -48,9 +47,8 @@ export type ReservationReportQuery = z.infer<typeof reservationReportQuerySchema
 export type ReservationReportResponse = z.infer<typeof reservationReportResponseSchema>;
 export type HaircutReportResponse = z.infer<typeof haircutReportResponseSchema>;
 
-// Phase 10 barber and branch reports reuse the same filters and date basis.
+// The Phase 10 barber report reuses the same filters and date basis.
 export const employeeReportQuerySchema = haircutReportQuerySchema;
-export const branchReportQuerySchema = haircutReportQuerySchema;
 export const reportMoneySchema = z.strictObject({ count: total, total: z.string().regex(/^(0|[1-9][0-9]*)\.[0-9]{3}$/) });
 // Collected money: the overall total plus how it splits across the accepted payment methods.
 export const reportCashSchema = reportMoneySchema.extend({
@@ -71,22 +69,14 @@ const performance = {
 export const employeeReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   employees: z.array(z.strictObject({
-    employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(), branchId: z.uuid().nullable(), branchName: z.string().nullable(),
+    employeeId: z.uuid(), displayName: z.string(), enabled: z.boolean(),
     // Scheduled working minutes from weekly hours and dated exceptions for each day from `from` to `to`; null without a visit-date range.
     availableMinutes: total.nullable(), ...performance,
     // The administrator's daily collections follow only the period and barber; null when another filter is applied.
     cash: reportCashSchema.nullable(),
   })),
 });
-export const branchReportResponseSchema = z.strictObject({
-  dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
-  branches: z.array(z.strictObject({
-    branchId: z.uuid().nullable(), branchName: z.string(), ...performance,
-    employees: z.array(z.strictObject({ employeeId: z.uuid(), displayName: z.string(), ...performance })),
-  })),
-});
 export type EmployeeReportResponse = z.infer<typeof employeeReportResponseSchema>;
-export type BranchReportResponse = z.infer<typeof branchReportResponseSchema>;
 
 // Phase 11 client history and invoice/cash reports reuse the same filters and date basis.
 export const clientReportQuerySchema = haircutReportQuerySchema;

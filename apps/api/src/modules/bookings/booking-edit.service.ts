@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookings, invoices, branches, clientAddresses, bookingRevisions, cashPayments } from "@just4kids/db/schema";
+import { accounts, bookings, invoices, clientAddresses, bookingRevisions, cashPayments } from "@just4kids/db/schema";
 import type { Account } from "@just4kids/contracts";
 import { bookingEditSchema, bookingCreateSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
@@ -51,14 +51,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;
         const barber = barbers.get(targetId)!;
-        let branchId = booking.branchId, employeeSnapshot = booking.employeeSnapshot;
-        if (reassigned) {
-          // Branch is optional now; keep the new barber's branch (if any) for money and reports.
-          const newBranchId = barber.employee.branchId ?? null;
-          const [branch] = newBranchId ? await transaction.select().from(branches).where(eq(branches.id, newBranchId)).for("update") : [];
-          branchId = newBranchId;
-          employeeSnapshot = { id: targetId, displayName: barber.employee.displayName, branchId: newBranchId, branchName: branch?.name ?? null, branchLocation: branch?.location ?? null };
-        }
+        const employeeSnapshot = reassigned ? { id: targetId, displayName: barber.employee.displayName } : booking.employeeSnapshot;
         if (reassigned || windowChanged) {
           const hours = await readWorkingHours(transaction, targetId, merged.date);
           const existing = await readBlockingBookings(transaction, targetId, merged.date);
@@ -75,7 +68,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         const nextNotes = input.notes === undefined ? booking.notes : input.notes;
         // A moved or reassigned visit is new again for the barber who must (re)check it.
         const seenByBarberAt = reassigned || windowChanged ? null : booking.seenByBarberAt;
-        const nextBooking = { ...booking, ...merged, notes: nextNotes, seenByBarberAt, branchId, addressSnapshot, employeeSnapshot };
+        const nextBooking = { ...booking, ...merged, notes: nextNotes, seenByBarberAt, addressSnapshot, employeeSnapshot };
         const nextInvoice = invoice;
         const before = serializeBooking({ booking, invoice });
         if (JSON.stringify(before) === JSON.stringify(serializeBooking({ booking: nextBooking, invoice: nextInvoice }))) throw new HttpError(409, "BOOKING_UNCHANGED", "لا يوجد تغيير في الحجز");
@@ -85,7 +78,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         const now = Date.now();
         if (!correction && Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= now) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "يمكن تعديل الحجز المستقبلي غير المبدوء فقط");
         if (!correction) assertFutureStart(merged);
-        await transaction.update(bookings).set({ ...merged, notes: nextNotes, seenByBarberAt, branchId, addressSnapshot, employeeSnapshot, visitVersion: nextBooking.visitVersion }).where(eq(bookings.id, id));
+        await transaction.update(bookings).set({ ...merged, notes: nextNotes, seenByBarberAt, addressSnapshot, employeeSnapshot, visitVersion: nextBooking.visitVersion }).where(eq(bookings.id, id));
         const revisionId = randomUUID();
         await transaction.insert(bookingRevisions).values({ id: revisionId, bookingId: id, version: nextBooking.visitVersion, actorAccountId: actor.id, reason: input.reason ?? null, occurredAt: new Date(now), before, after });
         return after;

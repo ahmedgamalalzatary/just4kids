@@ -148,6 +148,13 @@
       "when": 1791833633631,
       "tag": "0020_gigantic_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1791880609308,
+      "tag": "0021_normal_spot",
+      "breakpoints": true
     }
   ]
 }

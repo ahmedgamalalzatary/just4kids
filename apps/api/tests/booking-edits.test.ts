@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "@just4kids/db";
 import { bookingCreateSchema } from "@just4kids/contracts";
-import { accounts, branches, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -15,7 +15,7 @@ import { createBookingService } from "../src/modules/bookings/booking.service.js
 const origin = "http://localhost:3000";
 const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DATABASE_URL, ADMIN_PHONE: "+96555551234", ADMIN_PASSWORD: "admin1234", AUTH_SECRET: "a".repeat(64), APP_ORIGIN: origin });
 const connection = createDatabase(env.DATABASE_URL), auth = createAuth(connection, env), app = createApp({ auth, connection, env });
-const branchId = randomUUID(), otherBranchId = randomUUID(), employeeId = randomUUID(), sameId = randomUUID(), otherId = randomUUID(), clientId = randomUUID(), addressId = randomUUID(), secondAddressId = randomUUID(), foreignClientId = randomUUID(), foreignAddressId = randomUUID();
+const employeeId = randomUUID(), sameId = randomUUID(), otherId = randomUUID(), clientId = randomUUID(), addressId = randomUUID(), secondAddressId = randomUUID(), foreignClientId = randomUUID(), foreignAddressId = randomUUID();
 const phone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session, other: Session;
@@ -34,19 +34,15 @@ const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00",
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
-  await connection.db.insert(branches).values([
-    { id: branchId, name: "edit-first", location: "Kuwait", adultPrice: "5.125", childPrice: "3.001", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now },
-    { id: otherBranchId, name: "edit-second", location: "Hawalli", adultPrice: "9.000", childPrice: "7.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now },
-  ]);
   await connection.db.insert(accounts).values([
     { id: employeeId, phone, role: "employee", passwordHash, createdAt: now, updatedAt: now },
     { id: sameId, phone: `+965${randomInt(40000000, 49999999)}`, role: "employee", passwordHash, createdAt: now, updatedAt: now },
     { id: otherId, phone: otherPhone, role: "employee", passwordHash, createdAt: now, updatedAt: now },
   ]);
   await connection.db.insert(employees).values([
-    { accountId: employeeId, branchId, displayName: "first", createdAt: now, updatedAt: now },
-    { accountId: sameId, branchId, displayName: "same", createdAt: now, updatedAt: now },
-    { accountId: otherId, branchId: otherBranchId, displayName: "second", createdAt: now, updatedAt: now },
+    { accountId: employeeId, displayName: "first", createdAt: now, updatedAt: now },
+    { accountId: sameId, displayName: "same", createdAt: now, updatedAt: now },
+    { accountId: otherId, displayName: "second", createdAt: now, updatedAt: now },
   ]);
   await connection.db.insert(clients).values({ id: clientId, name: "client", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values([addressId, secondAddressId].map((id, index) => ({ id, clientId, area: "area", block: "3", street: index ? "new street" : "original street", houseNumber: "12", createdAt: now, updatedAt: now })));
@@ -74,7 +70,6 @@ afterAll(async () => {
   }
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.clientId, clientId)); await connection.db.delete(clients).where(eq(clients.id, clientId));
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.clientId, foreignClientId)); await connection.db.delete(clients).where(eq(clients.id, foreignClientId));
-  for (const id of [branchId, otherBranchId]) await connection.db.delete(branches).where(eq(branches.id, id));
   await connection.pool.end();
 });
 describe("reservation edits and invoice revisions", () => {
@@ -110,37 +105,35 @@ describe("reservation edits and invoice revisions", () => {
   });
   it("moves the window/address while preserving agreed prices, identity, and before/after history", async () => {
     const before = (await detail()).body;
-    await connection.db.update(branches).set({ adultPrice: "99.000" }).where(eq(branches.id, branchId));
-    try {
-      const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });
-      expect(updated.status).toBe(200);
-      expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" }, invoice: { id: booking.invoice.id, issuedAt: booking.invoice.issuedAt, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
-      const history = await revisions(); expect(history.status).toBe(200); expect(history.body.revisions).toHaveLength(1);
-      expect(history.body.revisions[0]).toMatchObject({ version: 1, actorAccountId: admin.id, reason: "requested move", before, after: updated.body });
-    } finally { await connection.db.update(branches).set({ adultPrice: "5.125" }).where(eq(branches.id, branchId)); }
+    const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });
+    expect(updated.status).toBe(200);
+    expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" }, invoice: { id: booking.invoice.id, issuedAt: booking.invoice.issuedAt, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
+    const history = await revisions(); expect(history.status).toBe(200); expect(history.body.revisions).toHaveLength(1);
+    expect(history.body.revisions[0]).toMatchObject({ version: 1, actorAccountId: admin.id, reason: "requested move", before, after: updated.body });
   });
-  it("keeps the agreed typed amount for count edits and same-branch assignment", async () => {
+  it("keeps the agreed typed amount for count edits and reassignment", async () => {
     const updated = await edit({ adultCount: 3, childCount: 0, employeeId: sameId });
     expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ employeeId: sameId, branchId, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
+    expect(updated.body).toMatchObject({ employeeId: sameId, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
   });
-  it("changes employee ownership and branch without another invoice", async () => {
+  it("changes employee ownership without a branch or another invoice", async () => {
     const changed = await edit({ employeeId: otherId, adultCount: 2 }); expect(changed.status).toBe(200);
-    expect(changed.body).toMatchObject({ employeeId: otherId, branchId: otherBranchId, employee: { id: otherId, branchName: "edit-second" }, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
+    expect(changed.body).not.toHaveProperty("branchId");
+    expect(changed.body).toMatchObject({ employeeId: otherId, employee: { id: otherId, displayName: "second" }, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
     for (const suffix of ["", "/invoice", "/history", "/revisions"]) {
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", employee.cookie)).status).toBe(403);
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", other.cookie)).status).toBe(200);
     }
     const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM invoices WHERE booking_id = ?", [booking.id]); expect(rows).toMatchObject([{ n: 1 }]);
   });
-  it("preserves snapshots and the typed amount for count edits after the current barber transfers branches", async () => {
+  it("preserves snapshots and the typed amount for count edits after the current barber is renamed", async () => {
     const before = (await detail()).body;
-    await connection.db.update(employees).set({ branchId: otherBranchId }).where(eq(employees.accountId, employeeId));
+    await connection.db.update(employees).set({ displayName: "renamed" }).where(eq(employees.accountId, employeeId));
     try {
       const changed = await edit({ adultCount: 2 }); expect(changed.status).toBe(200);
-      expect(changed.body.employee).toEqual(before.employee); expect(changed.body.branchId).toBe(branchId);
+      expect(changed.body.employee).toEqual(before.employee);
       expect(changed.body.invoice).toMatchObject({ amountCash: "8.126", amountLink: "0.000", total: "8.126" });
-    } finally { await connection.db.update(employees).set({ branchId }).where(eq(employees.accountId, employeeId)); }
+    } finally { await connection.db.update(employees).set({ displayName: "first" }).where(eq(employees.accountId, employeeId)); }
   });
   it("denies employees, unauthenticated changes, missing CSRF, and caller-controlled prices", async () => {
     expect((await edit({ adultCount: 2 }, 0, employee)).status).toBe(403);
@@ -238,7 +231,6 @@ describe("reservation edits and invoice revisions", () => {
     const second = await edit({ adultCount: 2 }, 1); expect(second.status).toBe(200);
     expect((await write("post", `/bookings/${booking.id}/visit`, { status: "cancelled", expectedVersion: 2 })).status).toBe(200);
     await connection.db.update(clientAddresses).set({ street: "changed later" }).where(eq(clientAddresses.id, addressId));
-    await connection.db.update(branches).set({ adultPrice: "99.000" }).where(eq(branches.id, otherBranchId));
     try {
       const history = await revisions();
       expect(history.body.revisions.map((revision: { version: number }) => revision.version)).toEqual([1, 2]);
@@ -250,7 +242,6 @@ describe("reservation edits and invoice revisions", () => {
       expect((await detail()).body.visitVersion).toBe(3);
     } finally {
       await connection.db.update(clientAddresses).set({ street: "original street" }).where(eq(clientAddresses.id, addressId));
-      await connection.db.update(branches).set({ adultPrice: "9.000" }).where(eq(branches.id, otherBranchId));
     }
   });
   it("rolls back the booking/invoice if revision persistence fails", async () => {

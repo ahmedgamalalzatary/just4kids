@@ -51,7 +51,7 @@ export function createScheduleService(repository: ScheduleRepository) {
           .sort(([firstDay], [secondDay]) => firstDay - secondDay)
           .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals }));
         return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), rows.visits.filter(visit => visit.employeeId === barber.id).map(visit => ({ ...visit, status: visit.visitStatus })));
-      }).map(barber => ({ id: barber.id, displayName: barber.displayName, branch: { id: barber.branchId, name: barber.branchName, location: barber.branchLocation } }));
+      }).map(barber => ({ id: barber.id, displayName: barber.displayName }));
       return eligibilityResponseSchema.parse({ date: query.date, startTime: query.startTime, endTime: query.endTime, timeZone: "Asia/Kuwait", barbers });
     },
   };

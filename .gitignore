@@ -16,4 +16,4 @@ uploads/
 !.env.production.example
 .DS_Store
 Thumbs.db
-old-just4kids-ui
+other

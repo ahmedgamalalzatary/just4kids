@@ -100,7 +100,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {employees.data.filter(employee => employee.enabled || employee.id === booking.employeeId).map(employee => (
-                <SelectItem key={employee.id} value={employee.id}>{employee.displayName}{employee.branch ? `، ${employee.branch.name}` : ""}</SelectItem>
+                <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>
               ))}
             </SelectContent>
           </Select>

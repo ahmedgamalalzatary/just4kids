@@ -10,7 +10,7 @@ import type { ReportFilters } from "@/lib/reports";
 import { apiRequest, apiUpload } from "./client";
 import { useApiMutation } from "./session";
 import type {
-  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, BranchReport, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
   PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, VisitEvent,
 } from "./types";
 
@@ -352,9 +352,9 @@ export function useCollectionHistory(id: string | null) {
 
 // Reports --------------------------------------------------------------------
 
-// Only the invoice report accepts the payment filter; other reports must not receive it.
+// Only the invoice report accepts the payment filter; the branch filter belongs to the salon reports, since bookings have no branch.
 function useReport<T>(path: string, filters: ReportFilters, page?: { offset: number }) {
-  const query = path === "invoices" ? filters : { ...filters, paymentStatus: undefined };
+  const query = { ...filters, branchId: undefined, ...(path === "invoices" ? {} : { paymentStatus: undefined }) };
   return useQuery({
     queryKey: [...keys.reports, path, filters, page?.offset ?? null],
     queryFn: ({ signal }) => apiRequest<T>(`/reports/${path}`, { query: { ...query, ...(page ? { limit: PAGE_SIZE, offset: page.offset } : {}) }, signal }),
@@ -365,6 +365,5 @@ function useReport<T>(path: string, filters: ReportFilters, page?: { offset: num
 export const useReservationReport = (filters: ReportFilters, offset: number) => useReport<ReservationReport>("reservations", filters, { offset });
 export const useHaircutReport = (filters: ReportFilters) => useReport<HaircutReport>("haircuts", filters);
 export const useEmployeeReport = (filters: ReportFilters) => useReport<EmployeeReport>("employees", filters);
-export const useBranchReport = (filters: ReportFilters) => useReport<BranchReport>("branches", filters);
 export const useClientReport = (filters: ReportFilters) => useReport<ClientReport>("clients", filters);
 export const useInvoiceReport = (filters: ReportFilters, offset: number) => useReport<InvoiceReport>("invoices", filters, { offset });

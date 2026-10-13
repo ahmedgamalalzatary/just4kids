@@ -12,11 +12,23 @@ describe("branch and employee persistence", () => {
     expect(columns.find(column => column.name === "child_price")?.getSQLType()).toBe("decimal(12,3)");
   });
 
-  it("links every employee to both an account and a branch", () => {
+  it("links every employee to an account only; barbers and bookings have no branch", () => {
     expect(schema).toHaveProperty("employees");
     if (!("employees" in schema)) return;
     const config = getTableConfig(schema.employees as import("drizzle-orm/mysql-core").MySqlTable);
-    expect(config.foreignKeys).toHaveLength(2);
+    expect(config.foreignKeys).toHaveLength(1);
+    expect(config.columns.map(column => column.name)).not.toContain("branch_id");
+    expect(getTableConfig(schema.bookings).columns.map(column => column.name)).not.toContain("branch_id");
+  });
+
+  it("drops the barber and booking branch columns from the migrated database", async () => {
+    const connection = createDatabase(process.env.DATABASE_URL ?? "");
+    try {
+      const [columns] = await connection.db.execute("SELECT COUNT(*) AS columnCount FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name IN ('employees', 'bookings') AND column_name = 'branch_id'");
+      expect(columns).toMatchObject([{ columnCount: 0 }]);
+    } finally {
+      await connection.pool.end();
+    }
   });
 
   it("installs both tables in the isolated MySQL test database", async () => {

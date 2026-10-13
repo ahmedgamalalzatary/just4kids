@@ -3,10 +3,10 @@ import { paymentRecordSchema, paymentUndoSchema, cashReconciliationSchema, booki
 
 const client = { name: "مريم", phone: "+96555550101" };
 const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
-const employee = { id: "44444444-4444-4444-8444-444444444444", displayName: "سالم", branchId: "55555555-5555-4555-8555-555555555555", branchName: "الفرع", branchLocation: "حولي" };
+const employee = { id: "44444444-4444-4444-8444-444444444444", displayName: "سالم" };
 const booking = {
   id: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", clientId: "22222222-2222-4222-8222-222222222222",
-  addressId: "33333333-3333-4333-8333-333333333333", employeeId: "44444444-4444-4444-8444-444444444444", branchId: "55555555-5555-4555-8555-555555555555",
+  addressId: "33333333-3333-4333-8333-333333333333", employeeId: "44444444-4444-4444-8444-444444444444",
   date: "2099-03-10", startTime: "09:00", endTime: "09:20",
   adultCount: 1, childCount: 0, specialChildCount: 0, source: "manual", visitStatus: "booked", visitVersion: 1,
   timeZone: "Asia/Kuwait", createdAt: "2026-10-11T00:00:00.000Z", client, address, employee,
@@ -29,6 +29,17 @@ describe("payment method contracts", () => {
     expect(revision.before.address).toEqual(normalizedAddress);
     expect(revision.after.invoice.address).toEqual(normalizedAddress);
     expect(paymentResponseSchema.parse({ ...payment, bookingAtReceipt: legacyBooking }).bookingAtReceipt.address).toEqual(normalizedAddress);
+  });
+  it("reads snapshots saved while bookings had a branch, dropping the branch everywhere", () => {
+    const branchEmployee = { ...employee, branchId: "55555555-5555-4555-8555-555555555555", branchName: "الفرع", branchLocation: "حولي" };
+    const legacyBooking = { ...booking, branchId: branchEmployee.branchId, employee: branchEmployee, invoice: { ...booking.invoice, employee: branchEmployee } };
+    const expected = bookingResponseSchema.parse(booking);
+    expect(bookingResponseSchema.parse(legacyBooking)).toEqual(expected);
+    expect(bookingResponseSchema.parse({ ...legacyBooking, branchId: null, employee: { ...employee, branchId: null, branchName: null, branchLocation: null } })).toEqual(expected);
+    const revision = bookingRevisionResponseSchema.parse({ id: payment.id, bookingId: booking.id, version: 1, actorAccountId: booking.employeeId, reason: null, occurredAt: payment.recordedAt, before: legacyBooking, after: legacyBooking });
+    expect(revision.before).toEqual(expected);
+    expect(paymentResponseSchema.parse({ ...payment, bookingAtReceipt: legacyBooking }).bookingAtReceipt).toEqual(expected);
+    expect(bookingResponseSchema.safeParse({ ...booking, employee: { ...employee, phone: "+96555550101" } }).success).toBe(false);
   });
   it("reads legacy unit-price invoice snapshots as the whole total in cash", () => {
     const current = Object.fromEntries(Object.entries(booking.invoice).filter(([key]) => key !== "amountCash" && key !== "amountLink"));

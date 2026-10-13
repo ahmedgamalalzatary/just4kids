@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, branches, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookingVisitEvents, bookings, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
 import type { ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
@@ -101,7 +101,7 @@ function filter(query: HaircutReportQuery) {
   const pattern = `%${query.q.replace(/[!%_]/g, character => `!${character}`)}%`;
   return and(
     query.from ? gte(day, query.from) : undefined, query.to ? lte(day, query.to) : undefined,
-    query.branchId ? eq(bookings.branchId, query.branchId) : undefined, query.employeeId ? eq(bookings.employeeId, query.employeeId) : undefined,
+    query.employeeId ? eq(bookings.employeeId, query.employeeId) : undefined,
     query.clientId ? eq(bookings.clientId, query.clientId) : undefined, query.status ? eq(bookings.visitStatus, query.status) : undefined,
     query.source ? eq(bookings.source, query.source) : undefined,
     query.q ? or(
@@ -133,26 +133,21 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       const day = sql<string>`DATE_FORMAT(${reportDay(query)}, '%Y-%m-%d')`;
       const [totals] = await db.select(measures).from(bookings).where(where);
       const byDate = await db.select({ date: day, ...measures }).from(bookings).where(where).groupBy(day).orderBy(asc(day));
-      const byBranch = await db.select({ branchId: bookings.branchId, branchName: sql<string>`COALESCE(${branches.name}, 'بدون فرع')`, ...measures }).from(bookings).leftJoin(branches, eq(branches.id, bookings.branchId))
-        .where(where).groupBy(bookings.branchId, branches.name).orderBy(asc(branches.name), asc(bookings.branchId));
-      const byEmployee = await db.select({ employeeId: bookings.employeeId, displayName: employees.displayName, branchId: bookings.branchId, branchName: branches.name, ...measures }).from(bookings)
-        .innerJoin(employees, eq(employees.accountId, bookings.employeeId)).leftJoin(branches, eq(branches.id, bookings.branchId))
-        .where(where).groupBy(bookings.employeeId, employees.displayName, bookings.branchId, branches.name)
-        .orderBy(asc(employees.displayName), asc(bookings.employeeId), asc(branches.name), asc(bookings.branchId));
+      const byEmployee = await db.select({ employeeId: bookings.employeeId, displayName: employees.displayName, ...measures }).from(bookings)
+        .innerJoin(employees, eq(employees.accountId, bookings.employeeId))
+        .where(where).groupBy(bookings.employeeId, employees.displayName)
+        .orderBy(asc(employees.displayName), asc(bookings.employeeId));
       return {
         totals: shapeMeasures(totals!),
         byDate: byDate.map(({ date, ...row }) => ({ date, ...shapeMeasures(row) })),
-        byBranch: byBranch.map(({ branchId, branchName, ...row }) => ({ branchId, branchName, ...shapeMeasures(row) })),
-        byEmployee: byEmployee.map(({ employeeId, displayName, branchId, branchName, ...row }) => ({ employeeId, displayName, branchId, branchName, ...shapeMeasures(row) })),
+        byEmployee: byEmployee.map(({ employeeId, displayName, ...row }) => ({ employeeId, displayName, ...shapeMeasures(row) })),
       };
     },
-    /** Work grouped by the barber and/or branch recorded on each reservation. */
-    async performance<Key extends "employeeId" | "branchId">(query: HaircutReportQuery, keys: Key[]) {
-      const columns = { employeeId: bookings.employeeId, branchId: bookings.branchId };
-      const groups = keys.map(key => columns[key]);
-      return db.select({ ...Object.fromEntries(keys.map(key => [key, columns[key]])) as { [Name in Key]: typeof columns[Name] }, ...performanceMeasures }).from(bookings)
+    /** Work grouped by the barber assigned to each reservation. */
+    async performance(query: HaircutReportQuery) {
+      return db.select({ employeeId: bookings.employeeId, ...performanceMeasures }).from(bookings)
         .innerJoin(invoices, eq(invoices.bookingId, bookings.id)).leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
-        .where(filter(query)).groupBy(...groups) as unknown as Promise<({ [Name in Key]: string } & PerformanceRow)[]>;
+        .where(filter(query)).groupBy(bookings.employeeId) as unknown as Promise<({ employeeId: string } & PerformanceRow)[]>;
     },
     /** The administrator's daily collections for the period, totalled per barber. */
     async collectionSums(query: HaircutReportQuery) {
@@ -165,12 +160,9 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       return row!;
     },
     async employees(employeeId: string | undefined) {
-      return db.select({ employeeId: employees.accountId, displayName: employees.displayName, enabled: accounts.enabled, branchId: employees.branchId, branchName: branches.name }).from(employees)
-        .innerJoin(accounts, eq(accounts.id, employees.accountId)).leftJoin(branches, eq(branches.id, employees.branchId))
+      return db.select({ employeeId: employees.accountId, displayName: employees.displayName, enabled: accounts.enabled }).from(employees)
+        .innerJoin(accounts, eq(accounts.id, employees.accountId))
         .where(employeeId ? eq(employees.accountId, employeeId) : undefined).orderBy(asc(employees.displayName), asc(employees.accountId));
-    },
-    async branches(branchId: string | undefined) {
-      return db.select({ branchId: branches.id, branchName: branches.name }).from(branches).where(branchId ? eq(branches.id, branchId) : undefined).orderBy(asc(branches.name), asc(branches.id));
     },
     async schedules(employeeIds: string[], from: string, to: string) {
       if (!employeeIds.length) return { weekly: [], exceptions: [] };

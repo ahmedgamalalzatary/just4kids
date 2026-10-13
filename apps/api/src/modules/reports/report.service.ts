@@ -1,4 +1,4 @@
-import { branchReportQuerySchema, branchReportResponseSchema, clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
+import { clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema } from "@just4kids/contracts";
 import type { Account, HaircutReportQuery } from "@just4kids/contracts";
 import { ForbiddenError } from "../../lib/http-error.js";
 import { fils, money } from "../bookings/booking.repository.js";
@@ -28,7 +28,7 @@ function collectionCash(row: CollectionRow | undefined) {
 
 // Daily collections carry only a barber and a day, so they follow the period and barber filters and nothing else.
 function collectionsFollow(query: HaircutReportQuery & { paymentStatus?: string | undefined }) {
-  return !query.branchId && !query.clientId && !query.status && !query.source && !query.q && !query.paymentStatus;
+  return !query.clientId && !query.status && !query.source && !query.q && !query.paymentStatus;
 }
 
 export function createReportService(repository: ReportRepository) {
@@ -53,10 +53,9 @@ export function createReportService(repository: ReportRepository) {
     },
     async employees(queryInput: unknown, actor: Account) {
       const query = scope(employeeReportQuerySchema.parse(queryInput), actor);
-      const work = new Map((await repository.performance(query, ["employeeId"])).map(row => [row.employeeId, row]));
+      const work = new Map((await repository.performance(query)).map(row => [row.employeeId, row]));
       const collected = collectionsFollow(query) ? new Map((await repository.collectionSums(query)).map(row => [row.employeeId, row])) : null;
-      // With a branch filter, list barbers currently in that branch and any barber whose recorded work there matches.
-      const people = (await repository.employees(query.employeeId)).filter(person => !query.branchId || person.branchId === query.branchId || work.has(person.employeeId));
+      const people = await repository.employees(query.employeeId);
       const range = query.dateBasis === "visit_date" && query.from && query.to ? { from: query.from, to: query.to } : undefined;
       const schedules = range ? await repository.schedules(people.map(person => person.employeeId), range.from, range.to) : undefined;
       return employeeReportResponseSchema.parse({
@@ -74,29 +73,6 @@ export function createReportService(repository: ReportRepository) {
           }
           return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)), cash: collected ? collectionCash(collected.get(person.employeeId)) : null };
         }),
-      });
-    },
-    async branches(queryInput: unknown, actor: Account) {
-      const query = scope(branchReportQuerySchema.parse(queryInput), actor);
-      type Performance = NonNullable<Parameters<typeof shapePerformance>[0]>;
-      const work = new Map<string | null, Performance>((await repository.performance(query, ["branchId"])).map(row => [row.branchId, row]));
-      const split = await repository.performance(query, ["branchId", "employeeId"]);
-      const names = new Map((await repository.employees(query.employeeId)).map(person => [person.employeeId, person.displayName]));
-      // Administrators compare every branch; an employee sees only branches holding their own matching work.
-      const places = (await repository.branches(query.branchId)).filter(place => actor.role === "admin" || work.has(place.branchId));
-      const unassigned = work.get(null);
-      // Branches are optional now; work on branchless reservations is grouped under a "no branch" row.
-      const rows = [
-        ...places.map(place => ({ branchId: place.branchId as string | null, branchName: place.branchName as string, info: work.get(place.branchId) })),
-        ...(unassigned ? [{ branchId: null, branchName: "بدون فرع", info: unassigned }] : []),
-      ];
-      return branchReportResponseSchema.parse({
-        dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
-        branches: rows.map(row => ({
-          branchId: row.branchId, branchName: row.branchName, ...shapePerformance(row.info),
-          employees: split.filter(item => item.branchId === row.branchId).map(item => ({ employeeId: item.employeeId, displayName: names.get(item.employeeId) ?? "", ...shapePerformance(item) }))
-            .sort((left, right) => left.displayName.localeCompare(right.displayName, "ar") || left.employeeId.localeCompare(right.employeeId)),
-        })),
       });
     },
     async clients(queryInput: unknown, actor: Account) {

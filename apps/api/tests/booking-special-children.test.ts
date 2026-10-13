@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, branches, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -14,7 +14,7 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchId = randomUUID(), employeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
+const employeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID();
 const employeePhone = `+965${randomInt(40000000, 49999999)}`;
 const date = "2099-02-10";
 type Session = { cookie: string; csrf: string };
@@ -38,10 +38,9 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date();
-  await connection.db.insert(branches).values({ id: branchId, name: "فرع الاختبار", location: "حولي", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values({ id: employeeId, phone: employeePhone, role: "employee", passwordHash, createdAt: now, updatedAt: now });
-  await connection.db.insert(employees).values({ accountId: employeeId, branchId, displayName: "سالم", createdAt: now, updatedAt: now });
+  await connection.db.insert(employees).values({ accountId: employeeId, displayName: "سالم", createdAt: now, updatedAt: now });
   await connection.db.insert(clients).values({ id: clientId, name: "مريم", phone: `+965${randomInt(50000000, 59999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values(Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" })));
@@ -58,7 +57,6 @@ afterAll(async () => {
   await connection.db.delete(clients).where(eq(clients.id, clientId));
   await connection.db.delete(employees).where(eq(employees.accountId, employeeId));
   await connection.db.delete(accounts).where(eq(accounts.id, employeeId));
-  await connection.db.delete(branches).where(eq(branches.id, branchId));
   await connection.pool.end();
 });
 
