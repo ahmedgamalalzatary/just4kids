@@ -67,12 +67,12 @@ export function PhoneBookingClient({ initialClientId = null, onSelection }: { in
   const normalized = normalizePhone(raw);
   const phone = phoneSchema.safeParse(normalized).success ? normalized : null;
   const lookup = usePhoneClient(phone);
-  useEffect(() => { if (!phone || lookup.isFetching || lookup.isError) onSelection(null); }, [phone, lookup.isFetching, lookup.isError, onSelection]);
+  useEffect(() => { if (!phone || lookup.isPending || lookup.isError) onSelection(null); }, [phone, lookup.isPending, lookup.isError, onSelection]);
   return (
     <div className="flex flex-col gap-4">
       <Field label="رقم هاتف العميل" hint="اكتب 8 أرقام كويتية أو رقماً بالصيغة الدولية؛ البحث تلقائي."><Input type="tel" inputMode="tel" dir="ltr" value={raw} onChange={event => { onSelection(null); setEntered(event.target.value); }} className="text-start" /></Field>
       {entered === null && initialClientId && initial.isError ? <ErrorState error={initial.error} onRetry={() => initial.refetch()} /> : null}
-      {!phone ? <p className="text-sm text-muted-foreground">أدخل رقم الهاتف كاملاً لعرض بيانات العميل.</p> : lookup.isPending || lookup.isFetching ? <p role="status" className="text-sm text-muted-foreground">جارٍ البحث عن العميل…</p> : lookup.isError ? <ErrorState error={lookup.error} onRetry={() => lookup.refetch()} /> : lookup.data ? <ExistingClientFields key={lookup.data.id} client={lookup.data} onSelection={onSelection} /> : <NewClientFields key={phone} phone={phone} onSelection={onSelection} />}
+      {!phone ? <p className="text-sm text-muted-foreground">أدخل رقم الهاتف كاملاً لعرض بيانات العميل.</p> : lookup.isPending ? <p role="status" className="text-sm text-muted-foreground">جارٍ البحث عن العميل…</p> : lookup.isError ? <ErrorState error={lookup.error} onRetry={() => lookup.refetch()} /> : lookup.data ? <ExistingClientFields key={lookup.data.id} client={lookup.data} onSelection={onSelection} /> : <NewClientFields key={phone} phone={phone} onSelection={onSelection} />}
     </div>
   );
 }

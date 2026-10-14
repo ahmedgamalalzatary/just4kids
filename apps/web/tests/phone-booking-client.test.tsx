@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PhoneBookingClient } from "@/components/phone-booking-client";
@@ -20,8 +20,9 @@ function mount(mode: "found" | "new" | "stopped" | "error" = "found") {
   });
   vi.stubGlobal("fetch", fetch);
   const selection = vi.fn();
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })}><PhoneBookingClient onSelection={selection} /></QueryClientProvider>);
-  return { selection, fetch };
+  const queries = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  render(<QueryClientProvider client={queries}><PhoneBookingClient onSelection={selection} /></QueryClientProvider>);
+  return { selection, fetch, queries };
 }
 afterEach(() => vi.unstubAllGlobals());
 it("looks up eight local digits and selects the last-used address", async () => {
@@ -51,6 +52,29 @@ it("blocks a stopped client and never displays new-client fields", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("موقوف");
   expect(selection).toHaveBeenLastCalledWith(null);
   expect(screen.queryByLabelText(/اسم العميل/)).not.toBeInTheDocument();
+});
+it("preserves inline address fields and the selection during a same-phone background recheck", async () => {
+  const { selection, fetch, queries } = mount("new");
+  await userEvent.type(screen.getByLabelText("رقم هاتف العميل"), "50000001");
+  await screen.findByRole("option", { name: "الفنطاس" });
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "المنطقة" }), "الفنطاس");
+  for (const [label, value] of [["القطعة", "1"], ["الشارع", "2"], ["رقم المنزل", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
+  await waitFor(() => expect(selection).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "new" })));
+  const street = screen.getByLabelText("الشارع");
+  let finish!: (response: Response) => void;
+  fetch.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+  let refresh!: Promise<void>;
+  act(() => { refresh = queries.invalidateQueries({ queryKey: ["clients", "lookup", "+96550000001"] }); });
+  await waitFor(() => expect(finish).toBeDefined());
+  try {
+    expect(screen.getByLabelText("الشارع")).toBe(street);
+    expect(street).toHaveValue("2");
+    expect(selection).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "new" }));
+  } finally {
+    await act(async () => { finish(new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "غير موجود" } }), { status: 404 })); await refresh; });
+  }
+  expect(screen.getByLabelText("الشارع")).toBe(street);
+  expect(street).toHaveValue("2");
 });
 it("treats lookup errors as errors, with retry, rather than a new client", async () => {
   mount("error");

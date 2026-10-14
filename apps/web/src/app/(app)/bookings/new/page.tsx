@@ -93,7 +93,6 @@ function NewBookingScreen() {
   const employees = useEmployees();
   const create = useCreateBooking();
   const createNew = useCreateBookingWithClient();
-  const mutation = clientSelection?.kind === "new" ? createNew : create;
   const send = useSendToBarber();
 
   const barber = employees.data?.find(employee => employee.id === barberId) ?? null;
@@ -117,8 +116,13 @@ function NewBookingScreen() {
         if (error instanceof ApiError && error.code === "AREA_UNAVAILABLE") void queryClient.invalidateQueries({ queryKey: keys.areas });
       },
     };
-    if (clientSelection.kind === "new") createNew.mutate({ ...details, client: clientSelection.client }, options);
-    else create.mutate({ ...details, clientId: clientSelection.client.id, addressId: clientSelection.address.id }, options);
+    if (clientSelection.kind === "new") {
+      create.reset();
+      createNew.mutate({ ...details, client: clientSelection.client }, options);
+    } else {
+      createNew.reset();
+      create.mutate({ ...details, clientId: clientSelection.client.id, addressId: clientSelection.address.id }, options);
+    }
   };
   // G15: after saving, offer to send the details to the barber on WhatsApp or return to today's list.
   const sendCreated = () => {
@@ -216,7 +220,7 @@ function NewBookingScreen() {
               <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
-              <FormAlert error={mutation.error} />
+              <FormAlert error={create.error ?? createNew.error} />
               <Button size="lg" variant="sun" onClick={submit} disabled={!ready || create.isPending || createNew.isPending || created !== null}>
                 {create.isPending || createNew.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
                 حفظ الحجز وإصدار الفاتورة
