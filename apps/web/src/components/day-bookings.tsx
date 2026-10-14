@@ -19,6 +19,7 @@ import { formatWindow } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { canEditBooking, canRecordPayment } from "@/lib/visit-rules";
 import { cn } from "@/lib/utils";
+import { sendLoggedWhatsApp } from "@/lib/whatsapp";
 
 const cancellable = (booking: Booking) => booking.visitStatus === "booked" || booking.visitStatus === "arrived";
 
@@ -34,16 +35,20 @@ export function NewBookingDot({ className }: { className?: string }) {
 /** Opens WhatsApp to the barber with the visit details, recording the send in the booking history first (G13). */
 export function WhatsAppButton({ booking, barberPhone, size = "sm" }: { booking: Booking; barberPhone: string | undefined; size?: "sm" | "default" }) {
   const send = useSendToBarber();
+  const [problem, setProblem] = useState<Error | null>(null);
   if (!barberPhone) return null;
   return (
-    <Button type="button" size={size} className="bg-status-completed text-white hover:bg-status-completed/90 dark:text-background"
-      onClick={() => {
-        // The record is fired alongside the synchronous open so the click still counts as a user gesture.
-        send.mutate({ id: booking.id });
-        window.open(whatsAppLink(barberPhone, booking), "_blank", "noopener,noreferrer");
-      }}>
-      <MessageCircle aria-hidden />واتساب
-    </Button>
+    <span className="inline-flex flex-col items-start gap-1">
+      <Button type="button" size={size} disabled={send.isPending} className="bg-status-completed text-white hover:bg-status-completed/90 dark:text-background"
+        onClick={async () => {
+          setProblem(null);
+          try { await sendLoggedWhatsApp(whatsAppLink(barberPhone, booking), () => send.mutateAsync({ id: booking.id })); }
+          catch (error) { setProblem(error instanceof Error ? error : new Error("تعذر تسجيل الإرسال، حاول مرة أخرى")); }
+        }}>
+        <MessageCircle aria-hidden />واتساب
+      </Button>
+      {problem ? <span role="alert" className="text-xs text-destructive">{problem.message}</span> : null}
+    </span>
   );
 }
 

@@ -2,22 +2,19 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Printer } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
 import { Wordmark } from "@/components/brand";
 import { ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/api/client";
-import { keys } from "@/lib/api/hooks";
-import type { Invoice } from "@/lib/api/types";
+import { useInvoice } from "@/lib/api/hooks";
 import { formatAddress } from "@/lib/address";
 import { formatDateTime } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 
 export default function InvoicePage() {
   const { id } = useParams<{ id: string }>();
-  const invoice = useQuery({ queryKey: [...keys.booking(id), "invoice"], queryFn: ({ signal }) => apiRequest<Invoice>(`/bookings/${id}/invoice`, { signal }) });
+  const invoice = useInvoice(id);
 
   const toolbar = (
     <div className="mb-6 flex items-center justify-between gap-3" data-print-hidden>

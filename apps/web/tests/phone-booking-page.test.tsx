@@ -7,10 +7,11 @@ import { sessionKey } from "@/lib/api/session";
 import { bookingResponseSchema } from "@just4kids/contracts";
 
 const id = "11111111-1111-4111-8111-111111111111", addressId = "22222222-2222-4222-8222-222222222222", timestamp = "2026-10-13T00:00:00.000Z";
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/bookings/new", useSearchParams: () => new URLSearchParams(`barber=${id}&date=2099-01-05`) }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation, usePathname: () => "/bookings/new", useSearchParams: () => new URLSearchParams(`barber=${id}&date=2099-01-05`) }));
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
-function mount(known: boolean, failFirst = false) {
-  let registered = known, posts = 0;
+function mount(known: boolean, failFirst = false, sendFails = 0, deferSend?: () => Promise<Response>) {
+  let registered = known, posts = 0, sends = 0;
   const client = { id, name: "مريم", phone: "+96550000001", enabled: true, createdAt: timestamp, updatedAt: timestamp, lastUsedAddressId: addressId, addresses: [{ ...address, id: addressId, clientId: id, createdAt: timestamp, updatedAt: timestamp }] };
   const invoice = { id: addressId, bookingId: id, reference: "J4K-TEST", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { name: known ? "مريم" : client.phone, phone: client.phone }, address, employee: { id, displayName: "سالم" } };
   const saved = bookingResponseSchema.parse({ id, reference: invoice.reference, clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: invoice.client, address, employee: invoice.employee, invoice });
@@ -25,6 +26,12 @@ function mount(known: boolean, failFirst = false) {
       posts++;
       if (failFirst && posts === 1) { registered = true; return new Response(JSON.stringify({ error: { code: "PHONE_ALREADY_USED", message: "رقم الهاتف أصبح مسجلاً؛ أعد التحقق من بيانات العميل" } }), { status: 409 }); }
       return new Response(JSON.stringify(saved), { status: 201 });
+    }
+    if (url === `/api/bookings/${id}/sent-to-barber` && init?.method === "POST") {
+      if (deferSend) return deferSend();
+      sends++;
+      if (sends <= sendFails) return new Response(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "تعذر" } }), { status: 500 });
+      return new Response(JSON.stringify({ id, bookingId: id, kind: "sent_to_barber", actorAccountId: id, occurredAt: timestamp }), { status: 201 });
     }
     throw new Error(`Unexpected request ${url}`);
   });
@@ -54,6 +61,27 @@ it.each([true, false])("saves the phone-first booking through the correct atomic
   expect(new Headers(call[1]?.headers).get("X-CSRF-Token")).toBe("csrf");
   expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
 });
+
+it("keeps the saved booking dialog mounted while the WhatsApp send is pending", async () => {
+  let finish!: (response: Response) => void;
+  const popup = { opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+  vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+  mount(true, false, 0, () => new Promise<Response>(resolve => { finish = resolve; }));
+  await userEvent.type(screen.getByLabelText("رقم هاتف العميل"), "50000001");
+  await userEvent.click(await screen.findByRole("radio", { name: "1:00 م" }));
+  await userEvent.type(screen.getByLabelText("نقدي (د.ك)"), "5");
+  const save = screen.getByRole("button", { name: "حفظ الحجز وإصدار الفاتورة" });
+  await waitFor(() => expect(save).toBeEnabled());
+  await userEvent.click(save);
+  await screen.findByText("تم حفظ الحجز");
+  await userEvent.click(screen.getByRole("button", { name: /إرسال الحجز واتساب للحلاق/ }));
+  await waitFor(() => expect(finish).toBeDefined());
+  expect(screen.getByRole("button", { name: /لا ترسل/ })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(navigation.push).not.toHaveBeenCalled();
+  finish(new Response(JSON.stringify({ id, bookingId: id, kind: "sent_to_barber", actorAccountId: id, occurredAt: timestamp }), { status: 201 }));
+  await waitFor(() => expect(navigation.push).toHaveBeenCalledWith(`/bookings/${id}`));
+});
 it("retains the failed save message after lookup switches to an existing client and clears it for the next save", async () => {
   mount(false, true);
   await userEvent.type(screen.getByLabelText("رقم هاتف العميل"), "50000001");
@@ -69,4 +97,24 @@ it("retains the failed save message after lookup switches to an existing client 
   await waitFor(() => expect(save).toBeEnabled()); await userEvent.click(save);
   await screen.findByText("تم حفظ الحجز");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+it("keeps the after-save dialog open and does not navigate when the send log fails, then sends on retry", async () => {
+  const popup = { opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+  vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+  mount(true, false, 1);
+  await userEvent.type(screen.getByLabelText("رقم هاتف العميل"), "50000001");
+  await userEvent.click(await screen.findByRole("radio", { name: "1:00 م" }));
+  await userEvent.type(screen.getByLabelText("نقدي (د.ك)"), "5");
+  const save = screen.getByRole("button", { name: "حفظ الحجز وإصدار الفاتورة" });
+  await waitFor(() => expect(save).toBeEnabled()); await userEvent.click(save);
+  await screen.findByText("تم حفظ الحجز");
+  const sendButton = screen.getByRole("button", { name: /إرسال الحجز واتساب للحلاق/ });
+  await userEvent.click(sendButton);
+  await screen.findByRole("alert");
+  expect(popup.location.replace).not.toHaveBeenCalled();
+  expect(popup.close).toHaveBeenCalledOnce();
+  expect(navigation.push).not.toHaveBeenCalled();
+  await userEvent.click(sendButton);
+  await waitFor(() => expect(popup.location.replace).toHaveBeenCalledOnce());
+  await waitFor(() => expect(navigation.push).toHaveBeenCalledWith(`/bookings/${id}`));
 });

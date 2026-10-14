@@ -81,7 +81,7 @@ function InvoicesReport({ filters, isAdmin }: { filters: ReportFilters; isAdmin:
           <Detail label="الفواتير الصادرة"><Money value={data.summary.invoices.issued} unit="فاتورة" /></Detail>
           <Detail label="فواتير غير مدفوعة"><Money value={data.summary.invoices.outstanding} unit="فاتورة" /></Detail>
           <Detail label="الفواتير الملغاة"><Money value={data.summary.invoices.cancelled} unit="فاتورة" /></Detail>
-          <Detail label="المبلغ المستلم"><CollectedCash value={data.summary.cash} /></Detail>
+          <Detail label="المبلغ المستلم"><CollectedCash value={data.summary.cash} unit="إدخال" /></Detail>
         </CardContent>
       </Card>
       <Card>

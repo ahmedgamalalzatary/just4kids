@@ -103,6 +103,22 @@ describe("reservation edits and invoice revisions", () => {
     expect(current.body.seenByBarberAt).toBeNull();
     expect((await detail(other)).body.seenByBarberAt).not.toBeNull();
   });
+  it("does not let a pending view clear the notification after the booking window changes", async () => {
+    const repository = createBookingRepository(connection);
+    const service = createBookingService({
+      ...repository,
+      async markSeenByBarber(...args) {
+        const moved = await edit({ startTime: "10:00", endTime: "10:20" });
+        expect(moved.status).toBe(200);
+        return repository.markSeenByBarber(...args);
+      },
+    });
+    await service.get(booking.id, { id: employeeId, role: "employee", phone });
+    const current = await detail();
+    expect(current.body.startTime).toBe("10:00");
+    expect(current.body.seenByBarberAt).toBeNull();
+    expect((await detail(employee)).body.seenByBarberAt).not.toBeNull();
+  });
   it("moves the window/address while preserving agreed prices, identity, and before/after history", async () => {
     const before = (await detail()).body;
     const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });

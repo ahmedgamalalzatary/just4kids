@@ -12,15 +12,65 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollectionReport, useCreateCollection, useEmployees, useUpdateCollection } from "@/lib/api/hooks";
+import { useCollectionDayBookings, useCollectionHistory, useCollectionReport, useCreateCollection, useEmployees, useUpdateCollection } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
-import type { BarberCollection } from "@/lib/api/types";
-import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
+import type { BarberCollection, BarberCollectionEvent, Booking } from "@/lib/api/types";
+import { formatDate, formatDateTime, kuwaitNow } from "@/lib/kuwait-time";
 import { fromFils, formatKwd, toFils } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 const amountPattern = /^(0|[1-9][0-9]*)\.\d{3}$/;
 const collectionTotal = (cash: string, link: string, knet: string) => fromFils(toFils(cash) + toFils(link) + toFils(knet));
+
+/** Sums a day's completed visits for a new collection: normal children exclude the special subset, and money follows each invoice. */
+function prefillFromVisits(bookings: Booking[]) {
+  const completed = bookings.filter(booking => booking.visitStatus === "completed");
+  return completed.reduce((totals, booking) => ({
+    normalChildren: totals.normalChildren + booking.childCount - booking.specialChildCount,
+    specialChildren: totals.specialChildren + booking.specialChildCount,
+    cash: fromFils(toFils(totals.cash) + toFils(booking.invoice.amountCash)),
+    link: fromFils(toFils(totals.link) + toFils(booking.invoice.amountLink)),
+  }), { normalChildren: 0, specialChildren: 0, cash: "0.000", link: "0.000" });
+}
+
+const collectionFields = [
+  { key: "date", label: "التاريخ" },
+  { key: "normalChildren", label: "أطفال عاديون" },
+  { key: "specialChildren", label: "أطفال ذوو احتياجات خاصة" },
+  { key: "cash", label: "نقداً" },
+  { key: "link", label: "رابط" },
+  { key: "knet", label: "كي نت" },
+  { key: "total", label: "الإجمالي" },
+] as const;
+type CollectionSnapshot = NonNullable<BarberCollectionEvent["before"]>;
+
+/** The before → after lines for one stored collection edit. */
+function collectionChanges(before: CollectionSnapshot, after: CollectionSnapshot) {
+  return collectionFields.filter(field => before[field.key] !== after[field.key]).map(field => `${field.label}: ${before[field.key]} ← ${after[field.key]}`);
+}
+
+/** The stored edit history of one daily collection, latest action first. */
+function CollectionHistory({ id }: { id: string }) {
+  const history = useCollectionHistory(id);
+  if (history.isPending) return <LoadingRows rows={2} />;
+  if (history.isError) return <ErrorState error={history.error} onRetry={() => history.refetch()} />;
+  if (history.data.length === 0) return null;
+  return (
+    <section aria-label="سجل التعديلات" className="flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="text-sm font-medium">سجل التعديلات</h3>
+      <ol className="flex flex-col gap-3">
+        {[...history.data].reverse().map(event => (
+          <li key={event.id} className="text-sm">
+            <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
+            {event.before === null
+              ? <p>أُنشئ الإدخال</p>
+              : <ul className="flex flex-col gap-0.5">{collectionChanges(event.before, event.after).map(change => <li key={change}>{change}</li>)}</ul>}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 type Form = { employeeId: string; date: string; normalChildren: string; specialChildren: string; cash: string; link: string; knet: string };
 const blank = (): Form => ({ employeeId: "", date: kuwaitNow().date, normalChildren: "0", specialChildren: "0", cash: "0.000", link: "0.000", knet: "0.000" });
@@ -33,9 +83,36 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
   const mutation = entry ? update : create;
   const [form, setForm] = useState<Form>(() => entry ? { employeeId: entry.employeeId, date: entry.date, normalChildren: String(entry.normalChildren), specialChildren: String(entry.specialChildren), cash: entry.cash, link: entry.link, knet: entry.knet } : blank());
   const [problem, setProblem] = useState<string | null>(null);
-  const set = <Key extends keyof Form>(key: Key) => (value: string) => setForm(current => ({ ...current, [key]: value }));
+  const canPrefill = !entry && Boolean(form.employeeId) && Boolean(form.date);
+  const visits = useCollectionDayBookings(form.date, form.employeeId, canPrefill);
+  const prefillKey = `${form.employeeId}:${form.date}`;
+  const [appliedPrefill, setAppliedPrefill] = useState<string | null>(null);
+  const [editedFields, setEditedFields] = useState<(keyof Form)[]>([]);
+  // Fill a new entry from the day's completed visits once a barber and date are chosen, without touching later edits.
+  const prefill = !canPrefill || visits.isFetching || !visits.isSuccess ? null : prefillFromVisits(visits.data);
+  if (prefill && appliedPrefill !== prefillKey) {
+    setAppliedPrefill(prefillKey);
+    setForm(current => ({ ...current,
+      normalChildren: editedFields.includes("normalChildren") ? current.normalChildren : String(prefill.normalChildren),
+      specialChildren: editedFields.includes("specialChildren") ? current.specialChildren : String(prefill.specialChildren),
+      cash: editedFields.includes("cash") ? current.cash : prefill.cash,
+      link: editedFields.includes("link") ? current.link : prefill.link,
+    }));
+  }
+  const set = <Key extends keyof Form>(key: Key) => (value: string) => {
+    if (!entry && (key === "employeeId" || key === "date") && form[key] !== value) {
+      setAppliedPrefill(null);
+      setEditedFields([]);
+      setForm(current => ({ ...current, normalChildren: "0", specialChildren: "0", cash: "0.000", link: "0.000", knet: "0.000", [key]: value }));
+    } else {
+      setEditedFields(current => current.includes(key) ? current : [...current, key]);
+      setForm(current => ({ ...current, [key]: value }));
+    }
+  };
+  const prefillBlocked = canPrefill && (appliedPrefill !== prefillKey || visits.isError);
   const close = (value: boolean) => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); };
   const submit = () => {
+    if (prefillBlocked) return;
     if (!entry && !form.employeeId) { setProblem("اختر الحلاق"); return; }
     if (!form.date) { setProblem("اختر التاريخ"); return; }
     const normalChildren = Number(form.normalChildren), specialChildren = Number(form.specialChildren);
@@ -81,11 +158,15 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
             <Field label="رابط الدفع (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
             <Field label="كي نت (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
           </div>
+          {canPrefill && visits.isPending ? <p role="status" className="text-sm text-muted-foreground">جارٍ تحميل زيارات اليوم المكتملة…</p> : null}
+          {canPrefill && visits.isError ? <ErrorState error={visits.error} onRetry={() => visits.refetch()} /> : null}
+          {appliedPrefill === prefillKey ? <p className="text-xs text-muted-foreground">تم الملء تلقائياً من زيارات اليوم المكتملة مع الاحتفاظ بتعديلاتك. يمكنك تعديل الأرقام.</p> : null}
           <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">الإجمالي: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>
-        <DialogFooter><Button onClick={submit} disabled={mutation.isPending}>حفظ التحصيل</Button></DialogFooter>
+        {entry ? <CollectionHistory id={entry.id} /> : null}
+        <DialogFooter><Button onClick={submit} disabled={mutation.isPending || prefillBlocked}>حفظ التحصيل</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

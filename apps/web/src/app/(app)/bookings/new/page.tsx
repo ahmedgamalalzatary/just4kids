@@ -26,6 +26,7 @@ import { durationOptions, whatsAppLink } from "@/lib/day";
 import { formatDate, formatDuration, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal, typedPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { sendLoggedWhatsApp } from "@/lib/whatsapp";
 
 function Step({ number, title, done, children }: { number: number; title: string; done: boolean; children: ReactNode }) {
   return (
@@ -89,6 +90,7 @@ function NewBookingScreen() {
   const [amountCash, setAmountCash] = useState("");
   const [amountLink, setAmountLink] = useState("");
   const [created, setCreated] = useState<Booking | null>(null);
+  const [sendProblem, setSendProblem] = useState<Error | null>(null);
 
   const employees = useEmployees();
   const create = useCreateBooking();
@@ -125,11 +127,13 @@ function NewBookingScreen() {
     }
   };
   // G15: after saving, offer to send the details to the barber on WhatsApp or return to today's list.
-  const sendCreated = () => {
+  const sendCreated = async () => {
     if (!created || !barber) return;
-    send.mutate({ id: created.id });
-    window.open(whatsAppLink(barber.phone, created), "_blank", "noopener,noreferrer");
-    router.push(`/bookings/${created.id}`);
+    setSendProblem(null);
+    try {
+      await sendLoggedWhatsApp(whatsAppLink(barber.phone, created), () => send.mutateAsync({ id: created.id }));
+      router.push(`/bookings/${created.id}`);
+    } catch (error) { setSendProblem(error instanceof Error ? error : new Error("تعذر تسجيل الإرسال، حاول مرة أخرى")); }
   };
   const backToToday = () => router.push("/bookings");
 
@@ -229,15 +233,16 @@ function NewBookingScreen() {
           </Card>
         </aside>
       </div>
-      <Dialog open={created !== null} onOpenChange={open => { if (!open) router.push(created ? `/bookings/${created.id}` : "/bookings"); }}>
+      <Dialog open={created !== null} onOpenChange={open => { if (!open && !send.isPending) router.push(created ? `/bookings/${created.id}` : "/bookings"); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>تم حفظ الحجز</DialogTitle>
             <DialogDescription>أرسل تفاصيل الحجز <Ltr className="text-xs">{created?.reference}</Ltr> إلى الحلاق على واتساب؟</DialogDescription>
           </DialogHeader>
+          <FormAlert error={sendProblem} />
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             <Button variant="sun" onClick={sendCreated} disabled={send.isPending}><MessageCircle aria-hidden />إرسال الحجز واتساب للحلاق</Button>
-            <Button variant="outline" onClick={backToToday}>لا ترسل، رجوع لحجوزات اليوم</Button>
+            <Button variant="outline" onClick={backToToday} disabled={send.isPending}>لا ترسل، رجوع لحجوزات اليوم</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

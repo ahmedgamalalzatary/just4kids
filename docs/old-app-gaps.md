@@ -2,7 +2,7 @@
 
 Created: 2026-10-12. Source: a full read of the old PHP app (`other/`, 65 files) compared with this repository. Product authority stays [project-contract.md](project-contract.md). Repository rules: [AGENTS.md](../AGENTS.md). This document supersedes the earlier `docs/parity-phases.md`, which has been removed.
 
-Updated: 2026-10-14 after auditing the current code, integration points, tests and Git history at `80fccd1`, including the existing uncommitted S9 review fixes. S7, S11 and S13 are **Reopened** because implementation gaps remain; their earlier browser checks do not establish completion of those missing paths. Historical evidence is retained below. The current **Verified** column takes precedence over historical evidence. S1, S2, S4, S5, S10, S14 and S15 retain the owner's 2026-10-13 browser verification. S0 remains owner-confirmed, but its deployed commit is not recorded. S3, S6, S8 and S9 are built and await browser verification; S12 is built with browser verification deferred.
+Updated: 2026-10-14 after auditing the current code, integration points, tests and Git history at `80fccd1`. The S9 review fixes were committed at `b78cc2b`. The S7, S11 and S13 implementation gaps are now fixed (see each slice) and await browser verification. Historical evidence is retained below; the current **Verified** column takes precedence over historical evidence. S1, S2, S4, S5, S10, S14 and S15 retain the owner's 2026-10-13 browser verification. S0 remains owner-confirmed, but its deployed commit is not recorded. S3, S6, S8, S9, S7, S11 and S13 are built and await browser verification; S12 is built with browser verification deferred.
 
 This doc answers three questions:
 
@@ -19,23 +19,25 @@ Owner decisions already made (2026-10-12):
 
 ## 1. Summary
 
-**Starting point:** S0 foundation built and owner-confirmed; deployed commit not recorded. **Built without the remaining implementation gaps identified in this audit:** S1, S2, S3, S4, S5, S6, S8, S9, S10, S12, S14 and S15 (12 slices). **Partly built, reopened:** S7, S11 and S13 (3 slices). **Not built:** S16. **Rollout incomplete:** S17. **Current browser verification:** S1, S2, S4, S5, S10, S14 and S15 (7 feature slices); S3, S6, S8 and S9 still need browser checks, S12 checks are deferred, and S7/S11/S13 need checks after their fixes. “Built” describes the code; it does not establish client acceptance or production rollout.
+**Starting point:** S0 foundation built and owner-confirmed; deployed commit not recorded. **Built:** S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14 and S15 (15 slices), with the S7/S11/S13 gaps fixed on 2026-10-14. **Not built:** S16. **Rollout incomplete:** S17. **Current browser verification:** S1, S2, S4, S5, S10, S14 and S15 (7 feature slices); S3, S6, S8, S9, S7, S11 and S13 still need browser checks, and S12 checks are deferred. “Built” describes the code; it does not establish client acceptance or production rollout.
 
-**Remaining implementation work found in the audit:**
+**Current work after the implementation fixes:**
 
-- **S7:** wait for successful logging before opening WhatsApp, with a visible failure/retry path, on the day list, booking detail and after-save action.
-- **S11:** pre-fill a new daily collection from completed visits, display its stored edit history, and label daily collection rows as entries rather than receipts in reports.
-- **S13:** update or invalidate cached home/day/list bookings when a barber opens a booking or invoice, so the new-booking dot clears on return.
+- **S7 (fixed 2026-10-14):** all three send paths now record the send and open WhatsApp only after the server confirms, with a visible failure and retry.
+- **S11 (fixed 2026-10-14):** a new daily collection pre-fills from completed visits, the edit dialog shows its stored history, and the barber and invoice reports label daily collections as entries.
+- **S13 (fixed 2026-10-14):** the booking and invoice read hooks refresh the cached home/day/list results after the assigned barber opens a booking or invoice.
 - **S16:** partner/moderator roles and permissions, only after Q5 is answered.
 - **S17:** client acceptance, data-import plan, final release checks, production rollout and verified backup restoration. Deployment tooling and backup instructions already exist.
 
-Audit checks completed on 2026-10-14: `pnpm exec vitest run --project web --project contracts` passed 37 files / 207 tests. This is a targeted test result, not a new full `pnpm check` or browser/deployment check. The S9 review fixes remain uncommitted.
+Audit checks completed on 2026-10-14: full `pnpm check` green after the detailed review fixes (5 lint tasks, 7 typecheck tasks, 70 files / 429 tests, 4 build tasks). Targeted checks: 6 web files / 31 tests plus web lint/typecheck/build, and 21 API booking-edit tests plus API lint/typecheck/build. The UI detector returned no findings. No live browser check was performed: the approved host inventory contained no browser surfaces; the owner browser checks remain outstanding. The S9 review fixes were committed at `b78cc2b`; the S7/S11/S13 fixes are recorded with this document; their commit is identified in Git history.
+
+Detailed review: authenticated CodeRabbit CLI `0.9.0` reviewed `80fccd1` through the working tree with `AGENTS.md`, including the committed S9 fixes. It raised 4 issues (3 major, 1 minor): delayed popup opening, invoice refresh ordering, prefill overwriting manual edits and a stale screen-map row. All were addressed. The final CodeRabbit review explicitly included untracked files, the shared WhatsApp helper, all new regression tests and the API version guard, and raised 0 issues. The direct code review also caught empty-day totals carrying over, truncated prefill after 100 rows, silent prefill failures, fresh detail/invoice caches skipping the server read, pending-dialog dismissal, and an old pending read clearing the marker after a concurrent window change. Regression cases were watched failing before their implementation, then passing. Original 418-test evidence is retained below as historical evidence; the current 429-test result above supersedes it.
 
 | # | Gap | Old app | Current new app | Status / remaining work |
 |---|---|---|---|---|
 | G1 | Barbers without branches | Barbers stand alone | No branch on barbers or bookings (migration 0021); admin types booking cash/link price | Built (S10) |
 | G2 | Only the admin records payments | Admin enters money | Admin-only API and payment controls; barber reads amounts | Built (S1) |
-| G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | S10 built; S11 reopened: prefill, history display and report labels remain; split receipts excluded |
+| G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | S10 built; S11 done (prefill, history display, report labels fixed); split receipts excluded |
 | G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks, closed days/exceptions and manual locks | S2 verified; S3 built, browser verification remains |
 | G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
 | G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Phone lookup selects client and last-used address; inline optional name/address for a new phone, saved atomically with the booking | Built (S9); browser verification remains |
@@ -45,9 +47,9 @@ Audit checks completed on 2026-10-14: `pnpm exec vitest run --project web --proj
 | G10 | Barber account fields | Username, full name, gender, nationality, expiry | Phone login, display name, photo, enabled, expiry | Expiry built (S14); phone login retained; gender/nationality not added |
 | G11 | More roles | superadmin, admin, **carecenter**, **moder** | One admin + barbers | Awaiting Q5 (S16) |
 | G12 | Order tracking report | Printable cross-booking action timeline | Admin-only printable booking timelines by barber, client and visit period, including creation, visits, revisions, payments and WhatsApp sends | Built (S12); browser verification remains |
-| G13 | WhatsApp send is recorded | Logs the action before opening WhatsApp | Logging request starts alongside opening `wa.me`; success is not awaited | S7 reopened: all send paths need acknowledgement and failure handling; not delivery confirmation |
-| G14 | "New booking" marker for barbers | Dot until booking opened | Database marker clears on barber open; cached lists can retain the dot | S13 reopened: refresh cached home/day/list results |
-| G15 | After saving a booking | WhatsApp / back choices | Dialog offers send / return to today's bookings | Choices built; S7 send/logging sequence remains incomplete |
+| G13 | WhatsApp send is recorded | Logs the action before opening WhatsApp | Logging is awaited before `wa.me` opens; a failed log stays visible and retries | S7 done: all send paths acknowledge the log and handle failure; not delivery confirmation |
+| G14 | "New booking" marker for barbers | Dot until booking opened | Database marker clears on barber open; cached home/day/list results now refresh | S13 done: read hooks refresh cached home/day/list results |
+| G15 | After saving a booking | WhatsApp / back choices | Dialog offers send / return to today's bookings | Choices built; S7 send/logging sequence fixed |
 | G16 | Visit length step | Pick one start time | 30 minutes preselected; admin can change length; full window blocked | Built (S8); owner confirmed 30 minutes; browser verification remains |
 | G17 | Editing old bookings | Admin can edit past confirmed bookings | Started/finished visits editable as corrections with required reason and history | Built (S15) |
 
@@ -115,9 +117,9 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
   1. Per booking: cash + link typed freely, total = cash + link. The barber's form for this is now switched off.
   2. **Daily per barber** («ادخال تحصيلات الحلاقين»): admin picks barber + date and types normal children, special children, cash and link. There is one row per barber per day, and the inputs are pre-filled from that day's completed bookings. The barber collections report («تقرير تحصيلات الحلاقين») and the comprehensive report («التقرير الشامل») read **these daily rows**, not the bookings.
 - **New:** each booking's invoice uses the admin's typed cash + link price. Per-booking receipts remain admin-only: one receipt covers the full invoice under one method (cash, link or KNET).
-- **Decision (Q2):** keep per-booking payments and add daily barber collections. `/collections` supports one entry per barber/date, normal/special children, cash/link/KNET and a server-computed total. Edit history is stored and exposed by the API, but is not displayed on the collections screen. Barbers read only their own entries. New entries start at zero; completed-visit prefill is not implemented.
+- **Decision (Q2):** keep per-booking payments and add daily barber collections. `/collections` supports one entry per barber/date, normal/special children, cash/link/KNET and a server-computed total. Edit history is stored and exposed by the API and shown in the edit dialog. Barbers read only their own entries. A new entry pre-fills from that day's completed visits.
 - **Reports:** barber and comprehensive collection money, and the invoice/cash collection summary, read daily barber collections. These are separate from per-booking invoice values and receipts. Salon daily entry remains separate.
-- **Remaining (S11 reopened, 2026-10-14):** completed-visit prefill, history display and report wording: the shared `CashMoney` component labels daily collection entry counts as «إيصال» (receipt). Earlier browser verification did not cover these omissions. Typed cash/link invoice fields and daily method totals do not enable split per-booking receipts; these remain excluded by contract.
+- **S11 fixes (2026-10-14):** completed-visit prefill, the stored edit-history view and report wording are now implemented; the barber and invoice reports label daily-collection counts as «إدخال» (entry) and the client report keeps «إيصال» (receipt). Typed cash/link invoice fields and daily method totals still do not enable split per-booking receipts; these remain excluded by contract.
 
 ### G5 — Hover details and Arabic time words
 
@@ -174,18 +176,18 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 
 - **Old:** «واتساب» goes through `tawgeh.php?wa_id=` / `send_whatsapp.php`, which saves "إرسال تفاصيل الحجز إلى الحلاق عبر واتساب" in the booking's log before opening `wa.me`.
 - **Implemented:** `POST /api/bookings/:id/sent-to-barber` records the acting admin and time. The day list, booking detail and after-save send action call it; successfully recorded events appear in booking history and S12. This records the action, not WhatsApp delivery confirmation.
-- **Remaining (S7 reopened, 2026-10-14):** `WhatsAppButton` in `components/day-bookings.tsx` (day list and booking detail) and `sendCreated` in `bookings/new/page.tsx` call `send.mutate` and immediately open WhatsApp; the after-save action also navigates away. None waits for server acknowledgement or displays a send failure. A failed request can therefore open a message without recording the action. The earlier S9 follow-up described only the after-save path; the audit confirms all three paths are affected. Fix the sequence and provide failure/retry handling before re-verifying S7.
+- **Fixed (S7, 2026-10-14):** `WhatsAppButton` in `components/day-bookings.tsx` (day list and booking detail) and `sendCreated` in `bookings/new/page.tsx` now reserve a blank tab during the click, then navigate it to WhatsApp only after the server records the send. A failed log closes the blank tab; a blocked popup shows a retryable error without recording a send. A failed log leaves a visible error and the action retries on the next click; the after-save dialog neither opens WhatsApp nor navigates on failure. This records the action, not WhatsApp delivery confirmation. Browser verification remains.
 
 ### G14 — "New booking" marker for barbers
 
 - **Old:** `is_seen_by_barber`. A dot shows on bookings the barber has not opened yet.
 - **Implemented (Q9 answered yes):** `seenByBarberAt` is set when the assigned barber first opens the booking or invoice. Dots exist in barber home/day/list views; reassignment or a changed window resets the database marker. Admin opens do not mark it seen.
-- **Remaining (S13 reopened, 2026-10-14):** the booking and invoice read hooks do not update/invalidate home/day/list booking caches after marking the booking seen. Queries are fresh for 30 seconds by default, so returning to a freshly cached list can still show the dot until that list reloads. Add cache synchronization for both booking and invoice opens, then re-verify the return-to-list flow.
+- **Fixed (S13, 2026-10-14):** the booking and invoice read hooks now wait for a successful, finished read and invalidate the `["bookings", "list"]` caches after the assigned barber opens a booking or invoice; barber opens force a server read even when the detail/invoice cache is fresh, so a freshly cached home/day/list no longer keeps the dot. Admin opens do not refresh or set the marker. Browser verification remains.
 
 ### G15 — After saving a booking
 
 - **Old:** a success message plus two buttons, «إرسال الحجز واتساب للحلاق» and «لا ترسل، رجوع لصفحة حجوزات اليوم».
-- **Implemented:** a dialog offers «إرسال الحجز واتساب للحلاق» or «لا ترسل، رجوع لحجوزات اليوم». The return action exists. The send action starts logging, opens WhatsApp and navigates without awaiting logging success; S7 is reopened for the sequence/failure fix described under G13.
+- **Implemented:** a dialog offers «إرسال الحجز واتساب للحلاق» or «لا ترسل، رجوع لحجوزات اليوم». The return action exists. The send action records the log first and opens WhatsApp and navigates only on success; a failure keeps the dialog open (S7, 2026-10-14).
 
 ### G16 — Visit length step (decided and built, S8)
 
@@ -219,7 +221,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 | `newcustomer.php`, `editcustomer.php`, `customers_list.php` | Add / edit / stop clients; one address per client | `/clients`, `/clients/[id]` | New allows many addresses and needs a reason to stop a client. G8, G9. |
 | `newarea.php` | Manage areas list | `/areas` | Built (S6); names are Arabic per owner decision, instead of the old English names. |
 | `newservice.php` | Services & prices (not in menu, prices never used) | — | Not needed: the admin types each booking's cash/link price (S10). |
-| `tadeltahsel.php` «ادخال تحصيلات الحلاقين» | Daily barber money entry | `/collections` | Partly built (S11): entry/edit and reporting exist; completed-visit prefill and history display are missing. |
+| `tadeltahsel.php` «ادخال تحصيلات الحلاقين» | Daily barber money entry | `/collections` | Built (S11): entry/edit, completed-visit prefill, history display and reporting exist; browser verification remains. |
 | `hlaktahsel.php` «تقرير تحصيلات الحلاقين» | Per barber over a period: clients, normal/special kids, cash, link, total, share | `/reports/barbers` | Covered (S11): reads the daily collections, as in the old app. |
 | `tahsel.php` «شغل الحلاقين» | Today per barber + period summary (done/cancelled orders, kids) | `/reports/barbers`, `/reports/haircuts` | Covered by data; not one page. Could become the home tile target. |
 | `shamel.php` «التقرير الشامل» | Barbers + salon totals with share | `/reports/comprehensive` | Covered (P5, S11): reads the daily barber collections and filters by period only, as in the old app. |
@@ -307,14 +309,11 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 
 ## 9. Suggested order
 
-The next work is implementation, not just browser verification:
+The remaining work is verification and rollout, not implementation of S7/S11/S13:
 
-1. Finish **S7**: acknowledge the log before opening WhatsApp, including failure/retry handling on all send paths.
-2. Finish **S11**: completed-visit prefill, visible collection edit history and accurate report labels.
-3. Finish **S13**: clear cached home/day/list dots after a booking or invoice is opened. These three fixes are independently actionable; they do not wait for Q5.
-4. Browser-verify the fixes and the already-built **S3, S6, S8 and S9**. S12 is built; its browser verification remains deferred until before S17. Reopened upstream slices do not erase the existing S12 or S15 implementations; recheck their affected integrations after the fixes.
-5. Resolve **Q5** and build **S16** after its required S3/S11 verification. **Q3** (English screens) remains unanswered, with no implementation slice defined; English/Tagalog UI remains excluded unless scope changes.
-6. Complete **S17**: verify every required slice or explicitly drop it, resolve the remaining screen-map differences with the client, record acceptance and the data-import plan, run final release checks, deploy and verify backup restoration. Record the deployed release commit; S0 currently records only the earlier owner confirmation.
+1. Browser-verify the fixed **S7, S11 and S13** alongside the already-built **S3, S6, S8 and S9**. S12 is built; its browser verification remains deferred until before S17. Recheck any S12 or S15 integration affected by the S11/S13 fixes.
+2. Resolve **Q5** and build **S16** after its required S3/S11 verification. **Q3** (English screens) remains unanswered, with no implementation slice defined; English/Tagalog UI remains excluded unless scope changes.
+3. Complete **S17**: verify every required slice or explicitly drop it, resolve the remaining screen-map differences with the client, record acceptance and the data-import plan, run final release checks, deploy and verify backup restoration. Record the deployed release commit; S0 currently records only the earlier owner confirmation.
 
 The screen-map differences outside the slice tracker are still absent: barber daily performance rows/payment-method percentages, and the salon chart/payment-method percentages/day count. They are recorded gaps, not silently added implementation scope.
 
@@ -350,13 +349,13 @@ The work above is split into small slices you can check one at a time. Each slic
 | S4 | Booking notes | G7 | S0 | — | Yes | S | Verified | [x] |
 | S5 | Address extras and 8-digit phone typing | G8, G9 | S0 | — | Yes | S | Verified | [x] |
 | S6 | Areas list | G8 | S5 | — | Yes | M | Done | [ ] |
-| S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Reopened: logging acknowledgement/failure handling | [ ] |
+| S7 | WhatsApp send recorded + after-save choices | G13, G15 | S0 | — | Yes | S | Done; browser verification remains | [ ] |
 | S8 | Default visit length | G16 | S2 | — | No | XS | Done | [ ] |
 | S9 | Phone-first client step | G6 | S5, S6 | — | No | M | Done | [ ] |
 | S10 | Barbers without branches + price source | G1 | S1 | — (Q1 answered) | Yes | L | Verified | [x] |
-| S11 | Daily barber collections | G3 | S1, S10 | — (Q2 answered) | Yes | L | Reopened: prefill, history display, report labels | [ ] |
+| S11 | Daily barber collections | G3 | S1, S10 | — (Q2 answered) | Yes | L | Done; browser verification remains | [ ] |
 | S12 | Booking tracking report | G12 | S7 | — | No | M | Done; browser verification deferred | [ ] |
-| S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Reopened: cached dots after opening | [ ] |
+| S13 | "New booking" dot for barbers | G14 | S0 | — | Yes | S | Done; browser verification remains | [ ] |
 | S14 | Barber account expiry | G10 | S0 | — (Q8 answered) | Yes | S | Verified | [x] |
 | S15 | Corrections on finished visits | G17 | S10, S11 | — (Q10 answered) | No | M | Verified; recheck affected S11 integration after fixes | [x] |
 | S16 | Partner and moderator accounts | G11 | S2, S3, S11 | Q5 | Yes | L | Blocked; not built | [ ] |
@@ -377,13 +376,13 @@ These are actual implementation locations and commits, not completion claims inf
 | S4 | [`bookings.ts`](../packages/contracts/src/bookings.ts), [`booking-edit.service.ts`](../apps/api/src/modules/bookings/booking-edit.service.ts), [`day.ts`](../apps/web/src/lib/day.ts); notes stored, revised, displayed and included in WhatsApp | `af688f5` |
 | S5 | [`address-fields.tsx`](../apps/web/src/components/address-fields.tsx), [`phone.ts`](../apps/web/src/lib/phone.ts), [`booking.repository.ts`](../apps/api/src/modules/bookings/booking.repository.ts); extras, normalized phone and snapshots | `cbf2ef7` |
 | S6 | [`areas/index.ts`](../apps/api/src/modules/areas/index.ts), [`areas-screen.tsx`](../apps/web/src/components/areas-screen.tsx), [`area-picker.tsx`](../apps/web/src/components/area-picker.tsx); migration `0023`, managed searchable catalogue and legacy retention | `5ee1f63` |
-| S7 | [`message.service.ts`](../apps/api/src/modules/bookings/message.service.ts), [`day-bookings.tsx`](../apps/web/src/components/day-bookings.tsx), [`bookings/new/page.tsx`](../apps/web/src/app/(app)/bookings/new/page.tsx); logging/dialog exist, acknowledgement handling missing | `fbc9f86` |
+| S7 | [`message.service.ts`](../apps/api/src/modules/bookings/message.service.ts), [`day-bookings.tsx`](../apps/web/src/components/day-bookings.tsx), [`bookings/new/page.tsx`](../apps/web/src/app/(app)/bookings/new/page.tsx); logging, dialog and acknowledgement/failure handling | `fbc9f86`; subsequent fixes recorded in Git history |
 | S8 | [`bookings/new/page.tsx`](../apps/web/src/app/(app)/bookings/new/page.tsx); duration state starts at 30, editable selector and free-pill selection | `15db80f` (existing implementation), `b6bc9a8` (confirmation) |
-| S9 | [`phone-booking-client.tsx`](../apps/web/src/components/phone-booking-client.tsx), [`booking.repository.ts`](../apps/api/src/modules/bookings/booking.repository.ts), [`client.repository.ts`](../apps/api/src/modules/clients/client.repository.ts); lookup, last address and atomic creation | `80fccd1`; subsequent review fixes uncommitted |
+| S9 | [`phone-booking-client.tsx`](../apps/web/src/components/phone-booking-client.tsx), [`booking.repository.ts`](../apps/api/src/modules/bookings/booking.repository.ts), [`client.repository.ts`](../apps/api/src/modules/clients/client.repository.ts); lookup, last address and atomic creation | `80fccd1`; review fixes committed at `b78cc2b` |
 | S10 | [`0021_normal_spot.sql`](../packages/db/drizzle/0021_normal_spot.sql), [`booking.repository.ts`](../apps/api/src/modules/bookings/booking.repository.ts); branch removal and typed cash/link pricing | `d2dadfe`, `287a57f` |
-| S11 | [`collections/page.tsx`](../apps/web/src/app/(app)/collections/page.tsx), [`collection.repository.ts`](../apps/api/src/modules/collections/collection.repository.ts), [`report.repository.ts`](../apps/api/src/modules/reports/report.repository.ts); daily entries/history storage/report integration, with missing prefill/history UI and wrong count label | `21a98e3`, `d156c4f` |
+| S11 | [`collections/page.tsx`](../apps/web/src/app/(app)/collections/page.tsx), [`collection.repository.ts`](../apps/api/src/modules/collections/collection.repository.ts), [`report.repository.ts`](../apps/api/src/modules/reports/report.repository.ts); daily entries/history storage/report integration, prefill/history UI and entry labels | `21a98e3`, `d156c4f`; subsequent fixes recorded in Git history |
 | S12 | [`report.service.ts`](../apps/api/src/modules/reports/report.service.ts), [`booking-tracking-report.tsx`](../apps/web/src/components/booking-tracking-report.tsx); timelines, filters, period bounds and print views | `f6e1af3`, `b6bc9a8` |
-| S13 | [`booking.service.ts`](../apps/api/src/modules/bookings/booking.service.ts), [`booking-edit.service.ts`](../apps/api/src/modules/bookings/booking-edit.service.ts), [`hooks.ts`](../apps/web/src/lib/api/hooks.ts); database marker/reset and dots exist, read-triggered list cache refresh missing | `f02e151`, `4337456` |
+| S13 | [`booking.service.ts`](../apps/api/src/modules/bookings/booking.service.ts), [`booking-edit.service.ts`](../apps/api/src/modules/bookings/booking-edit.service.ts), [`hooks.ts`](../apps/web/src/lib/api/hooks.ts); database marker/reset, dots and read-triggered list cache refresh | `f02e151`, `4337456`; subsequent fixes recorded in Git history |
 | S14 | [`auth.repository.ts`](../apps/api/src/modules/auth/auth.repository.ts), [`employees/[id]/page.tsx`](../apps/web/src/app/(app)/employees/[id]/page.tsx); expiry field, login and session-access checks | `96c4c5c` |
 | S15 | [`booking-edit.service.ts`](../apps/api/src/modules/bookings/booking-edit.service.ts), [`booking-edit-dialog.tsx`](../apps/web/src/components/booking-edit-dialog.tsx); reasoned past corrections/history with agreed amount preserved | `6ad10c3` |
 | S16 | [`auth.ts`](../packages/contracts/src/auth.ts), [`schema/auth.ts`](../packages/db/src/schema/auth.ts); only admin/employee roles and one administrator, no partner/moderator implementation | — |
@@ -398,7 +397,7 @@ These are actual implementation locations and commits, not completion claims inf
 - **Work:**
   - `docs/parity-phases.md` was removed in the doc reorganisation; this document supersedes it.
   - Run `pnpm check`.
-  - Record the VPS's deployed release commit and confirm it contains the required completed slices. The audited committed code is `80fccd1`; S9 review fixes are uncommitted, and S7/S11/S13 fixes still need implementation. Deploy the completed release using `scripts/deploy.sh`. `15db80f` (parity phase 6) predates every slice.
+  - Record the VPS's deployed release commit and confirm it contains the required completed slices. The audited committed code is `80fccd1`; the S9 review fixes are committed at `b78cc2b`, and the S7/S11/S13 fixes are implemented and recorded with this document; use Git history to identify the completed release. Deploy the completed release using `scripts/deploy.sh`. `15db80f` (parity phase 6) predates every slice.
 - **End:** `pnpm check` green; the server version is recorded below.
 - **How to verify:** log in on the live site as admin; the home page shows barber cards with «حجز لهذا الحلاق».
 - Evidence: 2026-10-13 — owner confirmed S0 is already complete. No new checks or deployment were performed for this status update; the exact deployed commit is not recorded here.
@@ -512,8 +511,9 @@ These are actual implementation locations and commits, not completion claims inf
 
 ### S7 — WhatsApp send recorded + after-save choices (G13, G15)
 
-- **Current status (2026-10-14): Reopened.** The logging endpoint, history and dialog are implemented; all three send paths still open WhatsApp before logging succeeds. Earlier browser verification is retained as historical evidence, not current completion.
-- **Remaining:** acknowledge the log before opening WhatsApp; show a failed log and permit retry without reporting success or navigating away. Cover `WhatsAppButton` (day list/detail) and `sendCreated` (after save).
+- **Current status (2026-10-14): Done; browser verification remains.** The logging endpoint, history and dialog were implemented; the three send paths now record the send and open WhatsApp only after the server confirms, with a visible failure and retry.
+- **Detailed review follow-up (2026-10-14):** CodeRabbit found that a slow asynchronous log can outlast the browser's permission to open a popup. Both callers now use `lib/whatsapp.ts`: reserve `about:blank` during the click, detach its opener, await `mutateAsync`, then navigate the reserved tab to `wa.me`. A failed log closes the tab; a blocked popup shows an actionable error and creates no log. The after-save dialog cannot dismiss or return while the send is pending. Regression tests cover reservation before acknowledgement, failed-log cleanup/retry, popup blocking and pending-dialog dismissal.
+- **Initial fix evidence (2026-10-14, before detailed review):** `WhatsAppButton` (`components/day-bookings.tsx`) and `sendCreated` (`bookings/new/page.tsx`) now open `wa.me` only inside the mutation's `onSuccess`; the button is disabled while pending and shows a `role="alert"` failure, and the next click retries. The after-save dialog shows a form alert and neither opens WhatsApp nor navigates when the log fails. Tests (red → green): `apps/web/tests/day-bookings.test.tsx` (no open on a failed log, opens on retry) and `apps/web/tests/phone-booking-page.test.tsx` (dialog stays open, no navigation, sends on retry). Full `pnpm check` green: lint, typecheck, 70 files / 418 tests, build.
 - **Goal:** every "send to barber" is saved in the booking history, and after saving a booking the admin chooses to send or go back.
 - **Start:** S0 verified. Bookings area green.
 - **Work:**
@@ -525,6 +525,7 @@ These are actual implementation locations and commits, not completion claims inf
   1. Create a booking and choose "send": WhatsApp opens with the details, and the booking history shows «أُرسل للحلاق».
   2. Create another and choose "back": you land on today's list.
   3. Make logging fail on each send path: an error remains visible, WhatsApp does not open with an unrecorded action, and retry succeeds only after the log is saved.
+  4. Slow the logging request: the blank tab opens during the click and navigates to WhatsApp only after acknowledgement. Block popups: no log is created; allow popups and retry.
 - Evidence: 2026-10-12. New table `booking_messages` (one row per send: booking, `kind = sent_to_barber`, acting admin, time) via migration `0018_greedy_mister_sinister.sql` (renumbered from 0017 when S14 merged), applied to test and development MySQL. Contracts: `bookingMessageResponseSchema` / `BookingMessage`. API: `POST /bookings/:id/sent-to-barber` (admin + CSRF) inserts the event and returns it (404 for an unknown booking); `GET /bookings/:id/history` now returns `{ events, messages }`. Web: `WhatsAppButton` records the send then opens `wa.me` (used in the day list and in a new admin button on the booking detail page); after saving a booking a dialog offers «إرسال الحجز واتساب للحلاق» (records, opens WhatsApp, opens the booking) or «لا ترسل، رجوع لحجوزات اليوم»; the «سجل الزيارة» timeline merges visit events and sends with `buildTimeline`, showing «أُرسل للحلاق». Tests: `apps/api/tests/visits.test.ts` (send recorded with actor + time, every send kept, employee/CSRF/unknown-booking refused), `apps/web/tests/booking-timeline.test.ts` (merge order + label); the visits date fixture was zero-padded after adding tests. `pnpm check` green: lint, typecheck, 52 files/345 tests, build — run against an isolated `just4kids_test_s7` because a sibling worktree was resetting the shared `just4kids_test`; the two shared-DB name guards and one connection assertion were relaxed only for that run and reverted. Not yet browser-verified.
 
 ### S8 — Default visit length (G16)
@@ -555,7 +556,7 @@ These are actual implementation locations and commits, not completion claims inf
   3. Type a stopped client's number: a clear Arabic message, and no booking.
 - Evidence (2026-10-13): Q6 resolved from `other/temp_bookings.php` lines 252–255 per owner direction; blank inline name uses the international phone number. Contracts add `bookingWithClientCreateSchema` (shared booking window/count/price validation, strict client fields, required catalogue area ID) and `clientLookupResponseSchema.lastUsedAddressId`. Admin-only `POST /bookings/with-client` shares the normal booking transaction's barber lock, availability/manual locks, snapshots, invoice and history logic; it inserts the new client/address inside that transaction, so any failure rolls everything back. Phone uniqueness is enforced by the existing database index; a concurrent/existing registration returns 409 `PHONE_ALREADY_USED` without rewriting the existing client. No migration. Lookup selects the address of the most recently created booking, falling back to the newest saved address; reads still include stopped status. Web step 3 is phone-first (8 local Kuwaiti digits accepted): existing client/address selected, unknown phone gets inline optional name and S6 address fields, stopped client or lookup error blocks saving, and a changed phone clears selection with late responses isolated by query identity. Existing client links prefill the phone; another saved address can still be selected or added. New-client saves issue one atomic booking request; standalone client forms retain their required name. Tests (red → green): `apps/api/tests/phone-booking.test.ts` (admin/CSRF/origin, phone-as-name, last-used address, duplicate phone, rollback and simultaneous saves), `apps/web/tests/phone-booking-client.test.tsx` (found/new/stopped/error and late response), `apps/web/tests/phone-booking-page.test.tsx` (full existing/new save flows, endpoint/payload/CSRF, one POST). Baseline: 6 files / 52 tests plus affected-package lint/typecheck/build. Targeted: 11 files / 70 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 67 files / 407 tests, lint, typecheck and build. UI detector returned no findings; no browser was available, so owner browser verification remains. Existing after-save WhatsApp acknowledgement issue is recorded under G13 as a separate follow-up.
 
-- CodeRabbit follow-up (2026-10-13): CLI 0.8.2 reviewed committed `f6e1af3..80fccd1` with `AGENTS.md` and raised 2 issues (1 major, 1 minor). Fixed: same-phone background lookup uses pending-state handling so it keeps the inline fields and selection mounted; booking errors remain visible when client selection changes, and a new submit resets the other mutation's stale error. Both regression tests failed against the reviewed code and then passed. Targeted green: 4 web files / 14 tests plus web lint/typecheck/build. Full `pnpm check` green: 67 files / 409 tests, lint, typecheck and build. Local and remote `backup-main` were moved to reviewed `main` at `80fccd1` before the fix pass, as requested; review fixes remain saved locally and uncommitted.
+- CodeRabbit follow-up (2026-10-13): CLI 0.8.2 reviewed committed `f6e1af3..80fccd1` with `AGENTS.md` and raised 2 issues (1 major, 1 minor). Fixed: same-phone background lookup uses pending-state handling so it keeps the inline fields and selection mounted; booking errors remain visible when client selection changes, and a new submit resets the other mutation's stale error. Both regression tests failed against the reviewed code and then passed. Targeted green: 4 web files / 14 tests plus web lint/typecheck/build. Full `pnpm check` green: 67 files / 409 tests, lint, typecheck and build. Local and remote `backup-main` were moved to reviewed `main` at `80fccd1` before the fix pass, as requested; review fixes were saved locally and uncommitted at that point; they were subsequently committed at `b78cc2b`.
 
 ### S10 — Barbers without branches + price source (G1)
 
@@ -583,9 +584,9 @@ These are actual implementation locations and commits, not completion claims inf
 
 ### S11 — Daily barber collections (G3)
 
-- **Current status (2026-10-14): Reopened.** Daily entry/edit, uniqueness, computed totals, role scoping, history storage/API and report integration are built. Completed-visit prefill, history display and correct daily-entry labels are missing.
-- **Code evidence:** `collections/page.tsx` uses zero-valued `blank()` for a new entry and has no completed-visit lookup. `useCollectionHistory` exists in `lib/api/hooks.ts` but has no UI call site. `CashMoney` in `components/reports.tsx` labels collection row counts as receipts.
-- **Remaining:** implement completed-visit prefill; wire a history view showing before/after values; distinguish collection entries from payment receipts in report counts. Add checks for these omitted paths and browser-verify them before closing the slice.
+- **Current status (2026-10-14): Done; browser verification remains.** Daily entry/edit, uniqueness, computed totals, role scoping, history storage/API and report integration are built; completed-visit prefill, history display and correct daily-entry labels are now implemented.
+- **Detailed review follow-up (2026-10-14):** CodeRabbit identified prefill overwriting amounts entered while the request was pending. Prefill now preserves each manually edited field. Changing barber/date resets totals and prefill state, including empty days. `useCollectionDayBookings` reads every page instead of only the first 100 rows, so cancellations cannot hide later completed visits. Loading/error states are visible; save waits for a complete prefill and an error offers retry. New regressions cover delayed manual edits, empty-day resets, completed visits after 100 cancellations and failed-load recovery. The stale collections screen-map row is corrected.
+- **Initial fix evidence (2026-10-14, before detailed review):** `collections/page.tsx` prefills a new entry from that barber/date's completed visits (normal children exclude the special subset, money from each invoice) via `useDayBookings`, with a hint; the edit dialog renders the stored history from `useCollectionHistory` as before → after lines; and `CashMoney`/`CollectedCash`/`PerformanceDetails` take a count `unit`, so the barber and invoice reports label daily collections as «إدخال» while the client report keeps «إيصال». Tests (red → green): `apps/web/tests/collections-page.test.tsx` (prefill and stored history) and `apps/web/tests/report-collections.test.tsx` (barber and invoice reports show «إدخال»). Full `pnpm check` green: lint, typecheck, 70 files / 418 tests, build.
 - **Decisions:** Q2 answered 2026-10-12 — keep per-booking payments and add a daily per-barber entry that the reports read; a barber may see their own entries read-only.
 - **Start:** S1 and S10 verified (or built together with S10 in one plan); Q2 answered; a full-repository baseline is green.
 - **Goal:** the admin records barber money the way the client works (see Q2), and the reports read from it.
@@ -605,6 +606,7 @@ These are actual implementation locations and commits, not completion claims inf
   2. Edit it: the history shows both versions.
   3. Log in as that barber: the entry shows read-only.
   4. Start a new entry for a barber/date with completed visits: the fields pre-fill from those visits. Confirm collection counts are labelled as entries, not receipts, in the reports.
+  5. Switch to an empty date/barber: previous totals must clear. Enter an amount while loading: it must survive the response. A failed load must show retry and prevent saving incomplete totals.
 - Evidence (2026-10-12): DB: migration `0020_gigantic_doctor_faustus` adds `barber_collections` (unique barber+date, method amounts, server total) and `barber_collection_events` history, applied to test and development. Contracts: `barberCollection*` create/update/response/event/query/report schemas. API: `/collections` — administrator create/update with history, one entry per barber per day, and a session-scoped read where a barber sees only their own. Web: the `تحصيلات الحلاقين` screen (admin entry + barber read-only) and navigation entries. Reports: the barber report (`/reports/barbers`) and the comprehensive report now read the daily collections for money (the comprehensive barber rows read `barber_collections`, not per-booking receipts); the invoice/cash report's cash summary also reads them. Tests: `apps/api/tests/collections.test.ts` (unique, admin-only/CSRF, caller-controlled total rejected, employee own-only, totals, history) and the report tests (`performance-reports`, `salon`, `client-invoice-reports`) now assert the reports read the entries. Full `pnpm check` green: 54 files / 346 tests and build.
 
 ### S12 — Booking tracking report (G12)
@@ -622,8 +624,10 @@ These are actual implementation locations and commits, not completion claims inf
 
 ### S13 — "New booking" dot for barbers (G14)
 
-- **Current status (2026-10-14): Reopened.** The database seen marker, ownership checks, dots and reset-on-move/reassignment logic exist. Booking/invoice opens do not synchronize the cached home/day/list results.
-- **Remaining:** update/invalidate those caches after the assigned barber opens a booking or invoice. Test an immediate return to a still-fresh cached view (default freshness is 30 seconds), without requiring a manual reload.
+- **Current status (2026-10-14): Done; browser verification remains.** The database seen marker, ownership checks, dots and reset-on-move/reassignment logic exist; the read hooks now refresh the cached home/day/list results after a barber opens a booking or invoice.
+- **Detailed review follow-up (2026-10-14):** CodeRabbit identified invoice cache refresh occurring before the server marks the booking seen. Both read hooks now refresh lists only after a successful finished read, with booking identity and successful-read timestamp in the refresh dependencies. Barber opens force a request even inside the normal 30-second fresh-cache window, so a cached detail/invoice cannot skip the server's seen update. The delayed-invoice regression checks the actual cached booking marker, and cached booking/invoice regressions verify that reopening performs the required server read. Administrator opens keep the normal read policy.
+- **Concurrent window-change follow-up (2026-10-14):** a pending old detail/invoice read could clear the dot after the administrator changed the visit window for the same barber. `markSeenByBarber` now requires the booking version that was originally read, alongside the existing owner and null-marker conditions. The API regression in `apps/api/tests/booking-edits.test.ts` moves the window between the read and marker update, checks the dot remains unset in storage, then confirms a fresh barber open clears it. This test failed before the guard and passed after it; targeted API tests: 21 passing, plus API lint/typecheck/build.
+- **Initial fix evidence (2026-10-14, before detailed review):** `useBooking` invalidates the `["bookings", "list"]` caches once the fetched booking is seen (barber only), and `useInvoice` does the same for any non-admin open (the invoice response omits the marker); a guarded `useSeenListsRefresh` effect performs it. The invoice page now reads through `useInvoice`. Tests (red → green): `apps/web/tests/booking-seen.test.tsx` (barber open of a booking and of an invoice invalidates the lists; the administrator does not). Full `pnpm check` green: lint, typecheck, 70 files / 418 tests, build.
 - **Blocked by:** — (Q9 answered yes, 2026-10-12).
 - **Start:** S0 verified; Q9 answered. Bookings area green.
 - **Goal:** barbers see which bookings they have not opened yet.
@@ -655,7 +659,7 @@ These are actual implementation locations and commits, not completion claims inf
 - **Start:** S10 and S11 verified; Q10 answered.
 - **Goal:** the admin can fix counts or times on finished visits, with a required reason and full history.
 - **Work:** an admin "correction" edit for completed or past visits. It records a reason and the before/after values, preserving the agreed invoice amount. Daily collection entries are edited separately; no reconciliation or automatic collection rewrite occurs.
-- **Audit status (2026-10-14):** implemented and previously browser-verified. Reopening S11 does not remove S15's code; recheck affected report/collection integration after the S11 fixes.
+- **Audit status (2026-10-14):** implemented and previously browser-verified. S11's earlier reopening did not remove S15's code; recheck affected report/collection integration after the S11 fixes.
 - **End: Full check.**
 - **How to verify:** fix the children count on yesterday's completed visit: the history shows the reason and the old/new values, and the reports update.
 - Evidence (2026-10-12): the reservation edit now also acts as a correction. API: `PATCH /bookings/:id` treats a started or finished visit (`visitStatus !== "booked" || start <= now`) as a correction — it requires a `reason` (400 `CORRECTION_REASON_REQUIRED` otherwise), may be moved into the past (the future-start rule is skipped), and still runs the barber working-hours and slot-conflict checks; every change is kept in `booking_revisions` with the before/after values and the reason. A not-yet-started reservation keeps its old rules unchanged. Web: `isCorrection` (started or finished) drives the booking page, which shows «تصحيح الحجز» and the edit dialog in correction mode — past dates allowed and a required «سبب التصحيح» field; the «التعديلات» tab already shows the reason and the old/new values. Tests (red → green): `apps/api/tests/booking-edits.test.ts` (a started visit is refused without a reason and saved with one; a finished visit is corrected; the revision keeps the reason and both versions; a clashing window is still refused) and `apps/web/tests/visit-rules.test.ts` + `apps/web/tests/booking.test.ts` (`isCorrection` and the correction window rule). Full `pnpm check` green: 54 files / 348 tests and build.
@@ -678,7 +682,7 @@ These are actual implementation locations and commits, not completion claims inf
 
 ### S17 — Client review and production rollout
 
-- **Current status (2026-10-14): Incomplete.** Deployment tooling and backup instructions exist in `scripts/deploy.sh`. The data-import plan, written client acceptance, deployed release record and completed backup-restoration evidence are absent; the reopened slices and outstanding browser checks remain prerequisites.
+- **Current status (2026-10-14): Incomplete.** Deployment tooling and backup instructions exist in `scripts/deploy.sh`. The data-import plan, written client acceptance, deployed release record and completed backup-restoration evidence are absent; the outstanding browser checks remain prerequisites.
 - **Goal:** the client accepts the new app and it replaces the old one.
 - **Start:** every slice is either Verified or marked "not needed" by the client.
 - **Work:**
@@ -698,14 +702,14 @@ These are actual implementation locations and commits, not completion claims inf
 Read left to right: a new dependent slice can start only when its prerequisites are Verified. Slices on different branches do not need each other. Reopening an upstream slice does not mean an already-implemented dependent slice is absent; recheck the affected integration after fixing it. In the map below, V = Verified, D = built/Done (browser check left), R = Reopened, and B = Blocked/not built or rollout incomplete.
 
 ```
-S0[V] ─┬─ S1[V] ── S10[V] ── S11[R] ─┬─ S15[V]
+S0[V] ─┬─ S1[V] ── S10[V] ── S11[D] ─┬─ S15[V]
        │                              └──────────┐
        ├─ S2[V] ─┬─ S3[D] ─────────────────── S16[B] ── S17[B]*
        │         └─ S8[D]                       ↑ Q5 unanswered
        ├─ S4[V]
        ├─ S5[V] ── S6[D] ── S9[D]
-       ├─ S7[R] ── S12[D; browser check deferred]
-       ├─ S13[R]
+       ├─ S7[D] ── S12[D; browser check deferred]
+       ├─ S13[D]
        └─ S14[V]
 
 * S17 needs EVERY other required slice Verified or explicitly dropped,
@@ -725,7 +729,7 @@ S0[V] ─┬─ S1[V] ── S10[V] ── S11[R] ─┬─ S15[V]
 | S8 | S2 | — | — (Q4 answered) |
 | S9 | S5, S6 | — | — (Q6 resolved) |
 | S10 | S1 | S11, S15 | — (Q1 answered) |
-| S11 | S1, S10 | S15, S16 | — (Q2 answered; implementation gaps remain) |
+| S11 | S1, S10 | S15, S16 | — (Q2 answered) |
 | S12 | S7 | — | — |
 | S13 | S0 | — | — |
 | S14 | S0 | — | — (Q8 answered) |
@@ -766,10 +770,10 @@ S0[V] ─┬─ S1[V] ── S10[V] ── S11[R] ─┬─ S15[V]
 
 ### What is actionable now
 
-As of the 2026-10-14 code audit, **S7, S11 and S13 need implementation fixes now**; they are not waiting for client answers. Lanes B, D and E therefore have remaining implementation work. Lane A's S3/S8 and lane C's S6/S9 are built and need browser checks. S12 is built with its browser check deferred.
+As of the 2026-10-14 audit, the **S7, S11 and S13 fixes are implemented** and no further implementation gap is identified in those three slices. S16 still needs a scope decision and implementation. Lane A's S3/S8, lane C's S6/S9 and the fixed S7/S11/S13 are built and need browser checks; S12 is built with its browser check deferred.
 
-- Finish and re-verify S7, S11 and S13. S12 and S15 remain built; recheck any integration affected by the fixes.
-- Browser-verify S3, S6, S8 and S9. Complete S12's deferred check before S17.
+- Browser-verify S3, S6, S8, S9, S7, S11 and S13. S12 and S15 remain built; recheck any integration affected by the fixes.
+- Complete S12's deferred check before S17.
 - S16 is not built and waits on Q5, plus verification of S3 and the completed S11. S12 verification does not block S16.
 - S17 remains last: all required slices must be Verified or explicitly dropped, then client acceptance and rollout must be completed.
 - Independent dependencies do not authorize parallel commands, worktrees or agents; follow AGENTS.md and obtain explicit permission before using agents.

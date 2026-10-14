@@ -1,6 +1,7 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BookingWithClientCreate } from "@just4kids/contracts";
 import type { ClientLookup } from "./types";
 import type {
@@ -11,10 +12,10 @@ import type {
 import type { ClientStatusFilter } from "@/lib/clients";
 import type { ReportFilters } from "@/lib/reports";
 import { ApiError, apiRequest, apiUpload } from "./client";
-import { useApiMutation } from "./session";
+import { useApiMutation, useSession } from "./session";
 import type {
   Area,
-  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, InvoiceReport, Page, Payment,
+  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, Invoice, InvoiceReport, Page, Payment,
   PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, TimeBlock, VisitEvent,
 } from "./types";
 
@@ -229,6 +230,15 @@ export function useUpdateAddress() {
 
 // Bookings -------------------------------------------------------------------
 
+/** Refresh every cached booking list (home, day and all views) after the assigned barber opens a booking. */
+function useSeenListsRefresh(id: string, active: boolean, updatedAt: number) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!active) return;
+    void queryClient.invalidateQueries({ queryKey: [...keys.bookings, "list"] });
+  }, [id, active, updatedAt, queryClient]);
+}
+
 export function useBookings(offset: number) {
   return useQuery({
     queryKey: keys.bookingList(offset),
@@ -250,8 +260,41 @@ export function useDayBookings(date: string, employeeId?: string | null, enabled
   });
 }
 
+/** All rows for a collection's barber/date, including days with more than one page of cancellations. */
+export function useCollectionDayBookings(date: string, employeeId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...keys.bookings, "list", "collection", date, employeeId],
+    enabled: enabled && Boolean(date) && Boolean(employeeId),
+    queryFn: async ({ signal }) => {
+      const bookings: Booking[] = [];
+      let total = 0;
+      do {
+        const page = await apiRequest<Page<"bookings", Booking>>("/bookings", { query: { date, employeeId, limit: DAY_LIMIT, offset: bookings.length }, signal });
+        total = page.total;
+        if (page.bookings.length === 0 && bookings.length < total) throw new Error("تغيرت زيارات اليوم أثناء التحميل. أعد المحاولة.");
+        bookings.push(...page.bookings);
+      } while (bookings.length < total);
+      return bookings;
+    },
+    staleTime: 0,
+  });
+}
+
 export function useBooking(id: string) {
-  return useQuery({ queryKey: keys.booking(id), queryFn: ({ signal }) => apiRequest<Booking>(`/bookings/${id}`, { signal }) });
+  const isEmployee = useSession().data?.account.role === "employee";
+  const query = useQuery({ queryKey: keys.booking(id), queryFn: ({ signal }) => apiRequest<Booking>(`/bookings/${id}`, { signal }), refetchOnMount: isEmployee ? "always" : true });
+  // Opening a booking marks it seen server-side; refresh the cached lists so the barber's dot clears (G14).
+  useSeenListsRefresh(id, isEmployee && query.isSuccess && !query.isFetching && Boolean(query.data.seenByBarberAt), query.dataUpdatedAt);
+  return query;
+}
+
+/** The booking's printable invoice; opening it also marks the booking seen, so refresh the barber's lists. */
+export function useInvoice(id: string) {
+  const isEmployee = useSession().data?.account.role === "employee";
+  const query = useQuery({ queryKey: [...keys.booking(id), "invoice"], queryFn: ({ signal }) => apiRequest<Invoice>(`/bookings/${id}/invoice`, { signal }), refetchOnMount: isEmployee ? "always" : true });
+  // The invoice response omits the marker, so any barber open refreshes the lists.
+  useSeenListsRefresh(id, isEmployee && query.isSuccess && !query.isFetching, query.dataUpdatedAt);
+  return query;
 }
 
 export function useBookingHistory(id: string) {

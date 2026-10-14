@@ -332,26 +332,26 @@ export const reservedHoursLabel = "الساعات المحجوزة (تشمل ا�
 type Collected = ClientReport["clients"][number]["cash"];
 
 /** Collected money with the overall total and its split across the used payment methods. */
-export function CashMoney({ value }: { value: Collected }) {
+export function CashMoney({ value, unit = "إيصال" }: { value: Collected; unit?: string | undefined }) {
   const parts = paymentMethodOptions.filter(option => value.byMethod[option.value].count > 0).map(option => `${option.label} ${formatKwd(value.byMethod[option.value].total)}`);
   return (
     <span className="inline-flex flex-col">
       <Ltr className="font-medium">{formatKwd(value.total)}</Ltr>
-      <span className="text-xs text-muted-foreground" data-numeric>{value.count} إيصال</span>
+      <span className="text-xs text-muted-foreground" data-numeric>{value.count} {unit}</span>
       {parts.length ? <span className="text-xs text-muted-foreground" data-numeric>{parts.join("، ")}</span> : null}
     </span>
   );
 }
 
 /** The barbers' daily collections, or a note when a filter they cannot follow hides them. */
-export function CollectedCash({ value }: { value: Collected | null }) {
-  return value ? <CashMoney value={value} /> : <span className="text-xs text-muted-foreground">التحصيلات تُفلتر بالفترة والحلاق فقط</span>;
+export function CollectedCash({ value, unit }: { value: Collected | null; unit?: string | undefined }) {
+  return value ? <CashMoney value={value} unit={unit} /> : <span className="text-xs text-muted-foreground">التحصيلات تُفلتر بالفترة والحلاق فقط</span>;
 }
 
 type Performance = Pick<ClientReport["clients"][number], "work" | "invoices"> & { cash: Collected | null };
 
 /** Work, time, and money measures shared by the barber and client reports. Invoices and cash stay separate. */
-export function PerformanceDetails({ value, children }: { value: Performance; children?: ReactNode }) {
+export function PerformanceDetails({ value, cashUnit, children }: { value: Performance; cashUnit?: string | undefined; children?: ReactNode }) {
   const { work, invoices, cash } = value;
   const group = "grid grid-cols-2 gap-4 sm:grid-cols-4";
   return (
@@ -370,7 +370,7 @@ export function PerformanceDetails({ value, children }: { value: Performance; ch
         <Detail label="الفواتير الصادرة"><Money value={invoices.issued} unit="فاتورة" /></Detail>
         <Detail label="فواتير غير مدفوعة"><Money value={invoices.outstanding} unit="فاتورة" /></Detail>
         <Detail label="الفواتير الملغاة"><Money value={invoices.cancelled} unit="فاتورة" /></Detail>
-        <Detail label="المبلغ المستلم"><CollectedCash value={cash} /></Detail>
+        <Detail label="المبلغ المستلم"><CollectedCash value={cash} unit={cashUnit} /></Detail>
       </dl>
     </div>
   );

@@ -41,7 +41,7 @@ export default function BarberReportPage() {
               </CardAction>
             </CardHeader>
             <CardContent>
-              <PerformanceDetails value={employee}>
+              <PerformanceDetails value={employee} cashUnit="إدخال">
                 <Detail label="الساعات المتاحة">{employee.availableMinutes === null ? "—" : formatDuration(employee.availableMinutes)}</Detail>
                 <Detail label="نسبة الإشغال">{share === null ? "—" : <span data-numeric>{share}%</span>}</Detail>
               </PerformanceDetails>
