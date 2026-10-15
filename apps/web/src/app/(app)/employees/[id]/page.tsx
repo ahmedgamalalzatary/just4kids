@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ChevronRight, KeyRound } from "lucide-react";
+import { ChevronLeft, KeyRound } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { Field, FormAlert } from "@/components/field";
@@ -35,18 +35,18 @@ function PhotoCard({ employee }: { employee: Employee }) {
 
   const choose = (file: File | undefined) => {
     if (!file) return;
-    if (!PHOTO_TYPES.includes(file.type)) { setError("صيغة الصورة غير مدعومة، استخدم JPEG أو PNG أو WEBP."); return; }
-    if (file.size > PHOTO_MAX_BYTES) { setError("حجم الصورة يتجاوز 2 ميغابايت."); return; }
+    if (!PHOTO_TYPES.includes(file.type)) { setError("Unsupported photo format. Use JPEG, PNG or WEBP."); return; }
+    if (file.size > PHOTO_MAX_BYTES) { setError("Photo exceeds 2 MB."); return; }
     setError(null);
-    upload.mutate({ id: employee.id, file }, { onSuccess: () => toast.success("تم حفظ صورة الحلاق") });
+    upload.mutate({ id: employee.id, file }, { onSuccess: () => toast.success("Barber photo saved") });
   };
 
   return (
     <Card>
       <CardHeader>
         <div>
-          <CardTitle>صورة الحلاق</CardTitle>
-          <CardDescription>تُقصّ الصورة وتُحفظ بقياس مربّع، وتظهر في الحجوزات بصورتها الحالية.</CardDescription>
+          <CardTitle>Barber photo</CardTitle>
+          <CardDescription>The photo is cropped to a square. Reservations show the current photo.</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-4">
@@ -54,10 +54,10 @@ function PhotoCard({ employee }: { employee: Employee }) {
         <div className="flex min-w-0 flex-col gap-2">
           <input ref={input} type="file" accept={PHOTO_TYPES.join(",")} className="sr-only" onChange={event => { choose(event.target.files?.[0]); event.target.value = ""; }} />
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => input.current?.click()} disabled={pending}>{upload.isPending ? "جارٍ الرفع..." : "رفع صورة أو استبدالها"}</Button>
-            <Button type="button" variant="ghost" onClick={() => { setError(null); remove.mutate({ id: employee.id }, { onSuccess: () => toast.success("تم حذف الصورة") }); }} disabled={pending}>حذف الصورة</Button>
+            <Button type="button" variant="outline" onClick={() => input.current?.click()} disabled={pending}>{upload.isPending ? "Uploading..." : "Upload or replace photo"}</Button>
+            <Button type="button" variant="ghost" onClick={() => { setError(null); remove.mutate({ id: employee.id }, { onSuccess: () => toast.success("Photo deleted") }); }} disabled={pending}>Delete photo</Button>
           </div>
-          <p className="text-xs text-muted-foreground">JPEG أو PNG أو WEBP، حتى 2 ميغابايت.</p>
+          <p className="text-xs text-muted-foreground">JPEG, PNG or WEBP, up to 2 MB.</p>
           {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
           <FormAlert error={upload.error ?? remove.error} />
         </div>
@@ -77,29 +77,29 @@ function ProfileCard({ employee }: { employee: Employee }) {
     // Send only what changed, so an unchanged phone is never rewritten.
     const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => (employee[key as keyof typeof values] ?? "") !== value));
     if (Object.keys(changes).length === 0) return;
-    update.mutate({ id: employee.id, ...changes }, { onSuccess: () => toast.success("تم حفظ بيانات الحلاق") });
+    update.mutate({ id: employee.id, ...changes }, { onSuccess: () => toast.success("Barber details saved") });
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>بيانات الحساب</CardTitle>
+        <CardTitle>Account details</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
-          <Field label="رقم الهاتف" error={errors.phone?.message} hint="يستخدمه الحلاق لتسجيل الدخول."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
+          <Field label="Name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="Phone number" error={errors.phone?.message} hint="The barber uses this to log in."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
           <div className="flex items-center gap-3 self-end pb-2">
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />
-            <Label htmlFor="employee-enabled">الحساب مفعّل</Label>
+            <Label htmlFor="employee-enabled">Account enabled</Label>
           </div>
-          <Field label="تاريخ انتهاء الحساب" error={errors.accessUntil?.message} hint="بعد هذا التاريخ يتوقف دخول الحلاق. اتركه فارغاً لحساب بلا انتهاء.">
+          <Field label="Account expiry date" error={errors.accessUntil?.message} hint="The barber cannot log in after this date. Leave blank for no expiry.">
             <Input {...form.register("accessUntil")} type="date" dir="ltr" className="text-start" />
           </Field>
-          <p className="text-xs text-muted-foreground sm:col-span-2">إيقاف الحساب يمنع الحلاق من الدخول ويخفيه من الحلاقين المتاحين للحجوزات الجديدة.</p>
+          <p className="text-xs text-muted-foreground sm:col-span-2">Stopping the account prevents login and hides the barber from new reservations.</p>
           <div className="flex flex-col gap-3 sm:col-span-2">
             <FormAlert error={update.error} />
-            <Button type="submit" className="w-fit" disabled={update.isPending || !form.formState.isDirty}>حفظ التغييرات</Button>
+            <Button type="submit" className="w-fit" disabled={update.isPending || !form.formState.isDirty}>Save changes</Button>
           </div>
         </form>
       </CardContent>
@@ -112,21 +112,21 @@ function ResetPasswordDialog({ employee, open, onOpenChange }: { employee: Emplo
   const form = useForm({ resolver: zodResolver(passwordResetFormSchema), defaultValues: { password: "", confirm: "" } });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => reset.mutate({ id: employee.id, password: values.password }, {
-    onSuccess: () => { toast.success("تم تغيير كلمة المرور"); onOpenChange(false); form.reset(); },
+    onSuccess: () => { toast.success("Password changed"); onOpenChange(false); form.reset(); },
   }));
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) { reset.reset(); form.reset(); } onOpenChange(value); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>كلمة مرور جديدة لـ {employee.displayName}</DialogTitle>
-          <DialogDescription>يُسجَّل خروج الحلاق من جميع أجهزته، ويدخل بعدها بكلمة المرور الجديدة.</DialogDescription>
+          <DialogTitle>New password for {employee.displayName}</DialogTitle>
+          <DialogDescription>The barber is logged out on all devices and must use the new password.</DialogDescription>
         </DialogHeader>
         <form id="reset-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-          <Field label="كلمة المرور الجديدة" error={errors.password?.message} hint="8 أحرف على الأقل."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
-          <Field label="تأكيد كلمة المرور" error={errors.confirm?.message}><Input {...form.register("confirm")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
+          <Field label="New password" error={errors.password?.message} hint="At least 8 characters."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
+          <Field label="Confirm password" error={errors.confirm?.message}><Input {...form.register("confirm")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>
         <FormAlert error={reset.error} />
-        <DialogFooter><Button type="submit" form="reset-form" disabled={reset.isPending}>تغيير كلمة المرور</Button></DialogFooter>
+        <DialogFooter><Button type="submit" form="reset-form" disabled={reset.isPending}>Change password</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -137,7 +137,7 @@ function EmployeeScreen({ id }: { id: string }) {
   const schedule = useSchedule(id);
   const [resetOpen, setResetOpen] = useState(false);
 
-  const back = <Link href="/employees" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden />الحلاقون</Link>;
+  const back = <Link href="/employees" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" aria-hidden />Barbers</Link>;
   if (employee.isPending) return <>{back}<LoadingRows /></>;
   if (employee.isError) return <>{back}<ErrorState error={employee.error} onRetry={() => employee.refetch()} /></>;
 
@@ -145,8 +145,8 @@ function EmployeeScreen({ id }: { id: string }) {
     <>
       <PageHeader
         back={back}
-        title={<span className="flex flex-wrap items-center gap-3">{employee.data.displayName}{employee.data.enabled ? null : <Badge variant="muted">موقوف</Badge>}</span>}
-        actions={<Button variant="outline" onClick={() => setResetOpen(true)}><KeyRound aria-hidden />تغيير كلمة المرور</Button>}
+        title={<span className="flex flex-wrap items-center gap-3">{employee.data.displayName}{employee.data.enabled ? null : <Badge variant="muted">Stopped</Badge>}</span>}
+        actions={<Button variant="outline" onClick={() => setResetOpen(true)}><KeyRound aria-hidden />Change password</Button>}
       />
       <div className="flex flex-col gap-6">
         <PhotoCard employee={employee.data} />

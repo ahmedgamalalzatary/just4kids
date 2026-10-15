@@ -41,7 +41,7 @@ describe("report filters", () => {
   });
 
   it("rejects a range that ends before it starts", () => {
-    expect(rangeError("2026-10-02", "2026-10-01")).toBe("تاريخ النهاية قبل تاريخ البداية");
+    expect(rangeError("2026-10-02", "2026-10-01")).toBe("End date is before start date");
     expect(rangeError("2026-10-01", "2026-10-01")).toBeUndefined();
     expect(rangeError("", "2026-10-01")).toBeUndefined();
   });

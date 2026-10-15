@@ -10,7 +10,7 @@ import { SlotPills } from "@/components/booking-slot-pills";
 const id = "11111111-1111-4111-8111-111111111111", blockId = "22222222-2222-4222-8222-222222222222";
 const date = "2099-01-05";
 const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
-const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: "13:30", reason: "موعد خاص", createdBy: id, createdAt: "2026-10-13T00:00:00.000Z" };
+const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: "13:30", reason: "موعد Special", createdBy: id, createdAt: "2026-10-13T00:00:00.000Z" };
 const initial: Schedule = { employeeId: id, days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] };
 async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "admin" | "employee" } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } } });
@@ -18,7 +18,7 @@ async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "a
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/blocks") && init?.method === "POST") {
-      if (options.conflict) return new Response(JSON.stringify({ error: { code: "TIME_BLOCK_CONFLICT", message: "الوقت محجوز، أعد تحميل الأوقات" } }), { status: 409 });
+      if (options.conflict) return new Response(JSON.stringify({ error: { code: "TIME_BLOCK_CONFLICT", message: "Time محجوز، أعد تحميل الأوقات" } }), { status: 409 });
       blocks = [{ ...block, reason: JSON.parse(String(init.body)).reason }];
       return new Response(JSON.stringify(blocks[0]), { status: 201 });
     }
@@ -40,41 +40,41 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe("booking time lock controls", () => {
   it("keeps normal booking selection, and locks only half an hour even with a one-hour visit selected", async () => {
     const { fetch, select, changed } = await mount();
-    await userEvent.click(screen.getByRole("radio", { name: "1:00 م" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     expect(select).toHaveBeenCalledWith(expect.objectContaining({ startTime: "13:00", endTime: "14:00" }));
-    await userEvent.click(screen.getByRole("button", { name: "قفل / فتح الأوقات" }));
-    await userEvent.click(screen.getByRole("radio", { name: "1:00 م" }));
-    await userEvent.type(screen.getByLabelText(/سبب القفل/), "موعد خاص");
-    await userEvent.click(screen.getByRole("button", { name: "قفل نصف الساعة" }));
-    expect(await screen.findByRole("radio", { name: "1:00 م، مغلق: موعد خاص" })).toHaveClass("bg-status-locked-soft");
+    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
+    await userEvent.type(screen.getByLabelText(/Lock reason/), "موعد Special");
+    await userEvent.click(screen.getByRole("button", { name: "Lock half-hour" }));
+    expect(await screen.findByRole("radio", { name: "1:00 PM, closed: موعد Special" })).toHaveClass("bg-status-locked-soft");
     const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(call[0]).toBe(`/api/schedules/${id}/blocks`);
-    expect(JSON.parse(String(call[1]?.body))).toEqual({ date, startTime: "13:00", reason: "موعد خاص" });
+    expect(JSON.parse(String(call[1]?.body))).toEqual({ date, startTime: "13:00", reason: "موعد Special" });
     expect(new Headers(call[1]?.headers).get("X-CSRF-Token")).toBe("csrf");
     expect(changed).toHaveBeenCalled();
   });
   it("shows the saved reason and unlocks the manual lock without offering to unlock scheduled breaks", async () => {
     const { fetch } = await mount({ blocked: true });
-    await userEvent.click(screen.getByRole("radio", { name: "1:00 م، مغلق: موعد خاص" }));
-    expect(screen.getByText("مغلق: موعد خاص")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "فتح نصف الساعة" }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "1:00 م" })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM, closed: موعد Special" }));
+    expect(screen.getByText("Closed: موعد Special")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Unlock half-hour" }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "1:00 PM" })).toBeInTheDocument());
     expect(fetch.mock.calls.some(([url, init]) => String(url).endsWith(`/blocks/${blockId}`) && init?.method === "DELETE")).toBe(true);
-    await userEvent.click(screen.getByRole("radio", { name: "3:00 م، مغلق: استراحة" }));
-    expect(screen.queryByRole("button", { name: "فتح نصف الساعة" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "3:00 PM, closed: Break" }));
+    expect(screen.queryByRole("button", { name: "Unlock half-hour" })).not.toBeInTheDocument();
   });
   it("shows a recoverable conflict and never pretends the time was locked", async () => {
     await mount({ conflict: true });
-    await userEvent.click(screen.getByRole("button", { name: "قفل / فتح الأوقات" }));
-    await userEvent.click(screen.getByRole("radio", { name: "1:00 م" }));
-    await userEvent.click(screen.getByRole("button", { name: "قفل نصف الساعة" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("الوقت محجوز، أعد تحميل الأوقات");
-    expect(screen.queryByRole("radio", { name: /^1:00 م، مغلق/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
+    await userEvent.click(screen.getByRole("button", { name: "Lock half-hour" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Time محجوز، أعد تحميل الأوقات");
+    expect(screen.queryByRole("radio", { name: /^1:00 م، Closed/ })).not.toBeInTheDocument();
   });
   it("hides all lock writes from employees", async () => {
     await mount({ blocked: true, role: "employee" });
-    expect(screen.queryByRole("button", { name: "قفل / فتح الأوقات" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: "1:00 م، مغلق: موعد خاص" }));
-    expect(screen.queryByRole("button", { name: "فتح نصف الساعة" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lock / unlock times" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM, closed: موعد Special" }));
+    expect(screen.queryByRole("button", { name: "Unlock half-hour" })).not.toBeInTheDocument();
   });
 });

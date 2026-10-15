@@ -20,11 +20,11 @@ function useActorName() {
   const account = session.data?.account;
   const employees = useEmployees(account?.role === "admin");
   return (accountId: string | null) => {
-    if (!accountId) return "النظام";
-    if (accountId === account?.id) return account.role === "admin" ? "المدير" : "أنت";
+    if (!accountId) return "System";
+    if (accountId === account?.id) return account.role === "admin" ? "Administrator" : "You";
     const employee = employees.data?.find(candidate => candidate.id === accountId);
     if (employee) return employee.displayName;
-    return account?.role === "admin" ? "المدير" : "حساب آخر";
+    return account?.role === "admin" ? "Administrator" : "Another account";
   };
 }
 
@@ -48,18 +48,18 @@ function VisitHistory({ id }: { id: string }) {
   const actorName = useActorName();
   if (history.isPending) return <LoadingRows rows={3} />;
   if (history.isError) return <ErrorState error={history.error} onRetry={() => history.refetch()} />;
-  const name = (event: VisitEvent) => event.actorType === "client" ? "العميل" : event.actorType === "system" ? "النظام" : actorName(event.actorAccountId);
+  const name = (event: VisitEvent) => event.actorType === "client" ? "Client" : event.actorType === "system" ? "System" : actorName(event.actorAccountId);
   const timeline = buildTimeline(history.data.events, history.data.messages);
   return (
     <Timeline>
       {timeline.slice().reverse().map(entry => entry.type === "message" ? (
-        <TimelineItem key={entry.message.id} title={messageKindLabels[entry.message.kind]} meta={`${actorName(entry.message.actorAccountId)}، ${formatDateTime(entry.message.occurredAt)}`} />
+        <TimelineItem key={entry.message.id} title={messageKindLabels[entry.message.kind]} meta={`${actorName(entry.message.actorAccountId)}, ${formatDateTime(entry.message.occurredAt)}`} />
       ) : (
         <TimelineItem key={entry.event.id}
           title={visitEventTitle(entry.event)}
-          meta={`${name(entry.event)}، ${formatDateTime(entry.event.occurredAt)}`}>
+          meta={`${name(entry.event)}, ${formatDateTime(entry.event.occurredAt)}`}>
           {entry.event.reason ? <p className="text-muted-foreground">{entry.event.reason}</p> : null}
-          {entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? <p className="text-xs">الفاتورة: {entry.event.invoiceStatus === "cancelled" ? "أُلغيت" : "أُعيد إصدارها"}</p> : null}
+          {entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? <p className="text-xs">Invoice: {entry.event.invoiceStatus === "cancelled" ? "Cancelled" : "Reissued"}</p> : null}
         </TimelineItem>
       ))}
     </Timeline>
@@ -71,13 +71,13 @@ function Revisions({ id }: { id: string }) {
   const actorName = useActorName();
   if (revisions.isPending) return <LoadingRows rows={3} />;
   if (revisions.isError) return <ErrorState error={revisions.error} onRetry={() => revisions.refetch()} />;
-  if (revisions.data.length === 0) return <EmptyState icon={History} title="لم يُعدَّل الحجز" className="py-8" />;
+  if (revisions.data.length === 0) return <EmptyState icon={History} title="Reservation has not been edited" className="py-8" />;
   return (
     <Timeline>
       {[...revisions.data].reverse().map(revision => (
-        <TimelineItem key={revision.id} title="تعديل الحجز" meta={`${actorName(revision.actorAccountId)}، ${formatDateTime(revision.occurredAt)}`}>
+        <TimelineItem key={revision.id} title="Edit reservation" meta={`${actorName(revision.actorAccountId)}, ${formatDateTime(revision.occurredAt)}`}>
           <ul className="flex flex-col gap-1">{revisionChanges(revision).map(change => <li key={change}>{change}</li>)}</ul>
-          {revision.reason ? <p className="mt-1 text-muted-foreground">السبب: {revision.reason}</p> : null}
+          {revision.reason ? <p className="mt-1 text-muted-foreground">Reason: {revision.reason}</p> : null}
         </TimelineItem>
       ))}
     </Timeline>
@@ -96,14 +96,14 @@ function Payments({ booking }: { booking: Booking }) {
     <div className="flex flex-col gap-5">
       {active ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-status-completed-soft px-4 py-3 text-status-completed">
-          <p className="text-sm">المبلغ المستلم حالياً: <Ltr className="font-semibold">{formatKwd(active.amount)}</Ltr> <span className="text-xs">({paymentMethodLabels[active.method]})</span></p>
-          {isAdmin ? <Button variant="outline" size="sm" onClick={() => setUndoOpen(true)}>إلغاء قيد خاطئ</Button> : null}
+          <p className="text-sm">Currently collected: <Ltr className="font-semibold">{formatKwd(active.amount)}</Ltr> <span className="text-xs">({paymentMethodLabels[active.method]})</span></p>
+          {isAdmin ? <Button variant="outline" size="sm" onClick={() => setUndoOpen(true)}>Void an incorrect payment</Button> : null}
         </div>
       ) : null}
-      {payments.data.events.length === 0 ? <EmptyState icon={History} title="لم يُسجَّل أي نقد" className="py-8" /> : (
+      {payments.data.events.length === 0 ? <EmptyState icon={History} title="No payments recorded" className="py-8" /> : (
         <Timeline>
           {[...payments.data.events].reverse().map(event => (
-            <TimelineItem key={event.id} title={<>{paymentKinds[event.kind]}: <Ltr>{formatKwd(event.amount)}</Ltr></>} meta={`${paymentMethodLabels[event.method]}، ${actorName(event.actorAccountId)}، ${formatDateTime(event.occurredAt)}`}>
+            <TimelineItem key={event.id} title={<>{paymentKinds[event.kind]}: <Ltr>{formatKwd(event.amount)}</Ltr></>} meta={`${paymentMethodLabels[event.method]}, ${actorName(event.actorAccountId)}, ${formatDateTime(event.occurredAt)}`}>
               {event.reason ? <p className="text-muted-foreground">{event.reason}</p> : null}
             </TimelineItem>
           ))}
@@ -116,11 +116,11 @@ function Payments({ booking }: { booking: Booking }) {
 
 export function BookingHistory({ booking }: { booking: Booking }) {
   return (
-    <Tabs defaultValue="visit" dir="rtl" className="gap-4">
+    <Tabs defaultValue="visit" dir="ltr" className="gap-4">
       <TabsList>
-        <TabsTrigger value="visit">سجل الزيارة</TabsTrigger>
-        <TabsTrigger value="revisions">التعديلات</TabsTrigger>
-        <TabsTrigger value="cash">النقد</TabsTrigger>
+        <TabsTrigger value="visit">Visit history</TabsTrigger>
+        <TabsTrigger value="revisions">Edits</TabsTrigger>
+        <TabsTrigger value="cash">Cash</TabsTrigger>
       </TabsList>
       <TabsContent value="visit"><VisitHistory id={booking.id} /></TabsContent>
       <TabsContent value="revisions"><Revisions id={booking.id} /></TabsContent>

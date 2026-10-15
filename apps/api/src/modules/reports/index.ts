@@ -13,7 +13,7 @@ export function createReports(connection: ReturnType<typeof createDatabase>, aut
   const router = Router();
   const handle = (action: RequestHandler): RequestHandler => async (request, response, next) => {
     try { await action(request, response, next); }
-    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "مرشحات التقرير غير صالحة"); return; } next(error); }
+    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid report filters"); return; } next(error); }
   };
   router.use((_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
   router.use(auth.requireAuth);

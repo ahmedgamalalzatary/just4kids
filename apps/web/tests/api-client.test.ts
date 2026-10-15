@@ -32,10 +32,10 @@ describe("apiRequest", () => {
   });
 
   it("raises the server error code and Arabic message", async () => {
-    vi.stubGlobal("fetch", respond(409, { error: { code: "BARBER_UNAVAILABLE", message: "الموظف غير متاح" } }));
+    vi.stubGlobal("fetch", respond(409, { error: { code: "BARBER_UNAVAILABLE", message: "الموظف غير Available" } }));
     const error = await apiRequest("/bookings", { method: "POST" }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 409, code: "BARBER_UNAVAILABLE", message: "الموظف غير متاح" });
+    expect(error).toMatchObject({ status: 409, code: "BARBER_UNAVAILABLE", message: "الموظف غير Available" });
   });
 
   it("uses a readable fallback when the server is unreachable or returns no error body", async () => {

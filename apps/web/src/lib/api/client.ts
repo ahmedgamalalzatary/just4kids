@@ -13,7 +13,7 @@ type RequestOptions = {
   signal?: AbortSignal | undefined;
 };
 
-const fallbackMessage = "تعذر الاتصال بالخادم، حاول مرة أخرى";
+const fallbackMessage = "Could not connect to the server. Try again";
 
 /** Calls the API through the web app's same-origin `/api` proxy and raises `ApiError` for every failure. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {

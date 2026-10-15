@@ -19,10 +19,10 @@ describe("LoginForm", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     renderForm();
-    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "5000");
-    await userEvent.type(screen.getByLabelText("كلمة المرور"), "secret");
-    await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
-    expect(await screen.findByText(/بالصيغة الدولية/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Phone number"), "5000");
+    await userEvent.type(screen.getByLabelText("Password"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+    expect(await screen.findByText(/international number/)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -32,9 +32,9 @@ describe("LoginForm", () => {
       .mockResolvedValueOnce(json(200, session));
     vi.stubGlobal("fetch", fetchMock);
     const onSuccess = renderForm();
-    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "50000000");
-    await userEvent.type(screen.getByLabelText("كلمة المرور"), "secret");
-    await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+    await userEvent.type(screen.getByLabelText("Phone number"), "50000000");
+    await userEvent.type(screen.getByLabelText("Password"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(session));
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/api/auth/login");
@@ -47,9 +47,9 @@ describe("LoginForm", () => {
       .mockResolvedValueOnce(json(200, session));
     vi.stubGlobal("fetch", fetchMock);
     const onSuccess = renderForm();
-    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "+96550000000");
-    await userEvent.type(screen.getByLabelText("كلمة المرور"), "secret");
-    await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+    await userEvent.type(screen.getByLabelText("Phone number"), "+96550000000");
+    await userEvent.type(screen.getByLabelText("Password"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(session));
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/api/auth/login");
@@ -60,11 +60,11 @@ describe("LoginForm", () => {
   it("shows the server's reason when sign-in is refused", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(json(200, { csrfToken: "b".repeat(64) }))
-      .mockResolvedValueOnce(json(401, { error: { code: "INVALID_CREDENTIALS", message: "رقم الهاتف أو كلمة المرور غير صحيحين" } })));
+      .mockResolvedValueOnce(json(401, { error: { code: "INVALID_CREDENTIALS", message: "Phone number أو Password غير صحيحين" } })));
     renderForm();
-    await userEvent.type(screen.getByLabelText("رقم الهاتف"), "+96550000000");
-    await userEvent.type(screen.getByLabelText("كلمة المرور"), "wrong");
-    await userEvent.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("رقم الهاتف أو كلمة المرور غير صحيحين");
+    await userEvent.type(screen.getByLabelText("Phone number"), "+96550000000");
+    await userEvent.type(screen.getByLabelText("Password"), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Phone number أو Password غير صحيحين");
   });
 });

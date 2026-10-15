@@ -6,7 +6,7 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: { default: "just4kids", template: "%s · just4kids" },
-  description: "إدارة حجوزات الحلاقة المنزلية",
+  description: "Home haircut reservation management",
 };
 
 export const viewport: Viewport = {
@@ -18,7 +18,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
       </body>

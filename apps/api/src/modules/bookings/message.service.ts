@@ -12,7 +12,7 @@ export function createMessageService(connection: ReturnType<typeof createDatabas
   return {
     async record(id: string, account: Account) {
       const [booking] = await db.select({ id: bookings.id }).from(bookings).where(eq(bookings.id, id));
-      if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
+      if (!booking) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
       const message = { id: randomUUID(), bookingId: id, kind: "sent_to_barber" as const, actorAccountId: account.id, occurredAt: new Date(Date.now()) };
       await db.insert(bookingMessages).values(message);
       return bookingMessageResponseSchema.parse({ ...message, occurredAt: message.occurredAt.toISOString() });

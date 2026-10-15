@@ -16,7 +16,7 @@ export type BookingActor = { kind: "administrator"; accountId: string } | { kind
 export function fils(price: string) { return BigInt(price.replace(".", "")); }
 export function money(value: bigint) { return `${value / 1000n}.${(value % 1000n).toString().padStart(3, "0")}`; }
 export function assertFutureStart(input: Pick<BookingCreate, "date" | "startTime">) {
-  if (new Date(`${input.date}T${input.startTime}:00+03:00`).getTime() <= Date.now()) throw new HttpError(400, "BOOKING_START_NOT_FUTURE", "يجب أن يبدأ الحجز في المستقبل بتوقيت الكويت");
+  if (new Date(`${input.date}T${input.startTime}:00+03:00`).getTime() <= Date.now()) throw new HttpError(400, "BOOKING_START_NOT_FUTURE", "The reservation must start in the future in Kuwait");
 }
 export function createBookingRepository(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
@@ -28,31 +28,31 @@ export function createBookingRepository(connection: ReturnType<typeof createData
     const [creator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, actor.accountId), eq(accounts.role, "admin"), eq(accounts.enabled, true)));
     if (!creator) throw new ForbiddenError();
     const barber = await lockEmployee(transaction, input.employeeId);
-    if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
-    if (!barber.account.enabled) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح");
+    if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Employee not found");
+    if (!barber.account.enabled) throw new HttpError(409, "BARBER_UNAVAILABLE", "Employee unavailable");
     if (newClient) {
       await verifyAddressArea(transaction, newClient.address);
       const createdAt = new Date();
-      await transaction.insert(clients).values({ id: input.clientId, name: newClient.name?.trim() || newClient.phone, phone: newClient.phone, createdAt, updatedAt: createdAt });
+      await transaction.insert(clients).values({ id: input.clientId, phone: newClient.phone, createdAt, updatedAt: createdAt });
       await transaction.insert(clientAddresses).values({ id: input.addressId, clientId: input.clientId, ...addressValues(newClient.address), createdAt, updatedAt: createdAt });
     }
     const [client] = await transaction.select().from(clients).where(eq(clients.id, input.clientId)).for("update");
-    if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "العميل غير موجود");
-    if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "هذا العميل موقوف، لا يمكن إنشاء حجز جديد");
+    if (!client) throw new HttpError(404, "CLIENT_NOT_FOUND", "Client not found");
+    if (!client.enabled) throw new HttpError(409, "CLIENT_DISABLED", "This client is stopped. A new reservation cannot be created");
     const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, input.addressId), eq(clientAddresses.clientId, input.clientId))).for("update");
-    if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "العنوان غير موجود لهذا العميل");
+    if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "Address not found for this client");
     const hours = await readWorkingHours(transaction, input.employeeId, input.date);
     const existing = await readBlockingBookings(transaction, input.employeeId, input.date);
     const blocks = await readTimeBlocks(transaction, input.employeeId, input.date);
     assertFutureStart(input);
-    if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "الموظف غير متاح خلال الفترة المحددة");
+    if (!isWindowAvailable({ date: input.date, startTime: input.startTime, endTime: input.endTime }, hours.days, hours.exception, existing.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "Employee unavailable during the selected window");
     const now = new Date(), id = randomUUID();
     const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
-    const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, instructions: address.instructions, mapsUrl: address.mapsUrl, latitude: address.latitude, longitude: address.longitude };
+    const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl };
     const { amountCash, amountLink, ...details } = input;
     const booking = {
       id, reference, ...details, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
-      clientSnapshot: { name: client.name, phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
+      clientSnapshot: { phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
       employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
     };
     const invoice = { id: randomUUID(), bookingId: id, amountCash, amountLink, total: money(fils(amountCash) + fils(amountLink)), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };

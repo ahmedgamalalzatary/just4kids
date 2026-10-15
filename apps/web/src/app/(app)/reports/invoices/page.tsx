@@ -17,8 +17,8 @@ import type { ReportFilters } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
 function lineItems(invoice: InvoiceReport["invoices"][number]) {
-  return [invoice.amountCash !== "0.000" ? `نقدي ${invoice.amountCash}` : null, invoice.amountLink !== "0.000" ? `رابط ${invoice.amountLink}` : null]
-    .filter(Boolean).join("، ");
+  return [invoice.amountCash !== "0.000" ? `Cash ${invoice.amountCash}` : null, invoice.amountLink !== "0.000" ? `Link ${invoice.amountLink}` : null]
+    .filter(Boolean).join(", ");
 }
 
 
@@ -35,15 +35,15 @@ function InvoiceRow({ invoice, showBarber }: { invoice: InvoiceReport["invoices"
           <Ltr className="min-w-0 break-all text-xs text-muted-foreground">{invoice.reference}</Ltr>
         </div>
         <div className="min-w-0">
-          <p className="truncate font-medium">{invoice.client.name}</p>
+          <p className="truncate font-medium">{invoice.client.phone}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {invoice.address.area}، {lineItems(invoice)}{showBarber ? `، مع ${invoice.employee.displayName}` : ""}
+            {invoice.address.area}, {lineItems(invoice)}{showBarber ? `, with ${invoice.employee.displayName}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={invoice.source} />
-            <span className="text-xs text-muted-foreground">صدرت {formatDateTime(invoice.issuedAt)}</span>
-            {invoice.editCount ? <span className="text-xs text-muted-foreground" data-numeric>{invoice.editCount} تعديل</span> : null}
-            {invoice.correctionCount ? <span className="text-xs text-muted-foreground" data-numeric>{invoice.correctionCount} تصحيح حالة</span> : null}
+            <span className="text-xs text-muted-foreground">Issued {formatDateTime(invoice.issuedAt)}</span>
+            {invoice.editCount ? <span className="text-xs text-muted-foreground" data-numeric>{invoice.editCount} Edit</span> : null}
+            {invoice.correctionCount ? <span className="text-xs text-muted-foreground" data-numeric>{invoice.correctionCount} Status correction</span> : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -52,7 +52,7 @@ function InvoiceRow({ invoice, showBarber }: { invoice: InvoiceReport["invoices"
           {invoice.cash ? (
             <span className="text-xs text-muted-foreground">
               {paymentMethodLabels[invoice.cash.method]} <Ltr>{formatKwd(invoice.cash.amount)}</Ltr>
-              <span className="ms-1" data-numeric>بتاريخ {formatDateTime(invoice.cash.recordedAt)}</span>
+              <span className="ms-1" data-numeric>on {formatDateTime(invoice.cash.recordedAt)}</span>
             </span>
           ) : null}
           <Ltr className="ms-auto text-sm font-medium sm:ms-0 sm:min-w-[6.5rem] sm:text-end">{formatKwd(invoice.total)}</Ltr>
@@ -73,25 +73,25 @@ function InvoicesReport({ filters, isAdmin }: { filters: ReportFilters; isAdmin:
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>ملخص الفواتير والنقد</CardTitle>
-            <CardDescription>قيم الفواتير منفصلة عن المبلغ المستلم، مع توزيعه على طريقة الدفع.</CardDescription>
+            <CardTitle>Invoice and payment summary</CardTitle>
+            <CardDescription>Invoice values are separate from collected payments, which are grouped by payment method.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Detail label="الفواتير الصادرة"><Money value={data.summary.invoices.issued} unit="فاتورة" /></Detail>
-          <Detail label="فواتير غير مدفوعة"><Money value={data.summary.invoices.outstanding} unit="فاتورة" /></Detail>
-          <Detail label="الفواتير الملغاة"><Money value={data.summary.invoices.cancelled} unit="فاتورة" /></Detail>
-          <Detail label="المبلغ المستلم"><CollectedCash value={data.summary.cash} unit="إدخال" /></Detail>
+          <Detail label="Issued invoices"><Money value={data.summary.invoices.issued} unit="invoice" /></Detail>
+          <Detail label="Unpaid invoices"><Money value={data.summary.invoices.outstanding} unit="invoice" /></Detail>
+          <Detail label="Cancelled invoices"><Money value={data.summary.invoices.cancelled} unit="invoice" /></Detail>
+          <Detail label="Collected amount"><CollectedCash value={data.summary.cash} unit="entry" /></Detail>
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>تفاصيل الفواتير</CardTitle>
-            <CardDescription>{filters.dateBasis === "created_date" ? "الأحدث إنشاءً أولاً." : "الأحدث موعداً أولاً."} فاتورة واحدة لكل حجز حتى بعد التعديل. افتح الحجز لعرض السجل الكامل.</CardDescription>
+            <CardTitle>Invoice details</CardTitle>
+            <CardDescription>{filters.dateBasis === "created_date" ? "Newest created first." : "Latest appointment first."} One invoice per reservation, including after edits. Open the reservation for full history.</CardDescription>
           </div>
         </CardHeader>
-        {data.invoices.length === 0 ? <EmptyState icon={Banknote} title="لا توجد فواتير مطابقة" description="غيّر الفترة أو المرشحات لعرض فواتير أخرى." /> : (
+        {data.invoices.length === 0 ? <EmptyState icon={Banknote} title="No matching invoices" description="Change the period or filters to view other invoices." /> : (
           <>
             <ul className="divide-y divide-border">{data.invoices.map(invoice => <InvoiceRow key={invoice.id} invoice={invoice} showBarber={isAdmin} />)}</ul>
             <div data-print-hidden><Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={setOffset} /></div>

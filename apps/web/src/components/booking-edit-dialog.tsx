@@ -26,9 +26,9 @@ function Stepper({ label, value, onChange, max = 99 }: { label: string; value: n
     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5">
       <span className="text-sm">{label}</span>
       <div className="flex items-center gap-1" role="group" aria-label={label}>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`إنقاص ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Decrease ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
         <output className="w-7 text-center font-semibold" data-numeric>{value}</output>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Increase ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
       </div>
     </div>
   );
@@ -63,10 +63,10 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const changed = timingChanged || countsChanged || barberChanged || addressChanged || notesChanged;
 
   const submit = () => {
-    if (!changed) { setProblem("لم تغيّر شيئاً بعد"); return; }
+    if (!changed) { setProblem("No changes yet"); return; }
     if (timingChanged) { const issue = windowProblem({ date, startTime, endTime }, new Date(), !correction); if (issue) { setProblem(issue); return; } }
-    if (correction && !reason.trim()) { setProblem("اكتب سبب التصحيح"); return; }
-    if (adultCount + childCount === 0) { setProblem("حلاقة واحدة على الأقل"); return; }
+    if (correction && !reason.trim()) { setProblem("Enter the correction reason"); return; }
+    if (adultCount + childCount === 0) { setProblem("At least one haircut"); return; }
     const specialProblem = specialChildrenProblem(childCount, specialChildCount);
     if (specialProblem) { setProblem(specialProblem); return; }
     setProblem(null);
@@ -80,22 +80,22 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
       ...(countsChanged ? { adultCount, childCount, specialChildCount } : {}),
       ...(notesChanged ? { notes: notes.trim() } : {}),
     };
-    edit.mutate(input, { onSuccess: () => { toast.success("تم تعديل الحجز"); onDone(); } });
+    edit.mutate(input, { onSuccess: () => { toast.success("Reservation updated"); onDone(); } });
   };
 
   return (
     <>
       <div className="flex flex-col gap-4">
-        <Field label="العنوان">
+        <Field label="Address">
           <Select value={addressId} onValueChange={setAddressId}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={KEEP_ADDRESS}>إبقاء عنوان الحجز الحالي</SelectItem>
+              <SelectItem value={KEEP_ADDRESS}>Keep the current reservation address</SelectItem>
               {client.data.addresses.map(address => <SelectItem key={address.id} value={address.id}>{formatAddress(address)}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
-        <Field label="الحلاق" hint="تحقق من التوفر يتم عند الحفظ.">
+        <Field label="Barber" hint="Availability is checked when saving.">
           <Select value={employeeId} onValueChange={setEmployeeId}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -106,27 +106,27 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           </Select>
         </Field>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="التاريخ"><Input type="date" dir="ltr" min={correction ? undefined : kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
-          <Field label="من"><Input type="time" dir="ltr" value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
-          <Field label="إلى"><Input type="time" dir="ltr" value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
+          <Field label="Date"><Input type="date" dir="ltr" min={correction ? undefined : kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
+          <Field label="From"><Input type="time" dir="ltr" value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
+          <Field label="To"><Input type="time" dir="ltr" value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Stepper label="بالغون" value={adultCount} onChange={setAdultCount} />
-          <Stepper label="أطفال" value={childCount} onChange={setChildren} />
-          <Stepper label="منهم ذوو احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
+          <Stepper label="Adults" value={adultCount} onChange={setAdultCount} />
+          <Stepper label="Children" value={childCount} onChange={setChildren} />
+          <Stepper label="with special needs" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
         </div>
         <div className="rounded-md bg-muted px-4 py-3 text-sm">
           <p className="flex flex-wrap justify-between gap-2">
-            <span>الإجمالي المتفق عليه</span>
+            <span>Agreed total</span>
             <span><Ltr className="font-semibold">{formatKwd(booking.invoice.total)}</Ltr></span>
           </p>
         </div>
-        <Field label="ملاحظات" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
-        <Field label={correction ? "سبب التصحيح" : "سبب التعديل"} optional={!correction}><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
+        <Field label="Notes" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="Example: call before arrival" /></Field>
+        <Field label={correction ? "Correction reason" : "Edit reason"} optional={!correction}><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={edit.error} />
       </div>
-      <DialogFooter><Button onClick={submit} disabled={edit.isPending}>حفظ التعديل</Button></DialogFooter>
+      <DialogFooter><Button onClick={submit} disabled={edit.isPending}>Save edit</Button></DialogFooter>
     </>
   );
 }
@@ -137,8 +137,8 @@ export function BookingEditDialog({ booking, open, onOpenChange }: { booking: Bo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{correction ? "تصحيح الحجز" : "تعديل الحجز"} <Ltr>{booking.reference}</Ltr></DialogTitle>
-          <DialogDescription>{correction ? "تصحيح زيارة بدأت أو انتهت: يلزم سبب، ويُحفظ كل تصحيح في السجل. لا يتغير السعر المتفق عليه." : "يحتفظ الحجز برقمه وفاتورته، ويُحفظ كل تعديل في السجل. لا يتغير السعر المتفق عليه."}</DialogDescription>
+          <DialogTitle>{correction ? "Correct reservation" : "Edit reservation"} <Ltr>{booking.reference}</Ltr></DialogTitle>
+          <DialogDescription>{correction ? "Correcting a started or finished visit requires a reason. Each correction is recorded without changing the agreed price." : "The reservation reference and invoice stay the same. Every edit is recorded without changing the agreed price."}</DialogDescription>
         </DialogHeader>
         {open ? <EditForm booking={booking} onDone={() => onOpenChange(false)} /> : null}
       </DialogContent>

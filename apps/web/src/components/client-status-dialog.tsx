@@ -17,10 +17,10 @@ export function ClientStatusDialog({ client, open, onOpenChange }: { client: Cli
   const target = !client.enabled; // reactivate when currently stopped
 
   const submit = () => {
-    if (!reason.trim()) { setError("اكتب السبب"); return; }
+    if (!reason.trim()) { setError("Enter a reason"); return; }
     setError(null);
     setStatus.mutate({ id: client.id, enabled: target, reason: reason.trim() }, {
-      onSuccess: () => { toast.success(target ? "تمت إعادة تفعيل العميل" : "تم إيقاف العميل"); setReason(""); onOpenChange(false); },
+      onSuccess: () => { toast.success(target ? "Client reactivated" : "Client stopped"); setReason(""); onOpenChange(false); },
     });
   };
 
@@ -28,16 +28,16 @@ export function ClientStatusDialog({ client, open, onOpenChange }: { client: Cli
     <Dialog open={open} onOpenChange={value => { if (!value) { setStatus.reset(); setReason(""); setError(null); } onOpenChange(value); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{target ? "إعادة تفعيل العميل" : "إيقاف العميل"}</DialogTitle>
-          <DialogDescription>{target ? "سيعود العميل لاستقبال الحجوزات الجديدة." : "العميل الموقوف لا يستقبل حجوزات جديدة؛ الحجوزات السابقة لا تتأثر."}</DialogDescription>
+          <DialogTitle>{target ? "Reactivate client" : "Stop client"}</DialogTitle>
+          <DialogDescription>{target ? "The client can receive new reservations again." : "Stopped clients cannot receive new reservations; existing reservations are unaffected."}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          <Field label="السبب" error={error ?? undefined}>
+          <Field label="Reason" error={error ?? undefined}>
             <Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} />
           </Field>
           <FormAlert error={setStatus.error} />
         </div>
-        <DialogFooter><Button onClick={submit} disabled={setStatus.isPending}>تأكيد</Button></DialogFooter>
+        <DialogFooter><Button onClick={submit} disabled={setStatus.isPending}>Confirm</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

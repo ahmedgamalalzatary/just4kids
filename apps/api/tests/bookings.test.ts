@@ -43,7 +43,7 @@ beforeAll(async () => {
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([{ id: employeeId, phone: employeePhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }, { id: otherEmployeeId, phone: otherPhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }]);
   await connection.db.insert(employees).values([{ accountId: employeeId, displayName: "سالم", createdAt: now, updatedAt: now }, { accountId: otherEmployeeId, displayName: "علي", createdAt: now, updatedAt: now }]);
-  await connection.db.insert(clients).values({ id: clientId, name: "مريم", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
+  await connection.db.insert(clients).values({ id: clientId, phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values(Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" })));
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
@@ -189,7 +189,7 @@ describe("manual bookings and initial invoices", () => {
     expect(before).not.toHaveProperty("branchId");
     expect(Object.keys(before.employee)).toEqual(["id", "displayName"]);
     await connection.db.update(clientAddresses).set({ street: "شارع جديد" }).where(eq(clientAddresses.id, addressId));
-    await connection.db.update(clients).set({ name: "اسم جديد" }).where(eq(clients.id, clientId));
+    await connection.db.update(clients).set({ phone: "+96559999998" }).where(eq(clients.id, clientId));
     await connection.db.update(employees).set({ displayName: "اسم جديد" }).where(eq(employees.accountId, employeeId));
     const after = (await request(app).get(`/bookings/${bookingId}`).set("Cookie", admin.cookie)).body;
     expect(after.address).toEqual(before.address);

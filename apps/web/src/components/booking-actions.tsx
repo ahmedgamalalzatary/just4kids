@@ -21,10 +21,10 @@ import { formatKwd } from "@/lib/money";
 import { visitActions, type VisitAction } from "@/lib/visit-rules";
 
 const actionCopy: Record<VisitAction["status"], { label: string; done: string; confirm: string; waiting: (booking: Booking) => string }> = {
-  arrived: { label: "وصلت إلى العنوان", done: "تم تسجيل الوصول", confirm: "تأكيد الوصول إلى عنوان العميل.", waiting: booking => `متاح من ${formatTime(booking.startTime)}` },
-  completed: { label: "اكتملت الزيارة", done: "تم تسجيل اكتمال الزيارة", confirm: "تأكيد انتهاء الحلاقة لكل الحاضرين. لا يغيّر هذا حالة الدفع.", waiting: booking => `متاح من ${formatTime(booking.startTime)}` },
-  no_show: { label: "العميل لم يحضر", done: "تم تسجيل عدم الحضور", confirm: "تبقى الفاتورة صادرة، ولا يمكن للحلاق تغيير هذه الحالة بعد ذلك.", waiting: booking => `متاح بعد ${formatTime(booking.endTime)}` },
-  cancelled: { label: "إلغاء الزيارة", done: "تم إلغاء الزيارة", confirm: "تُلغى الفاتورة وتبقى ظاهرة في السجل. أي نقد مسجل لا يُسترد تلقائياً.", waiting: () => "" },
+  arrived: { label: "I have arrived", done: "Arrival recorded", confirm: "Confirm arrival at the client's address.", waiting: booking => `Available from ${formatTime(booking.startTime)}` },
+  completed: { label: "Visit completed", done: "Visit completion recorded", confirm: "Confirm all haircuts are complete. This does not change payment status.", waiting: booking => `Available from ${formatTime(booking.startTime)}` },
+  no_show: { label: "Client did not attend", done: "No-show recorded", confirm: "The invoice stays issued. The barber cannot change this status afterward.", waiting: booking => `Available after ${formatTime(booking.endTime)}` },
+  cancelled: { label: "Cancel visit", done: "Visit cancelled", confirm: "The invoice is cancelled and kept in history. Recorded payments are not automatically refunded.", waiting: () => "" },
 };
 
 /** Normal visit steps for the assigned barber or the administrator, each confirmed before sending. */
@@ -63,10 +63,10 @@ export function VisitActions({ booking }: { booking: Booking }) {
           {pending && pending !== "cancelled" ? (
             <>
               <DialogHeader>
-                <DialogTitle>{actionCopy[pending].label}؟</DialogTitle>
+                <DialogTitle>{actionCopy[pending].label}?</DialogTitle>
                 <DialogDescription>{actionCopy[pending].confirm}</DialogDescription>
               </DialogHeader>
-              <Field label="ملاحظة" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
+              <Field label="Note" optional><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
               <FormAlert error={transition.error} />
               <DialogFooter>
                 <Button onClick={confirm} disabled={transition.isPending}>
@@ -82,7 +82,7 @@ export function VisitActions({ booking }: { booking: Booking }) {
   );
 }
 
-/** Cancels a visit with one of the fixed reasons the team uses; «سبب آخر» needs a written reason. */
+/** Cancels a visit with one of the fixed reasons the team uses; «Other reason» needs a written reason. */
 export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Booking; open: boolean; onOpenChange: (open: boolean) => void }) {
   const transition = useVisitTransition();
   const [reason, setReason] = useState("");
@@ -91,7 +91,7 @@ export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Bo
   const close = (value: boolean) => { if (!value) { transition.reset(); setReason(""); setOther(""); setProblem(null); } onOpenChange(value); };
   const submit = () => {
     const text = cancelReasonText(reason, other);
-    if (!text) { setProblem(reason === "other" ? "اكتب سبب الإلغاء" : "اختر سبب الإلغاء"); return; }
+    if (!text) { setProblem(reason === "other" ? "Enter the cancellation reason" : "Select a cancellation reason"); return; }
     setProblem(null);
     transition.mutate({ id: booking.id, status: "cancelled", expectedVersion: booking.visitVersion, reason: text }, { onSuccess: () => { toast.success(actionCopy.cancelled.done); close(false); } });
   };
@@ -99,13 +99,13 @@ export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Bo
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>إلغاء الحجز</DialogTitle>
+          <DialogTitle>Cancel reservation</DialogTitle>
           <DialogDescription>
-            {booking.client.name}، <span data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span> · <Ltr className="text-xs">{booking.reference}</Ltr>
+            {booking.client.phone}, <span data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span> · <Ltr className="text-xs">{booking.reference}</Ltr>
             <span className="mt-1 block">{actionCopy.cancelled.confirm}</span>
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="سبب الإلغاء">
+        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Cancellation reason">
           {cancelReasons.map(option => (
             <button key={option.value} type="button" role="radio" aria-checked={reason === option.value} onClick={() => { setReason(option.value); setProblem(null); }}
               className={cn("rounded-md border px-3 py-2.5 text-start text-sm transition-colors", reason === option.value ? "border-destructive bg-destructive/10 font-medium" : "border-border hover:bg-muted/50", option.value === "other" && "sm:col-span-2")}>
@@ -113,13 +113,13 @@ export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Bo
             </button>
           ))}
         </div>
-        {reason === "other" ? <Field label="اكتب السبب"><Textarea rows={2} autoFocus value={other} onChange={event => setOther(event.target.value)} maxLength={900} /></Field> : null}
+        {reason === "other" ? <Field label="Enter a reason"><Textarea rows={2} autoFocus value={other} onChange={event => setOther(event.target.value)} maxLength={900} /></Field> : null}
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={transition.error} />
         <DialogFooter>
           <Button variant="destructive" onClick={submit} disabled={transition.isPending}>
             {transition.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-            تأكيد الإلغاء
+            Confirm cancellation
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -134,15 +134,15 @@ export function RecordPaymentButton({ booking }: { booking: Booking }) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   return (
     <>
-      <Button size="lg" variant="secondary" onClick={() => setOpen(true)}><Banknote aria-hidden />تسجيل الدفع</Button>
+      <Button size="lg" variant="secondary" onClick={() => setOpen(true)}><Banknote aria-hidden />Record payment</Button>
       <Dialog open={open} onOpenChange={value => { if (!value) record.reset(); setOpen(value); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تسجيل دفع كامل</DialogTitle>
-            <DialogDescription>يُسجَّل المبلغ الكامل للفاتورة بطريقة دفع واحدة. لا يوجد دفع جزئي.</DialogDescription>
+            <DialogTitle>Record full payment</DialogTitle>
+            <DialogDescription>The invoice is paid in full using one payment method. Partial payments are not supported.</DialogDescription>
           </DialogHeader>
           <p className="rounded-md bg-muted px-4 py-3 text-center text-2xl font-semibold"><Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
-          <Field label="طريقة الدفع">
+          <Field label="Payment method">
             <Select value={method} onValueChange={value => setMethod(value as PaymentMethod)}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>{paymentMethodOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
@@ -150,9 +150,9 @@ export function RecordPaymentButton({ booking }: { booking: Booking }) {
           </Field>
           <FormAlert error={record.error} />
           <DialogFooter>
-            <Button onClick={() => record.mutate({ id: booking.id, expectedVersion: booking.visitVersion, method }, { onSuccess: () => { toast.success("تم تسجيل الدفع"); setOpen(false); } })} disabled={record.isPending}>
+            <Button onClick={() => record.mutate({ id: booking.id, expectedVersion: booking.visitVersion, method }, { onSuccess: () => { toast.success("Payment recorded"); setOpen(false); } })} disabled={record.isPending}>
               {record.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              تأكيد الاستلام
+              Confirm receipt
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -171,34 +171,34 @@ export function CorrectionDialog({ booking, open, onOpenChange }: { booking: Boo
   const [problem, setProblem] = useState<string | null>(null);
   const close = (value: boolean) => { if (!value) { correct.reset(); setStatus(""); setReason(""); setProblem(null); } onOpenChange(value); };
   const submit = () => {
-    if (!status) { setProblem("اختر الحالة الصحيحة"); return; }
-    if (!reason.trim()) { setProblem("اكتب سبب التصحيح"); return; }
+    if (!status) { setProblem("Select the correct status"); return; }
+    if (!reason.trim()) { setProblem("Enter the correction reason"); return; }
     setProblem(null);
-    correct.mutate({ id: booking.id, status, reason: reason.trim(), expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("تم تصحيح حالة الزيارة"); close(false); } });
+    correct.mutate({ id: booking.id, status, reason: reason.trim(), expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("Visit status corrected"); close(false); } });
   };
 
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>تصحيح حالة الزيارة</DialogTitle>
+          <DialogTitle>Correct visit status</DialogTitle>
           <DialogDescription>
-            الحالة الحالية: {visitStatusLabels[booking.visitStatus]}. إعادة الزيارة إلى حالة تحجز وقت الحلاق تتطلب أن يكون متاحاً.
-            إعادة فتح زيارة ملغاة تعيد فاتورتها كما كانت، ولا يتغير سجل النقد.
+            Current status: {visitStatusLabels[booking.visitStatus]}. Reopening a visit that reserves the barber&apos;s time requires availability.
+            Reopening a cancelled visit restores its invoice without changing payment history.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field label="الحالة الصحيحة">
+          <Field label="Correct status">
             <Select value={status} onValueChange={value => setStatus(value as VisitStatus)}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="اختر الحالة" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>{allStatuses.filter(option => option !== booking.visitStatus).map(option => <SelectItem key={option} value={option}>{visitStatusLabels[option]}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="السبب"><Textarea rows={3} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
+          <Field label="Reason"><Textarea rows={3} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={correct.error} />
         </div>
-        <DialogFooter><Button onClick={submit} disabled={correct.isPending}>حفظ التصحيح</Button></DialogFooter>
+        <DialogFooter><Button onClick={submit} disabled={correct.isPending}>Save correction</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -211,21 +211,21 @@ export function UndoPaymentDialog({ booking, payment, open, onOpenChange }: { bo
   const [problem, setProblem] = useState<string | null>(null);
   const close = (value: boolean) => { if (!value) { undo.reset(); setReason(""); setProblem(null); } onOpenChange(value); };
   const submit = () => {
-    if (!reason.trim()) { setProblem("اكتب سبب الإلغاء"); return; }
-    undo.mutate({ id: booking.id, paymentId: payment.id, reason: reason.trim(), expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("تم إلغاء قيد الدفع"); close(false); } });
+    if (!reason.trim()) { setProblem("Enter the cancellation reason"); return; }
+    undo.mutate({ id: booking.id, paymentId: payment.id, reason: reason.trim(), expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("Payment voided"); close(false); } });
   };
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>إلغاء قيد دفع خاطئ</DialogTitle>
-          <DialogDescription>يُلغى القيد ويحتفظ السجل به، وتعود الفاتورة غير مدفوعة. هذا تصحيح لخطأ تسجيل، وليس إرجاعاً للنقد.</DialogDescription>
+          <DialogTitle>Void an incorrect payment</DialogTitle>
+          <DialogDescription>The incorrect payment is voided and retained in history; the invoice becomes unpaid. This does not refund money.</DialogDescription>
         </DialogHeader>
-        <p className="text-sm">القيد الحالي: <Ltr className="font-medium">{formatKwd(payment.amount)}</Ltr></p>
-        <Field label="السبب"><Textarea rows={3} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
+        <p className="text-sm">Current payment: <Ltr className="font-medium">{formatKwd(payment.amount)}</Ltr></p>
+        <Field label="Reason"><Textarea rows={3} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
         <FormAlert error={undo.error} />
-        <DialogFooter><Button variant="destructive" onClick={submit} disabled={undo.isPending}>إلغاء القيد</Button></DialogFooter>
+        <DialogFooter><Button variant="destructive" onClick={submit} disabled={undo.isPending}>Void payment</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

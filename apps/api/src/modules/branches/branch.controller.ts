@@ -10,20 +10,20 @@ export function createBranchController(service: BranchService) {
   const get: RequestHandler = async (request, response, next) => {
     try {
       const branch = await service.get(String(request.params.id));
-      if (!branch) { deny(response, 404, "NOT_FOUND", "الفرع غير موجود"); return; }
+      if (!branch) { deny(response, 404, "NOT_FOUND", "Branch not found"); return; }
       response.set("Cache-Control", "no-store").json(branch);
     } catch (error) { next(error); }
   };
   const create: RequestHandler = async (request, response, next) => {
     try { response.status(201).json(await service.create(request.body)); }
-    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات الفرع غير صالحة"); return; } next(error); }
+    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid branch details"); return; } next(error); }
   };
   const update: RequestHandler = async (request, response, next) => {
     try {
       const branch = await service.update(String(request.params.id), request.body);
-      if (!branch) { deny(response, 404, "NOT_FOUND", "الفرع غير موجود"); return; }
+      if (!branch) { deny(response, 404, "NOT_FOUND", "Branch not found"); return; }
       response.json(branch);
-    } catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات الفرع غير صالحة"); return; } next(error); }
+    } catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid branch details"); return; } next(error); }
   };
   return { list, get, create, update };
 }

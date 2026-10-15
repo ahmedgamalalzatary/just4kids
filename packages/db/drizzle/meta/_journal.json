@@ -169,6 +169,20 @@
       "when": 1791889449265,
       "tag": "0023_tearful_next_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1792042041819,
+      "tag": "0024_remove_client_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1792042740028,
+      "tag": "0025_remove_client_receipt_details",
+      "breakpoints": true
     }
   ]
 }

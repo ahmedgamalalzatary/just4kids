@@ -6,8 +6,8 @@ import { keys, useBooking, useInvoice, useDayBookings } from "@/lib/api/hooks";
 import { sessionKey } from "@/lib/api/session";
 
 const id = "11111111-1111-4111-8111-111111111111", addressId = "22222222-2222-4222-8222-222222222222", timestamp = "2026-10-13T00:00:00.000Z", phone = "+96550000001";
-const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
-const invoice = { id: addressId, bookingId: id, reference: "J4K-1", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { name: "مريم", phone }, address, employee: { id, displayName: "سالم" } };
+const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
+const invoice = { id: addressId, bookingId: id, reference: "J4K-1", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { phone }, address, employee: { id, displayName: "سالم" } };
 const booking = (seen: string | null) => bookingResponseSchema.parse({ id, reference: "J4K-1", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, seenByBarberAt: seen, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: invoice.client, address, employee: invoice.employee, invoice });
 // Any cached list that starts with this prefix carries the barber's "new booking" dots.
 const listKey = [...keys.bookings, "list", "day", "2026-10-14", "all"];

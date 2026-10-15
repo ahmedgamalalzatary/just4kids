@@ -10,10 +10,10 @@ export default function MySchedulePage() {
   const isEmployee = session.data?.account.role === "employee";
   const schedule = useMySchedule(isEmployee);
 
-  if (!isEmployee) return <p className="py-16 text-center text-sm text-muted-foreground">هذه الصفحة خاصة بالحلاقين.</p>;
+  if (!isEmployee) return <p className="py-16 text-center text-sm text-muted-foreground">This page is for barbers.</p>;
   return (
     <>
-      <PageHeader title="جدولي" description="ساعات عملك كما حددها المدير، بتوقيت الكويت. لتغييرها تواصل مع المدير." />
+      <PageHeader title="My schedule" description="Your hours as set by the administrator, in Kuwait time. Contact them to make changes." />
       {schedule.isPending ? <LoadingRows /> : schedule.isError ? <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} /> : (
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr] xl:items-start">
           <WeeklyScheduleView schedule={schedule.data} />

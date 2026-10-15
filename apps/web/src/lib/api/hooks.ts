@@ -271,7 +271,7 @@ export function useCollectionDayBookings(date: string, employeeId: string, enabl
       do {
         const page = await apiRequest<Page<"bookings", Booking>>("/bookings", { query: { date, employeeId, limit: DAY_LIMIT, offset: bookings.length }, signal });
         total = page.total;
-        if (page.bookings.length === 0 && bookings.length < total) throw new Error("تغيرت زيارات اليوم أثناء التحميل. أعد المحاولة.");
+        if (page.bookings.length === 0 && bookings.length < total) throw new Error("Today's visits changed while loading. Try again.");
         bookings.push(...page.bookings);
       } while (bookings.length < total);
       return bookings;

@@ -16,6 +16,6 @@ describe("booking timeline", () => {
   });
 
   it("labels each message kind", () => {
-    expect(messageKindLabels.sent_to_barber).toBe("أُرسل للحلاق");
+    expect(messageKindLabels.sent_to_barber).toBe("Sent to barber");
   });
 });

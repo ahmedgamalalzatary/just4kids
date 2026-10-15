@@ -32,16 +32,16 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
         const [administrator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, actor.id), eq(accounts.role, "admin"), eq(accounts.enabled, true))).for("share");
         if (actor.role !== "admin" || !administrator) throw new ForbiddenError();
         const barber = await lockEmployee(transaction, id);
-        if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الحلاق غير موجود");
+        if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Barber not found");
         const endMinutes = Number(input.startTime.slice(0, 2)) * 60 + Number(input.startTime.slice(3)) + 30;
         const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
         const window = { date: input.date, startTime: input.startTime, endTime };
         const hours = await readWorkingHours(transaction, id, input.date);
         const visits = await readBlockingBookings(transaction, id, input.date);
         const blocks = await readTimeBlocks(transaction, id, input.date);
-        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, visits.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "TIME_BLOCK_CONFLICT", "لا يمكن قفل هذا الوقت: محجوز أو مغلق أو خارج ساعات العمل، أعد تحميل الأوقات");
+        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, visits.map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "TIME_BLOCK_CONFLICT", "Cannot lock this time: booked, closed or outside working hours. Reload the times");
         // Check after acquiring the same employee lock as bookings; elapsed times cannot be newly locked.
-        if (Date.parse(`${input.date}T${input.startTime}:00+03:00`) <= Date.now()) throw new HttpError(400, "TIME_BLOCK_NOT_FUTURE", "اختر وقتاً في المستقبل بتوقيت الكويت");
+        if (Date.parse(`${input.date}T${input.startTime}:00+03:00`) <= Date.now()) throw new HttpError(400, "TIME_BLOCK_NOT_FUTURE", "Choose a future time in Kuwait");
         const block = { id: randomUUID(), employeeId: id, ...window, reason: input.reason || null, createdBy: actor.id, createdAt: new Date() };
         await transaction.insert(employeeTimeBlocks).values(block);
         return block;

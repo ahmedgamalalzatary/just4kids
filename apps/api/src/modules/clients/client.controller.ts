@@ -5,7 +5,7 @@ import { deny } from "../../lib/security.js";
 import type { ClientService } from "./client.service.js";
 
 function handleError(error: unknown, response: Response, next: NextFunction) {
-  if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات العميل أو العنوان غير صالحة"); return; }
+  if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid client or address details"); return; }
   next(error);
 }
 
@@ -17,14 +17,14 @@ export function createClientController(service: ClientService) {
   const get: RequestHandler = async (request, response, next) => {
     try {
       const client = await service.get(String(request.params.id));
-      if (!client) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!client) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.json(client);
     } catch (error) { next(error); }
   };
   const lookup: RequestHandler = async (request, response, next) => {
     try {
       const client = await service.findByPhone(request.query.phone);
-      if (!client) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!client) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.json(client);
     } catch (error) { handleError(error, response, next); }
   };
@@ -35,21 +35,21 @@ export function createClientController(service: ClientService) {
   const update: RequestHandler = async (request, response, next) => {
     try {
       const client = await service.update(String(request.params.id), request.body);
-      if (!client) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!client) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.json(client);
     } catch (error) { handleError(error, response, next); }
   };
   const addAddress: RequestHandler = async (request, response, next) => {
     try {
       const address = await service.addAddress(String(request.params.id), request.body);
-      if (!address) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!address) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.status(201).json(address);
     } catch (error) { handleError(error, response, next); }
   };
   const updateAddress: RequestHandler = async (request, response, next) => {
     try {
       const address = await service.updateAddress(String(request.params.id), String(request.params.addressId), request.body);
-      if (!address) { deny(response, 404, "NOT_FOUND", "العنوان غير موجود لهذا العميل"); return; }
+      if (!address) { deny(response, 404, "NOT_FOUND", "Address not found for this client"); return; }
       response.json(address);
     } catch (error) { handleError(error, response, next); }
   };
@@ -57,14 +57,14 @@ export function createClientController(service: ClientService) {
     try {
       const actor = (response.locals.auth as Authenticated).account;
       const client = await service.setEnabled(String(request.params.id), request.body, actor.id);
-      if (!client) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!client) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.json(client);
     } catch (error) { handleError(error, response, next); }
   };
   const statusEvents: RequestHandler = async (request, response, next) => {
     try {
       const result = await service.statusEvents(String(request.params.id));
-      if (!result) { deny(response, 404, "NOT_FOUND", "العميل غير موجود"); return; }
+      if (!result) { deny(response, 404, "NOT_FOUND", "Client not found"); return; }
       response.json(result);
     } catch (error) { next(error); }
   };

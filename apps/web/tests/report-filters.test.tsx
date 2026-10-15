@@ -30,46 +30,46 @@ beforeEach(() => { navigation.replace.mockReset(); });
 describe("report filters", () => {
   it("applies trimmed filters to the address", async () => {
     renderReport("admin");
-    await userEvent.type(screen.getByLabelText(/من تاريخ/), "2026-10-01");
-    await userEvent.type(screen.getByLabelText(/بحث/), "  J4K-7 ");
-    await userEvent.click(screen.getByRole("button", { name: "عرض التقرير" }));
+    await userEvent.type(screen.getByLabelText(/From date/), "2026-10-01");
+    await userEvent.type(screen.getByLabelText(/Search/), "  J4K-7 ");
+    await userEvent.click(screen.getByRole("button", { name: "View report" }));
     expect(navigation.replace).toHaveBeenCalledWith("/reports/barbers?from=2026-10-01&q=J4K-7", { scroll: false });
   });
 
   it("blocks a range that ends before it starts", async () => {
     renderReport("admin");
-    await userEvent.type(screen.getByLabelText(/من تاريخ/), "2026-10-05");
-    await userEvent.type(screen.getByLabelText(/إلى تاريخ/), "2026-10-01");
-    expect(screen.getByText("تاريخ النهاية قبل تاريخ البداية")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "عرض التقرير" })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText(/From date/), "2026-10-05");
+    await userEvent.type(screen.getByLabelText(/To date/), "2026-10-01");
+    expect(screen.getByText("End date is before start date")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View report" })).toBeDisabled();
   });
 
   it("clears every filter", async () => {
     renderReport("admin", `?status=completed&branchId=${branchId}`);
-    await userEvent.click(screen.getByRole("button", { name: "مسح المرشحات" }));
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(navigation.replace).toHaveBeenCalledWith("/reports/barbers", { scroll: false });
   });
 
   it("labels the date basis, range, and named filters for screen and print", () => {
     renderReport("admin", `?dateBasis=created_date&from=2026-10-01&to=2026-10-31&branchId=${branchId}&employeeId=${employeeId}&source=ai`);
-    expect(screen.getByRole("heading", { name: "تقرير الحلاقون" })).toBeInTheDocument();
-    const scope = screen.getByText(/حسب تاريخ إنشاء الحجز/);
-    expect(scope).toHaveTextContent("بتوقيت الكويت");
-    expect(scope).toHaveTextContent("الحلاق: أحمد، المصدر: عبر واتساب");
-    expect(scope).not.toHaveTextContent("الفرع");
+    expect(screen.getByRole("heading", { name: "Report Barbers" })).toBeInTheDocument();
+    const scope = screen.getByText(/By Reservation creation date/);
+    expect(scope).toHaveTextContent("Kuwait time");
+    expect(scope).toHaveTextContent("Barber: أحمد, Source: Via WhatsApp");
+    expect(scope).not.toHaveTextContent("Branch");
   });
 
   it("offers the administrator no branch filter, since bookings have no branch", () => {
     renderReport("admin");
-    expect(screen.queryByText("الفرع")).not.toBeInTheDocument();
-    expect(screen.getByText("الحلاق")).toBeInTheDocument();
+    expect(screen.queryByText("Branch")).not.toBeInTheDocument();
+    expect(screen.getByText("Barber")).toBeInTheDocument();
   });
 
   it("offers barbers no branch or barber filters and states their own-record scope", () => {
     renderReport("employee", `?branchId=${branchId}`);
-    expect(screen.queryByText("الفرع")).not.toBeInTheDocument();
-    expect(screen.queryByText("الحلاق")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "تقرير أدائي" })).toBeInTheDocument();
-    expect(screen.getByText(/زياراتك المسندة إليك فقط/)).not.toHaveTextContent("الفرع:");
+    expect(screen.queryByText("Branch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Barber")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Report My performance" })).toBeInTheDocument();
+    expect(screen.getByText(/Only visits assigned to you/)).not.toHaveTextContent("Branch:");
   });
 });

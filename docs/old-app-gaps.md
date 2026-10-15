@@ -1,5 +1,8 @@
 # Just4Kids: old app vs new app, gaps and screen map
 
+Current UI and client model (2026-10-15): the dashboard, validation/errors, dates, reports, invoices and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details` (including payment receipts and events). The reservation action is **Save reservation and send WhatsApp**: save first, then ask whether to open WhatsApp for the barber or return to today's reservations. Saving still creates the invoice atomically. This supersedes older UI/name/location descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+
+
 Created: 2026-10-12. Source: a full read of the old PHP app (`other/`, 65 files) compared with this repository. Product authority stays [project-contract.md](project-contract.md). Repository rules: [AGENTS.md](../AGENTS.md). This document supersedes the earlier `docs/parity-phases.md`, which has been removed.
 
 Updated: 2026-10-14 after auditing the current code, integration points, tests and Git history at `80fccd1`. The S9 review fixes were committed at `b78cc2b`. The S7, S11 and S13 implementation gaps are now fixed (see each slice) and await browser verification. Historical evidence is retained below; the current **Verified** column takes precedence over historical evidence. S1, S2, S4, S5, S10, S14 and S15 retain the owner's 2026-10-13 browser verification. S0 remains owner-confirmed, but its deployed commit is not recorded. S3, S6, S8, S9, S7, S11 and S13 are built and await browser verification; S12 is built with browser verification deferred.
@@ -39,10 +42,10 @@ Detailed review: authenticated CodeRabbit CLI `0.9.0` reviewed `80fccd1` through
 | G2 | Only the admin records payments | Admin enters money | Admin-only API and payment controls; barber reads amounts | Built (S1) |
 | G3 | How money is entered | Per-booking cash/link and daily totals per barber | Typed cash/link invoice price; one full receipt with one method; daily barber collections feed the collection reports | S10 built; S11 done (prefill, history display, report labels fixed); split receipts excluded |
 | G4 | Blue "locked" time pill (**new request**) | Not in the old app either | Blue pills for breaks, closed days/exceptions and manual locks | S2 verified; S3 built, browser verification remains |
-| G5 | Booking details on hover + Arabic time words | Hover tooltip and time words | Hover details and Arabic time words; tap retained | Built (S2) |
-| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Phone lookup selects client and last-used address; inline optional name/address for a new phone, saved atomically with the booking | Built (S9); browser verification remains |
+| G5 | Booking details on hover + English time words | Hover tooltip and time words | Hover details and English time words; tap retained | Built (S2) |
+| G6 | Phone-first booking form | Phone lookup fills client/address; inline client creation | Phone lookup selects client and last-used address; inline address fields for a new phone, saved atomically with the booking | Built (S9); browser verification remains |
 | G7 | Booking notes | Notes shown to barber and in WhatsApp | Notes in create/edit, details, revisions and WhatsApp | Built (S4) |
-| G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras and searchable Arabic areas; old free-text addresses preserved | Built (S5, S6); S6 browser verification remains |
+| G8 | Extra address fields | Avenue, gate, blue number and searchable areas | Address extras and searchable areas; old free-text addresses preserved | Built (S5, S6); S6 browser verification remains |
 | G9 | Local Kuwaiti phone | Type 8 digits | Web accepts 8 digits; stores international format | Built (S5) |
 | G10 | Barber account fields | Username, full name, gender, nationality, expiry | Phone login, display name, photo, enabled, expiry | Expiry built (S14); phone login retained; gender/nationality not added |
 | G11 | More roles | superadmin, admin, **carecenter**, **moder** | One admin + barbers | Awaiting Q5 (S16) |
@@ -84,7 +87,7 @@ Built in S2: `buildSlots` in `apps/web/src/lib/day.ts` returns `free | booked | 
 - Half-hours outside the day's working intervals appear blue with a `break` reason; closed weekdays and closing exceptions use `day-off` («إجازة»).
 - Booked and already-past pills take precedence over the locked state. A future day off shows blue pills; elapsed times retain the past state.
 - `blocked` means the selected visit length would run into a booking, manual lock or closing time, and remains visually distinct from blue.
-- Hover shows booking details or Arabic time words; tapping a locked pill shows its reason.
+- Hover shows booking details or English time words; tapping a locked pill shows its reason.
 - Light/dark tokens `status-locked` / `status-locked-soft` are implemented.
 
 ### Manual half-hour locks (S3, Q11 answered)
@@ -121,10 +124,10 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 - **Reports:** barber and comprehensive collection money, and the invoice/cash collection summary, read daily barber collections. These are separate from per-booking invoice values and receipts. Salon daily entry remains separate.
 - **S11 fixes (2026-10-14):** completed-visit prefill, the stored edit-history view and report wording are now implemented; the barber and invoice reports label daily-collection counts as «إدخال» (entry) and the client report keeps «إيصال» (receipt). Typed cash/link invoice fields and daily method totals still do not enable split per-booking receipts; these remain excluded by contract.
 
-### G5 — Hover details and Arabic time words
+### G5 — Hover details and English time words
 
 - **Old:** hovering over a booked pill (desktop) shows the time in words, customer, area, phone, children (special) and status. Hovering over a free pill shows the time in words, e.g. «الرابعة والنصف عصراً».
-- **New (S2 built):** hover tooltips show booked-pill details and Arabic time words (صباحاً / ظهراً / عصراً / مساءً / ليلاً); tap details remain for phones. Browser-verified.
+- **New (S2 built):** hover tooltips show booked-pill details and English time words (صباحاً / ظهراً / عصراً / مساءً / ليلاً); tap details remain for phones. Browser-verified.
 
 ### G6 — Phone-first booking form
 
@@ -298,7 +301,7 @@ Recorded tests: `apps/web/tests/day.test.ts` covers scheduled and manual locks, 
 3. **Language:** do the barbers need English screens?
 4. **Default visit length (G16) — answered 2026-10-13:** 30 minutes, confirmed by the owner. Keep the existing preselection; the administrator can change it per booking (S8).
 5. **Partner/moderator accounts (G11):** is the Care Center partner still active? Do you need more than one admin?
-6. **Client name (G6) — resolved 2026-10-13:** yes, follow `other/temp_bookings.php` (lines 252–255) per owner's instruction to use the old app for requirements. The inline booking name is optional and defaults to the international-format phone number. Standalone client creation still requires a name. S9 is built.
+6. **Client name (G6) — resolved 2026-10-13:** yes, follow `other/temp_bookings.php` (lines 252–255) per owner's instruction to use the old app for requirements. The inline booking name is optional and defaults to the international-format phone number. Standalone client creation also uses only the phone number. S9 is built.
 7. **Areas list (G8) — answered 2026-10-13:** yes, proceed with the managed searchable list from the old app; the owner chose Arabic names (the old management page used English). S6 is built.
 8. **Barber login (G10) — answered 2026-10-12:** keep phone login (the contract's choice; the old app used a username). The client needs the account expiry date: the old app enforced it, so S14 is built.
 9. **New-booking dot (G14):** wanted? **Yes (owner, 2026-10-12):** show the dot until the assigned barber opens the booking.
@@ -427,7 +430,7 @@ These are actual implementation locations and commits, not completion claims inf
   - New light/dark colour tokens for the locked state.
   - A day off shows a row of blue pills labelled «إجازة».
   - Tooltip on hover for booked, locked and free pills; tap keeps working.
-  - Arabic time-words helper (صباحاً / ظهراً / عصراً / مساءً / ليلاً).
+  - English time-words helper (صباحاً / ظهراً / عصراً / مساءً / ليلاً).
 - **Tests:** `day.test.ts` covers a lunch gap, a closed weekday, a closing exception, a replacement-hours exception, and the time words at 09:00, 12:30, 16:30, 19:00 and 22:00.
 - **End:** `apps/web` green.
 - **How to verify:**
@@ -507,7 +510,7 @@ These are actual implementation locations and commits, not completion claims inf
 - **How to verify:**
   1. Add «الفنطاس»: it appears in the picker.
   2. Stop it: it disappears from new addresses but stays on old ones.
-- Evidence (2026-10-13): restored the old `other/newarea.php` add/edit/stop/reactivate behavior with Arabic names per owner choice. Migration `0023_tearful_next_avengers.sql` adds the initially empty `areas` catalogue (unique name, enabled flag, timestamps); applied to test and development databases. Admin-only `GET/POST /areas` and `PATCH /areas/:id` provide search/status filters, duplicate-name validation and CSRF/origin protection. `/areas` uses the existing Arabic interface with add/rename, search/status filters and stop/reactivate controls. Shared `AddressFields` searches active areas; new-client/new-address forms submit the chosen ID and name, rechecked under the client/address transaction with a share lock. Missing/stopped/renamed selections return `AREA_UNAVAILABLE` (409); failed client creation rolls back. Saved address text and booking snapshots never follow catalogue changes, and edits can retain old free-text/stopped names. Legacy API callers may still send free-text `area` without `areaId`; there is no service-area enforcement. Tests (red → green): `apps/api/tests/areas.test.ts` (permissions, CSRF/origin, duplicates, search, rename/stop/reactivate, stale choices and atomic failure), `apps/web/tests/area-picker.test.tsx` (Arabic search/selection, legacy retention, recoverable errors), `apps/web/tests/areas-screen.test.tsx` (management flow and full client-form payload/CSRF). Baseline: 5 files / 23 tests plus affected-package lint/typecheck/build; targeted: 7 files / 28 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 64 files / 396 tests, lint, typecheck and build. Also corrected obsolete branch-page descriptions of booking pricing/barber links. No browser was available in this session; owner browser verification remains.
+- Evidence (2026-10-13): restored the old `other/newarea.php` add/edit/stop/reactivate behavior with Arabic names per owner choice. Migration `0023_tearful_next_avengers.sql` adds the initially empty `areas` catalogue (unique name, enabled flag, timestamps); applied to test and development databases. Admin-only `GET/POST /areas` and `PATCH /areas/:id` provide search/status filters, duplicate-name validation and CSRF/origin protection. `/areas` uses the English interface with add/rename, search/status filters and stop/reactivate controls. Shared `AddressFields` searches active areas; new-client/new-address forms submit the chosen ID and name, rechecked under the client/address transaction with a share lock. Missing/stopped/renamed selections return `AREA_UNAVAILABLE` (409); failed client creation rolls back. Saved address text and booking snapshots never follow catalogue changes, and edits can retain old free-text/stopped names. Legacy API callers may still send free-text `area` without `areaId`; there is no service-area enforcement. Tests (red → green): `apps/api/tests/areas.test.ts` (permissions, CSRF/origin, duplicates, search, rename/stop/reactivate, stale choices and atomic failure), `apps/web/tests/area-picker.test.tsx` (Arabic search/selection, legacy retention, recoverable errors), `apps/web/tests/areas-screen.test.tsx` (management flow and full client-form payload/CSRF). Baseline: 5 files / 23 tests plus affected-package lint/typecheck/build; targeted: 7 files / 28 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 64 files / 396 tests, lint, typecheck and build. Also corrected obsolete branch-page descriptions of booking pricing/barber links. No browser was available in this session; owner browser verification remains.
 
 ### S7 — WhatsApp send recorded + after-save choices (G13, G15)
 
@@ -546,14 +549,14 @@ These are actual implementation locations and commits, not completion claims inf
 - **Work:**
   - Phone box with live lookup.
   - **Found:** pick the client and their last-used address.
-  - **Not found:** inline optional name (phone-as-name when empty) + address fields. Saving creates the client, address, booking, invoice and initial history in one transaction.
+  - **Not found:** inline address fields. Saving creates the client, address, booking, invoice and initial history in one transaction.
   - Server rules stay: one client per phone, required address parts.
 - **Tests:** API: create-with-new-client succeeds, or fails as a whole (nothing half-saved). Web: found, not-found and stopped-client cases.
 - **End: Full check.**
 - **How to verify:**
   1. Type a known number: the name and address fill in.
   2. Type a new number, fill in the address and save: the client, the address and the booking all exist.
-  3. Type a stopped client's number: a clear Arabic message, and no booking.
+  3. Type a stopped client's number: a clear English message, and no booking.
 - Evidence (2026-10-13): Q6 resolved from `other/temp_bookings.php` lines 252–255 per owner direction; blank inline name uses the international phone number. Contracts add `bookingWithClientCreateSchema` (shared booking window/count/price validation, strict client fields, required catalogue area ID) and `clientLookupResponseSchema.lastUsedAddressId`. Admin-only `POST /bookings/with-client` shares the normal booking transaction's barber lock, availability/manual locks, snapshots, invoice and history logic; it inserts the new client/address inside that transaction, so any failure rolls everything back. Phone uniqueness is enforced by the existing database index; a concurrent/existing registration returns 409 `PHONE_ALREADY_USED` without rewriting the existing client. No migration. Lookup selects the address of the most recently created booking, falling back to the newest saved address; reads still include stopped status. Web step 3 is phone-first (8 local Kuwaiti digits accepted): existing client/address selected, unknown phone gets inline optional name and S6 address fields, stopped client or lookup error blocks saving, and a changed phone clears selection with late responses isolated by query identity. Existing client links prefill the phone; another saved address can still be selected or added. New-client saves issue one atomic booking request; standalone client forms retain their required name. Tests (red → green): `apps/api/tests/phone-booking.test.ts` (admin/CSRF/origin, phone-as-name, last-used address, duplicate phone, rollback and simultaneous saves), `apps/web/tests/phone-booking-client.test.tsx` (found/new/stopped/error and late response), `apps/web/tests/phone-booking-page.test.tsx` (full existing/new save flows, endpoint/payload/CSRF, one POST). Baseline: 6 files / 52 tests plus affected-package lint/typecheck/build. Targeted: 11 files / 70 tests plus affected-package lint/typecheck/build. Full `pnpm check` green: 67 files / 407 tests, lint, typecheck and build. UI detector returned no findings; no browser was available, so owner browser verification remains. Existing after-save WhatsApp acknowledgement issue is recorded under G13 as a separate follow-up.
 
 - CodeRabbit follow-up (2026-10-13): CLI 0.8.2 reviewed committed `f6e1af3..80fccd1` with `AGENTS.md` and raised 2 issues (1 major, 1 minor). Fixed: same-phone background lookup uses pending-state handling so it keeps the inline fields and selection mounted; booking errors remain visible when client selection changes, and a new submit resets the other mutation's stale error. Both regression tests failed against the reviewed code and then passed. Targeted green: 4 web files / 14 tests plus web lint/typecheck/build. Full `pnpm check` green: 67 files / 409 tests, lint, typecheck and build. Local and remote `backup-main` were moved to reviewed `main` at `80fccd1` before the fix pass, as requested; review fixes were saved locally and uncommitted at that point; they were subsequently committed at `b78cc2b`.
@@ -647,7 +650,7 @@ These are actual implementation locations and commits, not completion claims inf
 - **Goal:** the admin can set an end date on a barber account.
 - **Work:**
   - Optional `accessUntil` on accounts.
-  - Login after that date is refused with a clear Arabic message, and existing sessions are denied access.
+  - Login after that date is refused with a clear English message, and existing sessions are denied access.
   - Field on the barber page.
 - **End: Full check.**
 - **How to verify:** set yesterday's date on a test barber; their login is refused with the message. Clear the date and they can log in again.

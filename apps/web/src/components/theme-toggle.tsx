@@ -6,9 +6,9 @@ import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
 const options = [
-  { value: "light", label: "فاتح", icon: Sun },
-  { value: "dark", label: "داكن", icon: Moon },
-  { value: "system", label: "حسب الجهاز", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
 ] as const;
 
 const subscribe = () => () => {};
@@ -18,7 +18,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
   return (
-    <div role="radiogroup" aria-label="مظهر الواجهة" className={cn("inline-flex rounded-md border border-border bg-muted p-0.5", className)}>
+    <div role="radiogroup" aria-label="Appearance" className={cn("inline-flex rounded-md border border-border bg-muted p-0.5", className)}>
       {options.map(option => {
         const selected = mounted && theme === option.value;
         return (

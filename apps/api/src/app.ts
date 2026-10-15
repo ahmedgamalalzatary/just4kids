@@ -46,7 +46,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
   });
 
   app.use((_request, response) => {
-    response.status(404).json({ error: { code: "NOT_FOUND", message: "المسار غير موجود" } });
+    response.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
 
   const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
@@ -54,7 +54,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     const errorStatus = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
     const status = typeof errorStatus === "number" && errorStatus >= 400 && errorStatus < 500 ? errorStatus : 500;
     const code = status === 400 ? "INVALID_JSON" : status === 413 ? "REQUEST_TOO_LARGE" : "INTERNAL_ERROR";
-    response.status(status).json({ error: { code, message: "تعذر معالجة الطلب" } });
+    response.status(status).json({ error: { code, message: "Could not process the request" } });
   };
 
   app.use(errorHandler);

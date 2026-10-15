@@ -14,13 +14,13 @@ function snapshot(row: EntryRow) {
 const MAX_TOTAL = fils("999999999999999999999.999");
 function total(cash: string, link: string, knet: string) {
   const value = fils(cash) + fils(link) + fils(knet);
-  if (value > MAX_TOTAL) throw new HttpError(400, "BARBER_COLLECTION_TOTAL_TOO_LARGE", "إجمالي التحصيل يتجاوز الحد المسموح");
+  if (value > MAX_TOTAL) throw new HttpError(400, "BARBER_COLLECTION_TOTAL_TOO_LARGE", "Total collections exceed the allowed limit");
   return money(value);
 }
 function conflict(error: unknown): never {
   const underlying = typeof error === "object" && error !== null && "cause" in error ? (error as { cause?: unknown }).cause : error;
   const code = typeof underlying === "object" && underlying !== null && "code" in underlying ? (underlying as { code?: string }).code : undefined;
-  if (code === "ER_DUP_ENTRY" || code === "ER_LOCK_DEADLOCK") throw new HttpError(409, "BARBER_COLLECTION_EXISTS", "يوجد إدخال لهذا الحلاق في هذا اليوم");
+  if (code === "ER_DUP_ENTRY" || code === "ER_LOCK_DEADLOCK") throw new HttpError(409, "BARBER_COLLECTION_EXISTS", "An entry already exists for this barber on this day");
   throw error;
 }
 
@@ -48,7 +48,7 @@ export function createCollectionRepository(connection: ReturnType<typeof createD
       try {
         await db.transaction(async transaction => {
           const [barber] = await transaction.select({ id: employees.accountId }).from(employees).where(eq(employees.accountId, input.employeeId)).for("share");
-          if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
+          if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Employee not found");
           await transaction.insert(barberCollections).values({ id, employeeId: input.employeeId, date: input.date, normalChildren: input.normalChildren, specialChildren: input.specialChildren, cash: input.cash, link: input.link, knet: input.knet, total: sum, version: 0, enteredBy: actorId, createdAt: now, updatedAt: now });
           await transaction.insert(barberCollectionEvents).values({ id: randomUUID(), entryId: id, actorAccountId: actorId, occurredAt: now, before: null, after: { employeeId: input.employeeId, date: input.date, normalChildren: input.normalChildren, specialChildren: input.specialChildren, cash: input.cash, link: input.link, knet: input.knet, total: sum } });
         });
@@ -62,7 +62,7 @@ export function createCollectionRepository(connection: ReturnType<typeof createD
       const found = await db.transaction(async transaction => {
         const [current] = await transaction.select().from(barberCollections).where(eq(barberCollections.id, id)).for("update");
         if (!current) return false;
-        if (current.version !== input.expectedVersion) throw new HttpError(409, "BARBER_COLLECTION_CONFLICT", "تم تعديل الإدخال، أعد تحميله");
+        if (current.version !== input.expectedVersion) throw new HttpError(409, "BARBER_COLLECTION_CONFLICT", "The entry changed. Reload it");
         const date = input.date ?? current.date;
         const normalChildren = input.normalChildren ?? current.normalChildren;
         const specialChildren = input.specialChildren ?? current.specialChildren;
@@ -71,10 +71,10 @@ export function createCollectionRepository(connection: ReturnType<typeof createD
         if (date !== current.date) {
           const [existing] = await transaction.select({ id: barberCollections.id }).from(barberCollections)
             .where(and(eq(barberCollections.employeeId, current.employeeId), eq(barberCollections.date, date))).for("update");
-          if (existing) throw new HttpError(409, "BARBER_COLLECTION_EXISTS", "يوجد إدخال لهذا الحلاق في هذا اليوم");
+          if (existing) throw new HttpError(409, "BARBER_COLLECTION_EXISTS", "An entry already exists for this barber on this day");
         }
         const before = snapshot(current), after = { employeeId: current.employeeId, date, normalChildren, specialChildren, cash, link, knet, total: sum };
-        if (JSON.stringify(before) === JSON.stringify(after)) throw new HttpError(409, "BARBER_COLLECTION_UNCHANGED", "لا يوجد تغيير في الإدخال");
+        if (JSON.stringify(before) === JSON.stringify(after)) throw new HttpError(409, "BARBER_COLLECTION_UNCHANGED", "No entry changes");
         const now = new Date();
         await transaction.update(barberCollections).set({ date, normalChildren, specialChildren, cash, link, knet, total: sum, version: current.version + 1, updatedAt: now }).where(eq(barberCollections.id, id));
         await transaction.insert(barberCollectionEvents).values({ id: randomUUID(), entryId: id, actorAccountId: actorId, occurredAt: now, before, after });

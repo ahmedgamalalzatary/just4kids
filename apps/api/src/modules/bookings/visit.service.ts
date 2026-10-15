@@ -27,30 +27,30 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
   const { db } = connection;
   async function change(id: string, input: VisitTransition | VisitCorrection, actor: VisitActor, correction: boolean) {
     const [identity] = await db.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id));
-    if (!identity) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
+    if (!identity) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
     return db.transaction(async transaction => {
       // Account/employee first, then booking/invoice: the same lock order as booking creation and schedule changes.
       const barber = await lockEmployee(transaction, identity.employeeId);
       const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("update");
-      if (!barber || !booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
-      if (booking.employeeId !== identity.employeeId) throw new HttpError(409, "VISIT_CONFLICT", "تم تعديل الحجز، أعد تحميله");
+      if (!barber || !booking) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
+      if (booking.employeeId !== identity.employeeId) throw new HttpError(409, "VISIT_CONFLICT", "The reservation changed. Reload it");
       if (actor.kind === "client") {
         if (correction || actor.clientId !== booking.clientId || input.status !== "cancelled") throw new ForbiddenError();
       } else {
         const [currentActor] = await transaction.select({ role: accounts.role }).from(accounts).where(and(eq(accounts.id, actor.account.id), eq(accounts.enabled, true)));
         if (!currentActor || currentActor.role !== actor.account.role || (actor.account.role === "employee" && actor.account.id !== booking.employeeId) || (correction && actor.account.role !== "admin")) throw new ForbiddenError();
       }
-      if (booking.visitVersion !== input.expectedVersion) throw new HttpError(409, "VISIT_CONFLICT", "تم تعديل حالة الزيارة، أعد تحميل الحجز");
+      if (booking.visitVersion !== input.expectedVersion) throw new HttpError(409, "VISIT_CONFLICT", "The visit status changed. Reload the reservation");
       const now = Date.now(), start = Date.parse(`${booking.date}T${booking.startTime}:00+03:00`), end = Date.parse(`${booking.date}T${booking.endTime}:00+03:00`);
-      if (actor.kind === "client" && (booking.visitStatus !== "booked" || start <= now)) throw new HttpError(409, "CLIENT_CANCELLATION_NOT_ALLOWED", "يمكن إلغاء الحجز المستقبلي غير المبدوء فقط");
-      if (booking.visitStatus === input.status || (!correction && !allowed[booking.visitStatus]?.includes(input.status))) throw new HttpError(409, "INVALID_VISIT_TRANSITION", "تغيير حالة الزيارة غير مسموح");
-      if (!correction && ((["arrived", "completed"].includes(input.status) && now < start) || (input.status === "no_show" && now < end))) throw new HttpError(409, "VISIT_TOO_EARLY", "لم يحن وقت تسجيل هذه الحالة");
+      if (actor.kind === "client" && (booking.visitStatus !== "booked" || start <= now)) throw new HttpError(409, "CLIENT_CANCELLATION_NOT_ALLOWED", "Only a future visit that has not started can be cancelled");
+      if (booking.visitStatus === input.status || (!correction && !allowed[booking.visitStatus]?.includes(input.status))) throw new HttpError(409, "INVALID_VISIT_TRANSITION", "Visit status change is not allowed");
+      if (!correction && ((["arrived", "completed"].includes(input.status) && now < start) || (input.status === "no_show" && now < end))) throw new HttpError(409, "VISIT_TOO_EARLY", "It is too early to record this status");
       if (correction && blocking.has(input.status)) {
         const hours = await readWorkingHours(transaction, booking.employeeId, booking.date);
         const existing = await readBlockingBookings(transaction, booking.employeeId, booking.date);
         const blocks = await readTimeBlocks(transaction, booking.employeeId, booking.date);
         const window = { date: booking.date, startTime: booking.startTime, endTime: booking.endTime };
-        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, existing.filter(row => row.id !== booking.id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "لا يمكن استعادة الزيارة لأن الموظف غير متاح");
+        if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, existing.filter(row => row.id !== booking.id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "Cannot restore the visit because the employee is unavailable");
       }
       const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
       if (!invoice) throw new Error("Booking invoice missing");
@@ -72,7 +72,7 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
     async history(id: string, account: Account) {
       return db.transaction(async transaction => {
         const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("share");
-        if (!booking) throw new HttpError(404, "NOT_FOUND", "الحجز غير موجود");
+        if (!booking) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
         if (account.role !== "admin" && account.id !== booking.employeeId) throw new ForbiddenError();
         const events = await transaction.select().from(bookingVisitEvents).where(eq(bookingVisitEvents.bookingId, id)).orderBy(asc(bookingVisitEvents.version));
         const messages = await transaction.select().from(bookingMessages).where(eq(bookingMessages.bookingId, id)).orderBy(asc(bookingMessages.occurredAt));

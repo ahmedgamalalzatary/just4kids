@@ -1,12 +1,15 @@
 ﻿# Just4Kids project contract
 
+Current UI and client model (2026-10-15): the dashboard, validation/errors, dates, reports, invoices and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details` (including payment receipts and events). The reservation action is **Save reservation and send WhatsApp**: save first, then ask whether to open WhatsApp for the barber or return to today's reservations. Saving still creates the invoice atomically. This supersedes older UI/name/location descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+
+
 Agreed scope, captured 2026-09-29. This is the single product contract. Read the repository's [AGENTS.md](../AGENTS.md) before working on the project.
 
 ## Purpose and platform
 
 - Home-visit haircut CRM/operations system, mainly for Kuwait. Barbers travel to clients.
 - Adults and children are supported. Haircut is the only service.
-- Arabic-only, right-to-left web application, responsive on computers, tablets, and phones.
+- English-only, left-to-right web application, responsive on computers, tablets, and phones.
 - Arabic WhatsApp AI, built as part of the project, using one number for the entire business.
 - TypeScript, Next.js, Express, pnpm, Turborepo, Tailwind CSS, Zod, MySQL, Drizzle, and Vitest.
 - Hosting target: the owner's Hostinger KVM1 VPS, deployed with Docker. Initial currency: KWD.
@@ -19,7 +22,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator manages all branches, employees, schedules, clients, bookings, invoices, payments, and reports.
 - Employees manage their own permitted profile details and see only their own records.
 - Employee self-editing is limited to display name. Only the administrator changes employee phone, active status, account expiry, and password; employees do not change their own password.
-- Confirmed barber account expiry (2026-10-12): the administrator may set an optional end date on an employee account. The account stays valid through that day; afterwards a login is refused with a clear Arabic message and existing sessions stop working. Clearing the date restores access. This restores the old app's account expiry.
+- Confirmed barber account expiry (2026-10-12): the administrator may set an optional end date on an employee account. The account stays valid through that day; afterwards a login is refused with a clear English message and existing sessions stop working. Clearing the date restores access. This restores the old app's account expiry.
 - Assigned employees can cancel, mark arrived, mark completed, and mark no-show. Only the administrator records payments; employees see the invoice, its status, and the payment history read-only.
 - Employees cannot reschedule or reassign bookings.
 - Only the administrator records, corrects, or undoes payment records.
@@ -42,14 +45,14 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Clients and addresses
 
-- Store the main client's name, phone number, and usable service address.
-- Confirmed 2026-10-13 (S9, owner-directed parity with `other/temp_bookings.php`): the administrator's booking client step starts with a phone lookup. An existing client and last-used saved address are selected automatically (newest saved address if never booked), with stopped clients refused. An unknown phone shows inline optional name and required address fields; an empty name becomes the international-format phone number. Save the new client, address, reservation, invoice and initial history together or roll back everything. A concurrent registration of the phone is refused and the dashboard refreshes the lookup; it does not overwrite the existing client's name/address. Standalone client creation still requires a name.
+- Store the client's phone number and usable service address. Client names are removed throughout the application and database.
+- Confirmed 2026-10-13 (S9, owner-directed parity with `other/temp_bookings.php`): the administrator's booking client step starts with a phone lookup. An existing client and last-used saved address are selected automatically (newest saved address if never booked), with stopped clients refused. An unknown phone shows inline required address fields. Save the new client, address, reservation, invoice and initial history together or roll back everything. A concurrent registration of the phone is refused and the dashboard refreshes the lookup; it does not overwrite the existing client's phone/address. Standalone client creation also uses only the phone number.
 - One client record owns each international-format phone number; that exact phone is the primary-contact identity for later WhatsApp lookup.
-- Confirmed 2026-10-11: each client has an active/stopped state. The administrator can stop or reactivate a client with a required reason, recorded in the client's status history. A stopped client cannot receive new bookings (the booking attempt is refused with a clear Arabic message); existing bookings and historical records are unaffected. Client lists and lookups show the state.
-- Address fields: street, house number, block, floor, apartment, building, and additional instructions where applicable. Floor/apartment need not apply to every property.
-- A saved service address requires area/neighborhood, block, street, and at least one of house number or building name. Clients may have multiple saved addresses. Floor, apartment, instructions, Google Maps link, and WhatsApp pin coordinates are optional.
-- Confirmed 2026-10-13 (S6): the administrator manages a searchable list of Arabic area names (add, rename, stop/reactivate). New dashboard addresses choose an active area; the API rechecks its ID and name inside the address transaction. Existing free-text addresses can retain their area when edited, and catalogue changes never rewrite saved addresses or reservation snapshots. Legacy API callers may still send free-text `area` without `areaId`; this is an address picker, not geographic service-area enforcement. The catalogue starts empty and is populated by the administrator.
-- Accept a WhatsApp location or Google Maps link alongside visit details.
+- Confirmed 2026-10-11: each client has an active/stopped state. The administrator can stop or reactivate a client with a required reason, recorded in the client's status history. A stopped client cannot receive new bookings (the booking attempt is refused with a clear English message); existing bookings and historical records are unaffected. Client lists and lookups show the state.
+- Address fields: street, house number, block, floor, apartment, building, avenue, gate and blue number where applicable. Floor/apartment need not apply to every property.
+- A saved service address requires area/neighborhood, block, street, and at least one of house number or building name. Clients may have multiple saved addresses. Floor, apartment, avenue, gate, blue number and Google Maps link are optional. Address instructions and latitude/longitude are removed.
+- Confirmed 2026-10-13 (S6): the administrator manages a searchable list of area names (add, rename, stop/reactivate). New dashboard addresses choose an active area; the API rechecks its ID and name inside the address transaction. Existing free-text addresses can retain their area when edited, and catalogue changes never rewrite saved addresses or reservation snapshots. Legacy API callers may still send free-text `area` without `areaId`; this is an address picker, not geographic service-area enforcement. The catalogue starts empty and is populated by the administrator.
+- Accept a Google Maps link alongside visit details.
 - Reservations record adult/child counts. Separate child names, ages, and saved child profiles are not required.
 - Confirmed 2026-10-11: a reservation also records a special-needs child count, an integer `0 ≤ special ≤ childCount`. These are a subset of the children and are priced as children (no pricing change). The count appears on the booking form, edit dialog, booking detail, invoice, and reports (shown beside the child counts).
 - Preserve the reservation's address and historical barber/pricing details when current client/employee information changes.
@@ -79,7 +82,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 ## WhatsApp journey
 
 1. Client requests haircuts; AI collects adult/child counts.
-2. Collect/reuse the primary contact's name, phone identity, address, date, and requested window.
+2. Collect/reuse the primary contact's phone identity, address, date, and requested window.
 3. Show eligible barbers. Client chooses a named barber or delegates selection to AI.
 4. Present the selected visit details and applicable price in the conversation.
 5. Validate and save the reservation and invoice together. No administrator approval is required.
@@ -149,7 +152,7 @@ Reports cover the data collected by every module, with search, applicable date/e
 ## Infrastructure
 
 ```text
-apps/web          Next.js Arabic dashboard
+apps/web          Next.js English dashboard
 apps/api          Express business API and future WhatsApp webhook
 packages/contracts  Shared Zod contracts and types
 packages/db         Drizzle/MySQL connection, schema, migrations
@@ -163,7 +166,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, branch, client, and invoice/cash reports (phases 9–11) are implemented. The Arabic web dashboard for phases 1–11 is implemented, including those reports and barber photos; its end-to-end journey verification, WhatsApp integration, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, branch, client, and invoice/cash reports (phases 9–11) are implemented. The English web dashboard for phases 1–11 is implemented, including those reports and barber photos; its end-to-end journey verification, WhatsApp integration, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 

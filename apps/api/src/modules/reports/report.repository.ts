@@ -106,7 +106,6 @@ function filter(query: HaircutReportQuery) {
     query.source ? eq(bookings.source, query.source) : undefined,
     query.q ? or(
       sql`${bookings.reference} LIKE ${pattern} ESCAPE '!'`,
-      sql`JSON_UNQUOTE(JSON_EXTRACT(${bookings.clientSnapshot}, '$.name')) LIKE ${pattern} ESCAPE '!'`,
       sql`JSON_UNQUOTE(JSON_EXTRACT(${bookings.clientSnapshot}, '$.phone')) LIKE ${pattern} ESCAPE '!'`,
     ) : undefined,
   );
@@ -129,7 +128,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         const actorIds = [...new Set([...rows.map(row => row.booking.createdBy), ...visits.flatMap(event => event.actorAccountId ? [event.actorAccountId] : []), ...revisions.map(event => event.actorAccountId), ...payments.map(event => event.actorAccountId), ...receipts.map(receipt => receipt.recordedBy), ...messages.map(event => event.actorAccountId)])];
         const actors = await transaction.select({ id: accounts.id, role: accounts.role, name: employees.displayName }).from(accounts).leftJoin(employees, eq(employees.accountId, accounts.id)).where(inArray(accounts.id, actorIds));
         const clientIds = [...new Set([...rows.map(row => row.booking.clientId), ...visits.flatMap(event => event.actorClientId ? [event.actorClientId] : [])])];
-        const people = await transaction.select({ id: clients.id, name: clients.name }).from(clients).where(inArray(clients.id, clientIds));
+        const people = await transaction.select({ id: clients.id, phone: clients.phone }).from(clients).where(inArray(clients.id, clientIds));
         return { rows, visits, revisions, payments, receipts, messages, actors, clients: people };
       });
     },
@@ -191,11 +190,11 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       return { weekly, exceptions };
     },
     async clients(query: ClientReportQuery) {
-      return db.select({ clientId: clients.id, name: clients.name, phone: clients.phone, ...performanceMeasures }).from(bookings)
+      return db.select({ clientId: clients.id, phone: clients.phone, ...performanceMeasures }).from(bookings)
         .innerJoin(clients, eq(clients.id, bookings.clientId)).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
         .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
-        .where(filter(query)).groupBy(clients.id, clients.name, clients.phone)
-        .orderBy(asc(clients.name), asc(clients.id)) as unknown as Promise<({ clientId: string; name: string; phone: string } & PerformanceRow)[]>;
+        .where(filter(query)).groupBy(clients.id, clients.phone)
+        .orderBy(asc(clients.phone), asc(clients.id)) as unknown as Promise<({ clientId: string; phone: string } & PerformanceRow)[]>;
     },
     /** Barber per-method collections joined with the shop's salon entries for the same period. */
     async comprehensive(query: ComprehensiveReportQuery) {

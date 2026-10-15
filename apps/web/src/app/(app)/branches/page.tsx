@@ -33,7 +33,7 @@ function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; o
   const errors = form.formState.errors;
 
   const submit = form.handleSubmit(values => {
-    const done = () => { toast.success(branch ? "تم حفظ الفرع" : "تمت إضافة الفرع"); onOpenChange(false); };
+    const done = () => { toast.success(branch ? "Branch saved" : "Branch added"); onOpenChange(false); };
     if (branch) update.mutate({ id: branch.id, ...values }, { onSuccess: done });
     else create.mutate(values, { onSuccess: done });
   });
@@ -42,20 +42,20 @@ function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; o
     <Dialog open={open} onOpenChange={value => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); }}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{branch ? "تعديل الفرع" : "إضافة فرع"}</DialogTitle>
-          <DialogDescription>الفروع لإدخالات الصالون وتقاريره؛ هذه الأسعار والمدد لا تحدد سعر الحجز أو نافذته.</DialogDescription>
+          <DialogTitle>{branch ? "Edit branch" : "Add branch"}</DialogTitle>
+          <DialogDescription>Branches support salon entries and reports. These prices and durations do not determine reservation prices or windows.</DialogDescription>
         </DialogHeader>
         <form id="branch-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="اسم الفرع" error={errors.name?.message} className="sm:col-span-2"><Input {...form.register("name")} /></Field>
-          <Field label="الموقع أو العنوان" error={errors.location?.message} className="sm:col-span-2"><Textarea rows={2} {...form.register("location")} /></Field>
-          <Field label="سعر حلاقة البالغ (د.ك)" error={errors.adultPrice?.message}><Input {...form.register("adultPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
-          <Field label="سعر حلاقة الطفل (د.ك)" error={errors.childPrice?.message}><Input {...form.register("childPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
-          <Field label="مدة حلاقة البالغ (دقيقة)" error={errors.adultDurationMinutes?.message} hint="للعرض فقط؛ لا تغيّر مدة نافذة الحجز."><Input {...form.register("adultDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
-          <Field label="مدة حلاقة الطفل (دقيقة)" error={errors.childDurationMinutes?.message}><Input {...form.register("childDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
+          <Field label="Branch name" error={errors.name?.message} className="sm:col-span-2"><Input {...form.register("name")} /></Field>
+          <Field label="Location or address" error={errors.location?.message} className="sm:col-span-2"><Textarea rows={2} {...form.register("location")} /></Field>
+          <Field label="Adult haircut price (KWD)" error={errors.adultPrice?.message}><Input {...form.register("adultPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
+          <Field label="Child haircut price (KWD)" error={errors.childPrice?.message}><Input {...form.register("childPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
+          <Field label="Adult haircut duration (minutes)" error={errors.adultDurationMinutes?.message} hint="For reference; does not change the reservation window."><Input {...form.register("adultDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
+          <Field label="Child haircut duration (minutes)" error={errors.childDurationMinutes?.message}><Input {...form.register("childDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
         </form>
         <FormAlert error={mutation.error} />
         <DialogFooter>
-          <Button type="submit" form="branch-form" disabled={mutation.isPending}>{branch ? "حفظ التغييرات" : "إضافة الفرع"}</Button>
+          <Button type="submit" form="branch-form" disabled={mutation.isPending}>{branch ? "Save changes" : "Add branch"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -70,20 +70,20 @@ function BranchesScreen() {
 
   return (
     <>
-      <PageHeader title="الفروع" description="فروع الصالون وأسعار الخدمات ومددها للعرض فقط." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
+      <PageHeader title="Branches" description="Salon branches, service prices and durations for reference." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />Add branch</Button>} />
       <Card>
         {branches.isPending ? <LoadingRows rows={3} /> : branches.isError ? <ErrorState error={branches.error} onRetry={() => branches.refetch()} /> : branches.data.length === 0 ? (
-          <EmptyState icon={Store} title="لا توجد فروع بعد" description="أضف الفرع الأول لتسجيل تحصيلات الصالون وعرض تقاريره." action={<Button onClick={() => openDialog(null)}><Plus aria-hidden />إضافة فرع</Button>} />
+          <EmptyState icon={Store} title="No branches yet" description="Add the first branch to record salon collections and view reports." action={<Button onClick={() => openDialog(null)}><Plus aria-hidden />Add branch</Button>} />
         ) : (
           <>
             <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
-                  <TableHead>الفرع</TableHead>
-                  <TableHead>سعر البالغ</TableHead>
-                  <TableHead>سعر الطفل</TableHead>
-                  <TableHead>المدة (بالغ / طفل)</TableHead>
-                  <TableHead><span className="sr-only">إجراءات</span></TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Adult price</TableHead>
+                  <TableHead>Child price</TableHead>
+                  <TableHead>Duration (adult / child)</TableHead>
+                  <TableHead><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -93,7 +93,7 @@ function BranchesScreen() {
                     <TableCell><Ltr>{formatKwd(branch.adultPrice)}</Ltr></TableCell>
                     <TableCell><Ltr>{formatKwd(branch.childPrice)}</Ltr></TableCell>
                     <TableCell className="text-muted-foreground">{formatDuration(branch.adultDurationMinutes)} / {formatDuration(branch.childDurationMinutes)}</TableCell>
-                    <TableCell className="text-end"><Button variant="ghost" size="sm" onClick={() => openDialog(branch)}><Pencil aria-hidden />تعديل</Button></TableCell>
+                    <TableCell className="text-end"><Button variant="ghost" size="sm" onClick={() => openDialog(branch)}><Pencil aria-hidden />Edit</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -104,9 +104,9 @@ function BranchesScreen() {
                   <div className="min-w-0">
                     <p className="font-medium">{branch.name}</p>
                     <p className="text-xs text-muted-foreground">{branch.location}</p>
-                    <p className="mt-2 text-sm">بالغ <Ltr>{formatKwd(branch.adultPrice)}</Ltr>، طفل <Ltr>{formatKwd(branch.childPrice)}</Ltr></p>
+                    <p className="mt-2 text-sm">adult <Ltr>{formatKwd(branch.adultPrice)}</Ltr>, child <Ltr>{formatKwd(branch.childPrice)}</Ltr></p>
                   </div>
-                  <Button variant="outline" size="icon-sm" aria-label={`تعديل ${branch.name}`} onClick={() => openDialog(branch)}><Pencil /></Button>
+                  <Button variant="outline" size="icon-sm" aria-label={`Edit ${branch.name}`} onClick={() => openDialog(branch)}><Pencil /></Button>
                 </li>
               ))}
             </ul>

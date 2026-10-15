@@ -57,16 +57,16 @@ beforeAll(async () => {
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([barberX, barberY, barberZ].map(id => ({ id, phone: phones[id]!, role: "employee" as const, passwordHash, createdAt: now, updatedAt: now })));
   await connection.db.insert(employees).values([{ accountId: barberX, displayName: "عميل تقرير أ" }, { accountId: barberY, displayName: "عميل تقرير ب" }, { accountId: barberZ, displayName: "عميل تقرير ج" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
-  await connection.db.insert(clients).values([{ id: clientOne, name: "نورة العملاء", phone: `+965${randomInt(85000000, 89999999)}` }, { id: clientTwo, name: "سلمى العملاء", phone: `+965${randomInt(90000000, 94999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
+  await connection.db.insert(clients).values([{ id: clientOne, phone: `+965${randomInt(85000000, 89999999)}` }, { id: clientTwo, phone: `+965${randomInt(90000000, 94999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
   await connection.db.insert(clientAddresses).values([{ id: addressOne, clientId: clientOne }, { id: addressTwo, clientId: clientTwo }].map(row => ({ ...row, area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", createdAt: now, updatedAt: now })));
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   for (const [index, fixture] of fixtures.entries()) {
     const id = ids[index]!, price = prices[fixture.tier];
-    const client = fixture.clientId === clientOne ? { name: "نورة العملاء", phone: "+96555000004" } : { name: "سلمى العملاء", phone: "+96555000005" };
+    const client = fixture.clientId === clientOne ? { phone: "+96555000004" } : { phone: "+96555000005" };
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
       date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 3,
-      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
     });
     const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;
@@ -110,24 +110,24 @@ describe("client history report", () => {
     const response = await report("clients", range);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait" });
-    const rows = response.body.clients.filter((row: { clientId: string }) => ([clientOne, clientTwo] as string[]).includes(row.clientId));
+    const rows = response.body.clients.filter((row: { clientId: string }) => ([clientOne, clientTwo] as string[]).includes(row.clientId)).sort((a: { clientId: string }) => a.clientId === clientTwo ? -1 : 1);
     expect(rows).toEqual([
       {
-        clientId: clientTwo, name: "سلمى العملاء", phone: rows[0].phone,
+        clientId: clientTwo, phone: rows[0].phone,
         work: { bookings: 2, reserved: quantities(1, 3), completed: quantities(0, 0), open: quantities(0, 0), cancelled: quantities(0, 2), noShow: quantities(1, 1), completedVisits: 0, reservedMinutes: 0 },
         invoices: { issued: money(1, "10.000"), cancelled: money(1, "6.000"), outstanding: money(1, "10.000") }, cash: collected(1, "6.000"),
       },
       {
-        clientId: clientOne, name: "نورة العملاء", phone: rows[1].phone,
+        clientId: clientOne, phone: rows[1].phone,
         work: { bookings: 3, reserved: quantities(6, 1), completed: quantities(3, 1), open: quantities(3, 0), cancelled: quantities(0, 0), noShow: quantities(0, 0), completedVisits: 2, reservedMinutes: 180 },
         invoices: { issued: money(3, "33.000"), cancelled: money(0, "0.000"), outstanding: money(2, "20.000") }, cash: collected(1, "13.000"),
       },
     ]);
     expect(rows[1].phone).toMatch(/^\+965[0-9]{8}$/);
   });
-  it("applies the same filters, searching clients by name and phone", async () => {
-    const byName = await report("clients", { ...range, q: "نورة العملاء" });
-    expect(byName.body.clients.map((row: { clientId: string }) => row.clientId)).toEqual([clientOne]);
+  it("applies the same filters, searching clients by saved phone", async () => {
+    const byPhoneOne = await report("clients", { ...range, q: "+96555000004" });
+    expect(byPhoneOne.body.clients.map((row: { clientId: string }) => row.clientId)).toEqual([clientOne]);
     const byPhone = await report("clients", { ...range, q: "+96555000005" });
     expect(byPhone.body.clients.map((row: { clientId: string }) => row.clientId)).toEqual([clientTwo]);
     expect((await report("clients", { ...range, q: "%" })).body.clients).toHaveLength(0);
@@ -180,7 +180,7 @@ describe("invoice and cash report", () => {
     expect(first).toMatchObject({
       id: invoiceIds[0], reference: references[0], status: "issued", paymentStatus: "paid", currency: "KWD",
       adultCount: 2, childCount: 1, amountCash: "10.000", amountLink: "3.000", total: "13.000",
-      client: { name: "نورة العملاء", phone: "+96555000004" }, employee: { id: barberX, displayName: "اسم قديم" }, visitStatus: "completed", editCount: 2, correctionCount: 0,
+      client: { phone: "+96555000004" }, employee: { id: barberX, displayName: "اسم قديم" }, visitStatus: "completed", editCount: 2, correctionCount: 0,
       cash: { amount: "13.000", status: "active", method: "cash" },
     });
     expect(first.date).toBe("2098-05-01");
@@ -200,7 +200,7 @@ describe("invoice and cash report", () => {
     expect(await idsFor({ employeeId: barberY })).toEqual([ids[2]]);
     expect(await idsFor({ clientId: clientOne })).toEqual([ids[0], ids[1], ids[4]].sort());
     expect(await idsFor({ q: references[3]!.toLowerCase() })).toEqual([ids[3]]);
-    expect(await idsFor({ q: "سلمى" })).toEqual([ids[2], ids[3]].sort());
+    expect(await idsFor({ q: "+96555000005" })).toEqual([ids[2], ids[3]].sort());
     const bookedDay = await report("invoices", { dateBasis: "created_date", from: "2098-04-22", to: "2098-04-22" });
     expect(bookedDay.body.dateBasis).toBe("created_date");
     expect(bookedDay.body.invoices.map((row: { bookingId: string }) => row.bookingId)).toEqual([ids[2]]);

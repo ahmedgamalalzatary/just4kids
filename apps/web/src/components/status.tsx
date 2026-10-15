@@ -2,11 +2,11 @@ import type { VisitStatus } from "@just4kids/contracts";
 import { cn } from "@/lib/utils";
 
 export const visitStatusLabels: Record<VisitStatus, string> = {
-  booked: "محجوز",
-  arrived: "وصل الحلاق",
-  completed: "مكتمل",
-  cancelled: "ملغي",
-  no_show: "لم يحضر العميل",
+  booked: "Booked",
+  arrived: "Barber arrived",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "Client did not attend",
 };
 
 const visitStatusStyles: Record<VisitStatus, string> = {
@@ -33,13 +33,13 @@ export function PaymentBadge({ paymentStatus, invoiceStatus, className }: { paym
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
       <span className={cn(chip, paymentStatus === "paid" ? "bg-status-completed-soft text-status-completed" : "border border-border text-muted-foreground")}>
-        {paymentStatus === "paid" ? "مدفوع" : "غير مدفوع"}
+        {paymentStatus === "paid" ? "Paid" : "Unpaid"}
       </span>
-      {invoiceStatus === "cancelled" ? <span className={cn(chip, "bg-status-cancelled-soft text-status-cancelled line-through decoration-1")}>فاتورة ملغاة</span> : null}
+      {invoiceStatus === "cancelled" ? <span className={cn(chip, "bg-status-cancelled-soft text-status-cancelled line-through decoration-1")}>Cancelled invoice</span> : null}
     </span>
   );
 }
 
 export function SourceLabel({ source }: { source: "manual" | "ai" }) {
-  return <span className="text-xs text-muted-foreground">{source === "ai" ? "عبر واتساب" : "حجز يدوي"}</span>;
+  return <span className="text-xs text-muted-foreground">{source === "ai" ? "Via WhatsApp" : "Manual reservation"}</span>;
 }

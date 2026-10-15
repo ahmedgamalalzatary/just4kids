@@ -13,9 +13,9 @@ beforeAll(() => {
 describe("option select", () => {
   it("returns to the whole list through the 'all' option", async () => {
     const onChange = vi.fn();
-    render(<OptionSelect value="b1" onChange={onChange} all="كل الحلاقين" options={[{ value: "b1", label: "أحمد" }, { value: "b2", label: "سالم" }]} />);
+    render(<OptionSelect value="b1" onChange={onChange} all="All barbers" options={[{ value: "b1", label: "أحمد" }, { value: "b2", label: "سالم" }]} />);
     await userEvent.click(screen.getByRole("combobox"));
-    await userEvent.click(await screen.findByRole("option", { name: "كل الحلاقين" }));
+    await userEvent.click(await screen.findByRole("option", { name: "All barbers" }));
     expect(onChange).toHaveBeenCalledWith("");
   });
 });

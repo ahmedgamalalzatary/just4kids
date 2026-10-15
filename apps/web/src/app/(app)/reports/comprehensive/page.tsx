@@ -43,43 +43,43 @@ function ComprehensiveScreen() {
       <SalonScope />
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Summary label="إجمالي التحصيل (حلاقون + الصالون)" value={formatKwd(totals.collected.total)} />
-          <Summary label="من الحلاقين" value={formatKwd(barbersCollected)} />
-          <Summary label="من الصالون" value={formatKwd(salon.collected.total)} />
+          <Summary label="Total collections (barbers + salon)" value={formatKwd(totals.collected.total)} />
+          <Summary label="From barbers" value={formatKwd(barbersCollected)} />
+          <Summary label="From salon" value={formatKwd(salon.collected.total)} />
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>التقرير الشامل لتحصيلات الحلاقين + الصالون</CardTitle>
-            <CardDescription>تحصيل كل حلاق من تحصيلاته اليومية، وصف الصالون من إدخالاته، مع نسبة كل واحد من الإجمالي.</CardDescription>
+            <CardTitle>Combined barber and salon collections report</CardTitle>
+            <CardDescription>Each barber&apos;s daily collections and the salon&apos;s entries, with their share of the total.</CardDescription>
           </div>
         </CardHeader>
-        {empty ? <EmptyState icon={ChartColumn} title="لا توجد تحصيلات في هذه الفترة." /> : (
+        {empty ? <EmptyState icon={ChartColumn} title="No collections in this period." /> : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="ps-5">الحلاق / الصالون</TableHead>
-                <TableHead>نقداً</TableHead>
-                <TableHead>رابط</TableHead>
-                <TableHead>كي نت</TableHead>
-                <TableHead>الإجمالي</TableHead>
-                <TableHead className="pe-5">نسبة من الكل</TableHead>
+                <TableHead className="ps-5">Barber / salon</TableHead>
+                <TableHead>Cash</TableHead>
+                <TableHead>Link</TableHead>
+                <TableHead>KNET</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead className="pe-5">Share of total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {barbers.map(barber => (
                 <TableRow key={barber.employeeId}>
-                  <TableCell className="ps-5 font-medium">{barber.displayName}{barber.enabled ? null : <span className="ms-2 text-xs text-muted-foreground">موقوف</span>}</TableCell>
+                  <TableCell className="ps-5 font-medium">{barber.displayName}{barber.enabled ? null : <span className="ms-2 text-xs text-muted-foreground">Stopped</span>}</TableCell>
                   <CollectedCells row={barber} />
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40">
-                <TableCell className="ps-5 font-medium">الصالون</TableCell>
+                <TableCell className="ps-5 font-medium">Salon</TableCell>
                 <CollectedCells row={salon} />
               </TableRow>
               <TableRow className="font-semibold">
-                <TableCell className="ps-5">الإجمالي</TableCell>
+                <TableCell className="ps-5">Total</TableCell>
                 <TableCell data-numeric>{formatKwd(totals.cash.total)}</TableCell>
                 <TableCell data-numeric>{formatKwd(totals.link.total)}</TableCell>
                 <TableCell data-numeric>{formatKwd(totals.knet.total)}</TableCell>

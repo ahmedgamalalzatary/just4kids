@@ -36,14 +36,14 @@ export function ErrorState({ error, onRetry, className }: { error: unknown; onRe
     <div role="alert" className={cn("flex flex-col items-center gap-3 px-6 py-12 text-center", className)}>
       <AlertCircle className="size-6 text-destructive" aria-hidden />
       <p className="text-sm">{errorMessage(error)}</p>
-      {onRetry ? <Button variant="outline" size="sm" onClick={onRetry}>إعادة المحاولة</Button> : null}
+      {onRetry ? <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button> : null}
     </div>
   );
 }
 
 export function LoadingRows({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="flex flex-col gap-3 p-5" aria-busy="true" aria-label="جارٍ التحميل">
+    <div className="flex flex-col gap-3 p-5" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => <Skeleton key={index} className="h-12 w-full" />)}
     </div>
   );
@@ -59,7 +59,7 @@ export function Detail({ label, children, className }: { label: string; children
   );
 }
 
-/** Left-to-right text such as phone numbers, amounts, and references inside Arabic content. */
+/** Left-to-right text such as phone numbers, amounts, and references with bidirectional isolation. */
 export function Ltr({ children, className }: { children: ReactNode; className?: string }) {
   return <bdi dir="ltr" data-numeric className={cn("inline-block", className)}>{children}</bdi>;
 }

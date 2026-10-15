@@ -5,7 +5,7 @@ import { Suspense, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ChevronRight, Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { PhoneBookingClient, type BookingClientSelection } from "@/components/phone-booking-client";
@@ -47,9 +47,9 @@ function Counter({ label, value, onChange, max = 99 }: { label: string; value: n
     <div className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-2">
       <span className="text-sm font-medium">{label}</span>
       <div className="flex items-center gap-1" role="group" aria-label={label}>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`إنقاص ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Decrease ${label}`} disabled={value <= 0} onClick={() => onChange(value - 1)}><Minus /></Button>
         <output className="w-8 text-center text-lg font-semibold" data-numeric aria-live="polite">{value}</output>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`زيادة ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Increase ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus /></Button>
       </div>
     </div>
   );
@@ -60,9 +60,9 @@ function BarberPicker({ onPick }: { onPick: (id: string) => void }) {
   if (employees.isPending) return <LoadingRows rows={2} />;
   if (employees.isError) return <ErrorState error={employees.error} onRetry={() => employees.refetch()} />;
   const enabled = employees.data.filter(employee => employee.enabled);
-  if (enabled.length === 0) return <p className="text-sm text-muted-foreground">لا يوجد حلاق مفعّل. <Link href="/employees" className="text-primary underline">الحلاقون</Link></p>;
+  if (enabled.length === 0) return <p className="text-sm text-muted-foreground">No active barber. <Link href="/employees" className="text-primary underline">Barbers</Link></p>;
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="الحلاق">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Barber">
       {enabled.map(employee => (
         <button key={employee.id} type="button" role="radio" aria-checked={false} onClick={() => onPick(employee.id)}
           className="flex flex-col items-center gap-2 rounded-lg border border-border px-3 py-4 text-center transition-colors hover:border-primary hover:bg-accent">
@@ -111,7 +111,7 @@ function NewBookingScreen() {
     if (!ready || !barber || !slot || !clientSelection || !price) return;
     const details = { employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) };
     const options = {
-      onSuccess: (booking: Booking) => { toast.success(`تم الحجز برقم ${booking.reference}`); setCreated(booking); },
+      onSuccess: (booking: Booking) => { toast.success(`Reservation saved: ${booking.reference}`); setCreated(booking); },
       onError: (error: Error) => {
         if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setSlot(null); void queryClient.invalidateQueries({ queryKey: ["bookings", "list"] }); void queryClient.invalidateQueries({ queryKey: ["schedules", barber.id] }); }
         if (error instanceof ApiError && ["PHONE_ALREADY_USED", "CLIENT_DISABLED"].includes(error.code)) void queryClient.invalidateQueries({ queryKey: keys.clients });
@@ -133,44 +133,44 @@ function NewBookingScreen() {
     try {
       await sendLoggedWhatsApp(whatsAppLink(barber.phone, created), () => send.mutateAsync({ id: created.id }));
       router.push(`/bookings/${created.id}`);
-    } catch (error) { setSendProblem(error instanceof Error ? error : new Error("تعذر تسجيل الإرسال، حاول مرة أخرى")); }
+    } catch (error) { setSendProblem(error instanceof Error ? error : new Error("Could not record the send. Try again")); }
   };
   const backToToday = () => router.push("/bookings");
 
   return (
     <>
       <PageHeader
-        back={<Link href="/" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden />لوحة التحكم</Link>}
-        title={barber ? `حجز جديد مع ${barber.displayName}` : "حجز جديد"}
-        description="اختر الحلاق ثم وقت البداية، ثم رقم هاتف العميل وعنوان الزيارة وعدد الحلاقات."
+        back={<Link href="/" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" aria-hidden />Dashboard</Link>}
+        title={barber ? `New reservation with ${barber.displayName}` : "New reservation"}
+        description="Choose the barber, start time, client phone, visit address and haircut counts."
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-4">
-          <Step number={1} title="الحلاق" done={Boolean(barber?.enabled)}>
+          <Step number={1} title="Barber" done={Boolean(barber?.enabled)}>
             {barberId === null ? <BarberPicker onPick={pickBarber} /> : employees.isPending ? <LoadingRows rows={1} /> : employees.isError ? (
               <ErrorState error={employees.error} onRetry={() => employees.refetch()} />
             ) : !barber ? (
-              <div className="flex flex-col gap-3"><p className="text-sm text-destructive">الحلاق غير موجود.</p><BarberPicker onPick={pickBarber} /></div>
+              <div className="flex flex-col gap-3"><p className="text-sm text-destructive">Barber not found.</p><BarberPicker onPick={pickBarber} /></div>
             ) : (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <EmployeeAvatar employeeId={barber.id} name={barber.displayName} version={barber.photoUpdatedAt} className="size-14 text-lg" />
                   <div>
                     <p className="text-lg font-semibold">{barber.displayName}</p>
-                    {!barber.enabled ? <p className="text-sm text-destructive">هذا الحلاق موقوف، اختر حلاقاً آخر.</p> : null}
+                    {!barber.enabled ? <p className="text-sm text-destructive">This barber is stopped. Choose another barber.</p> : null}
                   </div>
                 </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => pickBarber(null)}><X aria-hidden />تغيير</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => pickBarber(null)}><X aria-hidden />Change</Button>
               </div>
             )}
           </Step>
 
-          <Step number={2} title="التاريخ والوقت" done={Boolean(slot)}>
-            {!barber?.enabled ? <p className="text-sm text-muted-foreground">اختر الحلاق أولاً.</p> : (
+          <Step number={2} title="Date and time" done={Boolean(slot)}>
+            {!barber?.enabled ? <p className="text-sm text-muted-foreground">Select a barber first.</p> : (
               <div className="flex flex-col gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="التاريخ"><Input type="date" dir="ltr" min={kuwaitNow().date} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setSlot(null); } }} /></Field>
-                  <Field label="مدة الزيارة">
+                  <Field label="Date"><Input type="date" dir="ltr" min={kuwaitNow().date} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setSlot(null); } }} /></Field>
+                  <Field label="Visit duration">
                     <Select value={String(duration)} onValueChange={value => { setDuration(Number(value)); setSlot(null); }}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>{durationOptions.map(option => <SelectItem key={option} value={String(option)}>{formatDuration(option)}</SelectItem>)}</SelectContent>
@@ -179,55 +179,55 @@ function NewBookingScreen() {
                 </div>
                 <SlotPills key={`${barber.id}:${date}:${duration}`} barber={barber} date={date} duration={duration} selected={slot?.startTime ?? null} onSelect={setSlot} onAvailabilityChange={() => setSlot(null)} />
                 <p className="text-sm" role="status">
-                  {slot ? <>الموعد: {formatDate(date)}، <span className="font-medium" data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : <span className="text-muted-foreground">لم يتم اختيار وقت بعد.</span>}
+                  {slot ? <>Appointment: {formatDate(date)}, <span className="font-medium" data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : <span className="text-muted-foreground">No time selected yet.</span>}
                 </p>
               </div>
             )}
           </Step>
 
-          <Step number={3} title="العميل وعنوان الزيارة" done={Boolean(clientSelection)}>
+          <Step number={3} title="Client and visit address" done={Boolean(clientSelection)}>
             <PhoneBookingClient initialClientId={params.get("client")} onSelection={setClientSelection} />
           </Step>
 
-          <Step number={4} title="عدد الحلاقات" done={haircuts > 0 && !specialProblem}>
+          <Step number={4} title="Haircut count" done={haircuts > 0 && !specialProblem}>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Counter label="أطفال" value={childCount} onChange={setChildren} />
-              <Counter label="احتياجات خاصة" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
-              <Counter label="بالغون" value={adultCount} onChange={setAdultCount} />
+              <Counter label="Children" value={childCount} onChange={setChildren} />
+              <Counter label="Special needs" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
+              <Counter label="Adults" value={adultCount} onChange={setAdultCount} />
             </div>
-            {haircuts === 0 ? <p className="mt-2 text-xs text-destructive">حلاقة واحدة على الأقل.</p> : null}
+            {haircuts === 0 ? <p className="mt-2 text-xs text-destructive">At least one haircut.</p> : null}
             {specialProblem ? <p className="mt-2 text-xs text-destructive">{specialProblem}</p> : null}
-            <Field label="ملاحظات" optional className="mt-4"><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="مثال: اتصل قبل الوصول" /></Field>
+            <Field label="Notes" optional className="mt-4"><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="Example: call before arrival" /></Field>
           </Step>
         </div>
 
         <aside className="lg:sticky lg:top-10">
           <Card>
-            <h2 className="border-b border-border px-5 py-4 text-base font-semibold">ملخص الحجز</h2>
+            <h2 className="border-b border-border px-5 py-4 text-base font-semibold">Reservation summary</h2>
             <dl className="flex flex-col gap-3 px-5 py-4 text-sm">
-              <div><dt className="text-xs text-muted-foreground">الحلاق</dt><dd>{barber ? barber.displayName : "—"}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">الموعد</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">العميل</dt><dd>{clientSelection ? clientSelection.client.name?.trim() || clientSelection.client.phone : "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Barber</dt><dd>{barber ? barber.displayName : "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Appointment</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Client</dt><dd>{clientSelection ? clientSelection.client.phone : "—"}</dd></div>
             </dl>
             <div className="border-t border-border px-5 py-4 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">نقدي (د.ك)</span>
+                  <span className="text-xs text-muted-foreground">Cash (KWD)</span>
                   <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountCash} onChange={event => setAmountCash(event.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">رابط (د.ك)</span>
+                  <span className="text-xs text-muted-foreground">Link (KWD)</span>
                   <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountLink} onChange={event => setAmountLink(event.target.value)} />
                 </label>
               </div>
-              {(amountCash.trim() !== "" || amountLink.trim() !== "") && !price ? <p className="mt-2 text-xs text-destructive">اكتب المبلغ بالدينار، حتى 3 خانات عشرية.</p> : null}
-              <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>الإجمالي</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
+              {(amountCash.trim() !== "" || amountLink.trim() !== "") && !price ? <p className="mt-2 text-xs text-destructive">Enter the KWD amount with up to 3 decimal places.</p> : null}
+              <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>Total</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
               <FormAlert error={create.error ?? createNew.error} />
               <Button size="lg" variant="sun" onClick={submit} disabled={!ready || create.isPending || createNew.isPending || created !== null}>
                 {create.isPending || createNew.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                حفظ الحجز وإصدار الفاتورة
+                Save reservation and send WhatsApp
               </Button>
             </div>
           </Card>
@@ -236,13 +236,13 @@ function NewBookingScreen() {
       <Dialog open={created !== null} onOpenChange={open => { if (!open && !send.isPending) router.push(created ? `/bookings/${created.id}` : "/bookings"); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تم حفظ الحجز</DialogTitle>
-            <DialogDescription>أرسل تفاصيل الحجز <Ltr className="text-xs">{created?.reference}</Ltr> إلى الحلاق على واتساب؟</DialogDescription>
+            <DialogTitle>Reservation saved</DialogTitle>
+            <DialogDescription>Send reservation details <Ltr className="text-xs">{created?.reference}</Ltr> to the barber on WhatsApp?</DialogDescription>
           </DialogHeader>
           <FormAlert error={sendProblem} />
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button variant="sun" onClick={sendCreated} disabled={send.isPending}><MessageCircle aria-hidden />إرسال الحجز واتساب للحلاق</Button>
-            <Button variant="outline" onClick={backToToday} disabled={send.isPending}>لا ترسل، رجوع لحجوزات اليوم</Button>
+            <Button variant="sun" onClick={sendCreated} disabled={send.isPending}><MessageCircle aria-hidden />Yes, open WhatsApp</Button>
+            <Button variant="outline" onClick={backToToday} disabled={send.isPending}>No, return to today&apos;s reservations</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

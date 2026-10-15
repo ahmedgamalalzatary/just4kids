@@ -43,7 +43,7 @@ beforeAll(async () => {
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([barberA, barberB].map((id, index) => ({ id, role: "employee" as const, phone: index === 0 ? phone : `+965${randomInt(45000000, 49999999)}`, passwordHash, createdAt: now, updatedAt: now })));
   await connection.db.insert(employees).values([{ accountId: barberA, displayName: "حلاق التتبع" }, { accountId: barberB, displayName: "حلاق آخر" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
-  await connection.db.insert(clients).values([{ id: clientA, name: "عميل التتبع", phone: `+965${randomInt(55000000, 59999999)}` }, { id: clientB, name: "عميل آخر", phone: `+965${randomInt(60000000, 64999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
+  await connection.db.insert(clients).values([{ id: clientA, phone: `+965${randomInt(55000000, 59999999)}` }, { id: clientB, phone: `+965${randomInt(60000000, 64999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
   await connection.db.insert(clientAddresses).values([{ id: addressA, clientId: clientA }, { id: addressB, clientId: clientB }].map(row => ({ ...row, area: "حولي", block: "1", street: "1", houseNumber: "1", createdAt: now, updatedAt: now })));
   for (const [index, id] of ids.entries()) {
     const employeeId = index === 2 ? barberB : barberA;
@@ -52,8 +52,8 @@ beforeAll(async () => {
       id, reference: `J4K-${id.slice(0, 8)}`, employeeId, clientId, addressId: clientId === clientA ? addressA : addressB, createdBy: adminId,
       date: index === 3 ? "2096-04-12" : index === 0 ? "2096-04-10" : "2096-04-11", startTime: index === 1 ? "12:00" : "10:00", endTime: "13:00",
       adultCount: 1, childCount: 2, specialChildCount: 1, visitStatus: "completed", visitVersion: 8, source: "manual", createdAt: at(8),
-      clientSnapshot: { name: clientId === clientA ? "عميل التتبع" : "عميل آخر", phone: "+96555000001" }, employeeSnapshot: { id: employeeId, displayName: "اسم الحلاق وقت الحجز" },
-      addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: employeeId, displayName: "اسم الحلاق وقت الحجز" },
+      addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
     });
     await connection.db.insert(invoices).values({ id: invoiceIds[index]!, bookingId: id, amountCash: "5.000", amountLink: "0.000", total: "5.000", issuedAt: at(8) });
   }
@@ -61,8 +61,8 @@ beforeAll(async () => {
   await connection.db.insert(bookings).values({
     id: thisWeek, reference: `J4K-${thisWeek.slice(0, 8)}`, employeeId: barberA, clientId: clientA, addressId: addressA, createdBy: adminId,
     date: today, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1, specialChildCount: 0, visitStatus: "booked", visitVersion: 0, source: "manual", createdAt: now,
-    clientSnapshot: { name: "عميل التتبع", phone: "+96555000001" }, employeeSnapshot: { id: barberA, displayName: "حلاق التتبع" },
-    addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+    clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: barberA, displayName: "حلاق التتبع" },
+    addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
   });
   await connection.db.insert(invoices).values({ id: randomUUID(), bookingId: thisWeek, amountCash: "5.000", amountLink: "0.000", total: "5.000", issuedAt: now });
   const booking = (await request(app).get(`/bookings/${ids[0]}`).set("Cookie", admin)).body;
@@ -123,10 +123,10 @@ describe("booking tracking report", () => {
     expect(events[1].message.kind).toBe("sent_to_barber");
     expect(events[2].revision).toMatchObject({ reason: "تعديل الملاحظات", before: { notes: null }, after: { notes: "جرس الباب" } });
     expect(events[3]).toMatchObject({ actor: { id: barberA, name: "حلاق التتبع", role: "employee" }, event: { reason: "وصل إلى العنوان" } });
-    expect(events[4]).toMatchObject({ actor: { id: adminId, name: "المدير", role: "admin" }, event: { correction: true, reason: "تصحيح الحالة" } });
+    expect(events[4]).toMatchObject({ actor: { id: adminId, name: "Administrator", role: "admin" }, event: { correction: true, reason: "تصحيح الحالة" } });
     expect(events[6]).toMatchObject({ payment: { kind: "voided", method: "knet", reason: "قيد خاطئ" } });
-    expect(result.body.bookings[0].events[1]).toMatchObject({ actor: { id: clientB, name: "عميل آخر", role: "client" } });
-    expect(result.body.bookings[1].events[0]).toMatchObject({ actor: { id: null, name: "النظام", role: "system" } });
+    expect(result.body.bookings[0].events[1]).toMatchObject({ actor: { id: clientB, name: expect.stringMatching(/^\+965[0-9]{8}$/), role: "client" } });
+    expect(result.body.bookings[1].events[0]).toMatchObject({ actor: { id: null, name: "System", role: "system" } });
     expect(result.body.bookings[1].events[1]).toMatchObject({ payment: { kind: "recorded", amount: "7.000", method: "cash" }, actor: { id: adminId, role: "admin" } });
   });
   it("applies barber, client and inclusive visit-day filters together", async () => {

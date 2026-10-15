@@ -5,7 +5,7 @@ export function salonTotal(cash: string, link: string, knet: string): string {
   return fromFils(toFils(cash) + toFils(link) + toFils(knet));
 }
 
-export const salonMoneyLabels = { cash: "نقداً", link: "رابط دفع", knet: "كي نت" } as const;
+export const salonMoneyLabels = { cash: "Cash", link: "Payment link", knet: "KNET" } as const;
 
 export function shareText(share: number): string {
   return `${share.toFixed(1)}%`;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { paymentRecordSchema, paymentUndoSchema, cashReconciliationSchema, bookingEditSchema, bookingResponseSchema, bookingRevisionResponseSchema, paymentMethodSchema, paymentResponseSchema, paymentEventResponseSchema } from "../src/index.js";
 
-const client = { name: "مريم", phone: "+96555550101" };
-const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
+const client = { phone: "+96555550101" };
+const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
 const employee = { id: "44444444-4444-4444-8444-444444444444", displayName: "سالم" };
 const booking = {
   id: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", clientId: "22222222-2222-4222-8222-222222222222",
@@ -19,7 +19,7 @@ const payment = {
 
 describe("payment method contracts", () => {
   it("reads legacy address snapshots in bookings, invoices, revisions, and receipts", () => {
-    const legacyAddress = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null };
+    const legacyAddress = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, floor: null, apartment: null, mapsUrl: null };
     const legacyBooking = { ...booking, address: legacyAddress, invoice: { ...booking.invoice, address: legacyAddress } };
     const normalizedAddress = { ...legacyAddress, avenue: null, gate: null, blueNumber: null };
     const parsed = bookingResponseSchema.parse(legacyBooking);

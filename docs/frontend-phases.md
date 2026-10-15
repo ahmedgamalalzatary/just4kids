@@ -1,5 +1,8 @@
 # Just4Kids frontend phases
 
+Current UI and client model (2026-10-15): the dashboard, validation/errors, dates, reports, invoices and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details` (including payment receipts and events). The reservation action is **Save reservation and send WhatsApp**: save first, then ask whether to open WhatsApp for the barber or return to today's reservations. Saving still creates the invoice atomically. This supersedes older UI/name/location descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+
+
 Created: 2026-10-08. Product authority: [project-contract.md](project-contract.md). Backend tracker and API handoffs: [backend-phases.md](backend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md).
 
 ## Checklist rules
@@ -29,13 +32,13 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 
 ## Phase 0 — Foundation and design system
 
-- [x] Next.js App Router app in Arabic, right to left (`lang="ar" dir="rtl"`), with Western digits.
+- [x] Next.js App Router app in English, left to right (`lang="en" dir="ltr"`), with Western digits.
 - [x] Design tokens in `src/app/globals.css` for light and dark: teal primary, sun-yellow accent, red destructive, and visit-status colours (booked, arrived, completed, cancelled, no-show).
 - [x] Readex Pro font bundled locally; type scale; print styles that force the light palette and hide navigation.
-- [x] shadcn/ui components through the CLI with right-to-left configuration, adjusted for the design: flat cards, 40px inputs, Arabic close labels, physical sheet sides, and a muted badge.
+- [x] shadcn/ui components through the CLI with left-to-right configuration, adjusted for the design: flat cards, 40px inputs, English close labels, physical sheet sides, and a muted badge.
 - [x] Light, dark, and system theme switch (`next-themes`).
-- [x] Data layer: TanStack Query, a `/api` client with CSRF header and Arabic error envelope, 401 sign-out, no retry on 4xx, and reload of booking data after stale-version or conflict errors.
-- [x] Arabic form validation (react-hook-form + zod) built on the shared contracts.
+- [x] Data layer: TanStack Query, a `/api` client with CSRF header and English error envelope, 401 sign-out, no retry on 4xx, and reload of booking data after stale-version or conflict errors.
+- [x] English form validation (react-hook-form + zod) built on the shared contracts.
 - [x] Exact fils money helpers and Kuwait-time helpers (dates, windows, durations).
 - [x] Responsive shell: desktop sidebar, mobile header, slide-out menu, and bottom navigation.
 - [x] just4kids wordmark and favicon.
@@ -68,7 +71,7 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 
 - [x] Client search and pagination.
 - [x] Create a client with a first address, and edit contact details.
-- [x] Add and edit addresses with a Google Maps link or coordinates.
+- [x] Add and edit addresses with an optional Google Maps link.
 - [ ] Verified with real records.
 
 ## Phase 5 — Manual booking and invoice
@@ -103,7 +106,7 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 ## Phase 9 — Reservation and haircut reports
 
 - [x] `/reports` layout shared by four tabs: title, print button, tabs, filters, and a line naming the report, date basis, range, and applied filters (shown on screen and on paper; Kuwait time).
-- [x] Filters: date basis (visit date or booking-made date), from/to with a reversed-range error, search by reference or client name/phone, status, and source; branch and barber for the administrator only. Filters live in the page address, so tabs, links, and reloads keep them; malformed values are dropped.
+- [x] Filters: date basis (visit date or booking-made date), from/to with a reversed-range error, search by reference or client phone, status, and source; branch and barber for the administrator only. Filters live in the page address, so tabs, links, and reloads keep them; malformed values are dropped.
 - [x] Bookings report: summary of all matches (count, each visit status, manual/WhatsApp, administrator edits and status corrections) and paginated records linking to the booking page, with date, window, reference, source, creation time, edit/correction counts, visit, payment, and total.
 - [x] Haircuts report: totals and tables by date, branch, and barber (split per recorded branch), each with reserved, completed, open, cancelled, and no-show adult/child quantities. Rows link to the matching bookings.
 - [x] Barbers see only their own work and are told so.

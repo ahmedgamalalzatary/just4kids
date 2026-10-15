@@ -10,7 +10,7 @@ import { HttpError } from "../../lib/http-error.js";
 export async function verifyAddressArea(transaction: Parameters<Parameters<Database["transaction"]>[0]>[0], input: AddressCreate) {
   if (!input.areaId) return;
   const [area] = await transaction.select().from(areas).where(eq(areas.id, input.areaId)).for("share");
-  if (!area?.enabled || area.name !== input.area) throw new HttpError(409, "AREA_UNAVAILABLE", "المنطقة تغيرت أو تم إيقافها؛ اختر منطقة متاحة من القائمة");
+  if (!area?.enabled || area.name !== input.area) throw new HttpError(409, "AREA_UNAVAILABLE", "The area changed or was stopped. Select an available area");
 }
 
 export function createAreaRepository(connection: ReturnType<typeof createDatabase>) {

@@ -4,22 +4,28 @@ import { addressCreateSchema, addressUpdateSchema, clientCreateSchema, clientSea
 const address = { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12" };
 
 describe("client and address contracts", () => {
+  it("creates a phone-only client and rejects a removed client name", () => {
+    expect(clientCreateSchema.safeParse({ phone: "+96555550101", address }).success).toBe(true);
+    expect(clientCreateSchema.safeParse({ name: "Removed", phone: "+96555550101", address }).success).toBe(false);
+  });
+
+  it.each(["latitude", "longitude", "instructions"])("rejects removed address field %s on create and update", field => {
+    expect(addressCreateSchema.safeParse({ ...address, [field]: "29" }).success).toBe(false);
+    expect(addressUpdateSchema.safeParse({ [field]: null }).success).toBe(false);
+  });
   it("requires an international phone and a usable initial address", () => {
-    expect(clientCreateSchema.parse({ name: " سارة ", phone: "+96555550101", address })).toMatchObject({ name: "سارة", phone: "+96555550101", address });
-    expect(clientCreateSchema.safeParse({ name: "سارة", phone: "55550101", address }).success).toBe(false);
-    expect(clientCreateSchema.safeParse({ name: "سارة", phone: "+96555550101" }).success).toBe(false);
+    expect(clientCreateSchema.parse({ phone: "+96555550101", address })).toMatchObject({ phone: "+96555550101", address });
+    expect(clientCreateSchema.safeParse({ phone: "55550101", address }).success).toBe(false);
+    expect(clientCreateSchema.safeParse({ phone: "+96555550101" }).success).toBe(false);
     expect(addressCreateSchema.safeParse({ area: "حولي", block: "3", street: "شارع 5" }).success).toBe(false);
     expect(addressCreateSchema.safeParse({ area: "حولي", block: "3", street: "شارع 5", buildingName: "برج السلام" }).success).toBe(true);
   });
 
-  it("accepts a Google Maps link or a complete WhatsApp location, but rejects partial coordinates", () => {
+  it("accepts only trusted Google Maps links", () => {
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://maps.app.goo.gl/AbCd123" }).success).toBe(true);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://www.google.com/maps/place/Kuwait" }).success).toBe(true);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://evilgoogle.com/maps" }).success).toBe(false);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://user:pass@www.google.com/maps" }).success).toBe(false);
-    expect(addressCreateSchema.safeParse({ ...address, latitude: "29.3375000", longitude: "47.9333000" }).success).toBe(true);
-    expect(addressCreateSchema.safeParse({ ...address, latitude: "29.3375000" }).success).toBe(false);
-    expect(addressCreateSchema.safeParse({ ...address, latitude: "91", longitude: "47" }).success).toBe(false);
   });
 
   it("permits clearing optional address details but rejects unsupported fields", () => {
@@ -43,7 +49,7 @@ describe("client and address contracts", () => {
   });
 
   it("requires an active flag on clients and a reason to stop or reactivate", () => {
-    expect(clientSummarySchema.safeParse({ id: "11111111-1111-4111-8111-111111111111", name: "سارة", phone: "+96555550101", createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z" }).success).toBe(false);
+    expect(clientSummarySchema.safeParse({ id: "11111111-1111-4111-8111-111111111111", phone: "+96555550101", createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z" }).success).toBe(false);
     expect(clientStatusUpdateSchema.safeParse({ enabled: false, reason: "  " }).success).toBe(false);
     expect(clientStatusUpdateSchema.safeParse({ enabled: false }).success).toBe(false);
     expect(clientStatusUpdateSchema.parse({ enabled: false, reason: " طلب العميل " })).toEqual({ enabled: false, reason: "طلب العميل" });

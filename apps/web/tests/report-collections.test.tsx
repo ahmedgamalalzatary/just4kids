@@ -31,19 +31,19 @@ const collected = { count: 2, total: "7.000", byMethod: { cash: { count: 2, tota
 describe("collections scope in reports", () => {
   it("explains why the collected money is hidden under other filters", () => {
     render(<CollectedCash value={null} />);
-    expect(screen.getByText("التحصيلات تُفلتر بالفترة والحلاق فقط")).toBeInTheDocument();
+    expect(screen.getByText("Collections are filtered by period and barber only")).toBeInTheDocument();
   });
 
   it("filters the comprehensive report by period only", () => {
     renderWithSession(<><SalonScope /><SalonFilterBar /></>, "/reports/comprehensive");
-    expect(screen.queryByText("الفرع")).not.toBeInTheDocument();
-    expect(screen.getByText(/الفترة: كل التواريخ/)).not.toHaveTextContent("الفرع");
+    expect(screen.queryByText("Branch")).not.toBeInTheDocument();
+    expect(screen.getByText(/Period: All dates/)).not.toHaveTextContent("Branch");
   });
 
   it("keeps the branch filter on the salon report", () => {
     renderWithSession(<><SalonScope /><SalonFilterBar /></>, "/reports/salon");
-    expect(screen.getByText("الفرع")).toBeInTheDocument();
-    expect(screen.getByText(/الفترة: كل التواريخ/)).toHaveTextContent("الفرع: كل الفروع");
+    expect(screen.getByText("Branch")).toBeInTheDocument();
+    expect(screen.getByText(/Period: All dates/)).toHaveTextContent("Branch: All branches");
   });
 
   it("labels the barber report's daily collections as entries, not receipts", async () => {
@@ -59,7 +59,7 @@ describe("collections scope in reports", () => {
       throw new Error(`Unexpected request ${url}`);
     }));
     renderWithSession(<BarberReportPage />, "/reports/barbers");
-    expect(await screen.findByText("2 إدخال")).toBeInTheDocument();
+    expect(await screen.findByText("2 entry")).toBeInTheDocument();
   });
 
   it("labels the invoice report's collected summary as entries, not receipts", async () => {
@@ -73,6 +73,6 @@ describe("collections scope in reports", () => {
       throw new Error(`Unexpected request ${url}`);
     }));
     renderWithSession(<InvoicesReportPage />, "/reports/invoices");
-    expect(await screen.findByText("2 إدخال")).toBeInTheDocument();
+    expect(await screen.findByText("2 entry")).toBeInTheDocument();
   });
 });

@@ -62,7 +62,7 @@ beforeAll(async () => {
   const closed = randomUUID(), special = randomUUID();
   await connection.db.insert(employeeScheduleExceptions).values([{ id: closed, employeeId: barberA, date: "2096-04-07" }, { id: special, employeeId: barberB, date: "2096-04-08" }]);
   await connection.db.insert(employeeExceptionIntervals).values({ exceptionId: special, startTime: "10:00", endTime: "12:00" });
-  await connection.db.insert(clients).values({ id: clientId, name: "عميل الأداء", phone: `+965${randomInt(80000000, 84999999)}`, createdAt: now, updatedAt: now });
+  await connection.db.insert(clients).values({ id: clientId, phone: `+965${randomInt(80000000, 84999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", createdAt: now, updatedAt: now });
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   for (const [index, fixture] of fixtures.entries()) {
@@ -70,7 +70,7 @@ beforeAll(async () => {
     await connection.db.insert(bookings).values({
       id, reference: `J4K-PRF${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`, clientId, addressId, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
       date: "2096-04-06", startTime: fixture.start, endTime: fixture.end, adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 2,
-      clientSnapshot: { name: "عميل الأداء", phone: "+96555000003" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: { phone: "+96555000003" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "قديم" }, createdAt: new Date("2096-04-01T08:00:00Z"),
     });
     const adultAmount = price.adult * fixture.adult, childAmount = price.child * fixture.child;

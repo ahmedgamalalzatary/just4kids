@@ -23,21 +23,21 @@ function SalonReportScreen() {
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>شغل الصالون</CardTitle>
-            <CardDescription>حركة اليوميات حسب الفترة المختارة، مع الإجماليات.</CardDescription>
+            <CardTitle>Salon work</CardTitle>
+            <CardDescription>Daily entries and totals for the selected period.</CardDescription>
           </div>
         </CardHeader>
-        {entries.length === 0 ? <EmptyState icon={Coins} title="لا توجد بيانات شغل للصالون في هذه الفترة." /> : (
+        {entries.length === 0 ? <EmptyState icon={Coins} title="No salon work in this period." /> : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="ps-5">التاريخ</TableHead>
-                <TableHead>الفرع</TableHead>
-                <TableHead>الأطفال</TableHead>
-                <TableHead>نقداً</TableHead>
-                <TableHead>رابط</TableHead>
-                <TableHead>كي نت</TableHead>
-                <TableHead className="pe-5">الإجمالي</TableHead>
+                <TableHead className="ps-5">Date</TableHead>
+                <TableHead>Branch</TableHead>
+                <TableHead>Children</TableHead>
+                <TableHead>Cash</TableHead>
+                <TableHead>Link</TableHead>
+                <TableHead>KNET</TableHead>
+                <TableHead className="pe-5">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -53,7 +53,7 @@ function SalonReportScreen() {
                 </TableRow>
               ))}
               <TableRow className="font-semibold">
-                <TableCell className="ps-5" colSpan={2}>الإجمالي</TableCell>
+                <TableCell className="ps-5" colSpan={2}>Total</TableCell>
                 <TableCell data-numeric>{totals.childCount}</TableCell>
                 <TableCell data-numeric>{formatKwd(totals.cash)}</TableCell>
                 <TableCell data-numeric>{formatKwd(totals.link)}</TableCell>

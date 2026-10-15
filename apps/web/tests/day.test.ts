@@ -10,7 +10,7 @@ const early = new Date("2099-01-01T00:00:00+03:00");
 
 describe("buildSlots", () => {
   it("shows manual locks with their reason and blocks longer visits that cross them", () => {
-    const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: "موعد خاص" }];
+    const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: "موعد Special" }];
     const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 60, now: early });
     expect(slots.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "locked", reason: "manual", block: blocks[0] });
     expect(slots.find(slot => slot.startTime === "09:30")).toMatchObject({ state: "blocked" });
@@ -82,12 +82,12 @@ describe("buildSlots", () => {
 });
 
 describe("timeWords", () => {
-  it("writes a Kuwait time in Arabic words with the right day part", () => {
-    expect(timeWords("09:00")).toBe("التاسعة صباحاً");
-    expect(timeWords("12:30")).toBe("الثانية عشرة والنصف ظهراً");
-    expect(timeWords("16:30")).toBe("الرابعة والنصف عصراً");
-    expect(timeWords("19:00")).toBe("السابعة مساءً");
-    expect(timeWords("22:00")).toBe("العاشرة ليلاً");
+  it("writes a Kuwait time in English words with the right day part", () => {
+    expect(timeWords("09:00")).toBe("nine in the morning");
+    expect(timeWords("12:30")).toBe("half past twelve at noon");
+    expect(timeWords("16:30")).toBe("half past four in the afternoon");
+    expect(timeWords("19:00")).toBe("seven in the evening");
+    expect(timeWords("22:00")).toBe("ten at night");
   });
 });
 
@@ -95,28 +95,28 @@ describe("whatsAppLink", () => {
   it("opens a chat with the barber's number prefilled with the visit details", () => {
     const link = whatsAppLink("+96555551234", {
       reference: "J4K-1", date, startTime: "09:00", endTime: "09:30", adultCount: 1, childCount: 2, specialChildCount: 1, notes: null,
-      client: { name: "مريم", phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: "3", gate: "12", blueNumber: "5", floor: null, apartment: null, instructions: "الباب الأزرق", mapsUrl: "https://maps.app.goo.gl/x", latitude: null, longitude: null },
+      client: { phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: "3", gate: "12", blueNumber: "5", floor: null, apartment: null, mapsUrl: "https://maps.app.goo.gl/x" },
     });
     const url = new URL(link);
     expect(`${url.origin}${url.pathname}`).toBe("https://wa.me/96555551234");
     const text = url.searchParams.get("text")!;
-    for (const part of ["J4K-1", "مريم", "+96599990000", "حولي", "جادة 3", "بوابة 12", "الرقم الأزرق 5", "الباب الأزرق", "https://maps.app.goo.gl/x", "2 طفل", "1 احتياجات خاصة", "1 بالغ", "9:00 ص"]) expect(text).toContain(part);
-    expect(text).not.toContain("ملاحظات:");
+    for (const part of ["J4K-1", "+96599990000", "Avenue 3", "Gate 12", "Blue number 5", "https://maps.app.goo.gl/x", "2 children", "1 with special needs", "1 adult", "9:00 AM"]) expect(text).toContain(part);
+    expect(text).not.toContain("Notes:");
   });
   it("adds the booking notes to the WhatsApp text when present", () => {
     const link = whatsAppLink("+96555551234", {
       reference: "J4K-2", date, startTime: "09:00", endTime: "09:30", adultCount: 1, childCount: 0, specialChildCount: 0, notes: "اتصل قبل الوصول",
-      client: { name: "مريم", phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      client: { phone: "+96599990000" }, address: { area: "حولي", block: "3", street: "5", houseNumber: "12", buildingName: null, floor: null, apartment: null, mapsUrl: null },
     });
-    expect(new URL(link).searchParams.get("text")).toContain("ملاحظات: اتصل قبل الوصول");
+    expect(new URL(link).searchParams.get("text")).toContain("Notes: اتصل قبل الوصول");
   });
 });
 
 describe("cancelReasonText", () => {
-  it("returns the fixed reason, and requires a written reason for «سبب آخر»", () => {
-    expect(cancelReasonText("not_home", "")).toBe("العميل غير متواجد");
+  it("returns the fixed reason, and requires a written reason for «Other reason»", () => {
+    expect(cancelReasonText("not_home", "")).toBe("Client not at home");
     expect(cancelReasonText("other", "  ")).toBeNull();
-    expect(cancelReasonText("other", " نسي الموعد ")).toBe("سبب آخر: نسي الموعد");
+    expect(cancelReasonText("other", " نسي Appointment ")).toBe("Other reason: نسي Appointment");
     expect(cancelReasonText("", "")).toBeNull();
   });
 });

@@ -3,10 +3,10 @@ import type { BookingTrackingResponse } from "@just4kids/contracts";
 import * as timeline from "@/lib/booking-timeline";
 import { emptyReportFilters, trackingRangeError, withTrackingPeriod } from "@/lib/reports";
 
-const actor = { id: null, name: "المدير", role: "admin" as const };
+const actor = { id: null, name: "Administrator", role: "admin" as const };
 const at = "2026-10-13T09:00:00.000Z";
 describe("tracking report grouping", () => {
-  it("keeps each booking and its ordered events together and labels all sources in Arabic", () => {
+  it("keeps each booking and its ordered events together and labels all sources in English", () => {
     expect(timeline.trackingGroups).toBeDefined();
     const data = { bookings: [
       { booking: { id: "booking-a" }, events: [
@@ -22,9 +22,9 @@ describe("tracking report grouping", () => {
     const groups = timeline.trackingGroups(data);
     expect(groups.map(group => group.booking.id)).toEqual(["booking-a", "booking-b"]);
     expect(groups[0]!.events.map(event => event.title)).toEqual([
-      "أُنشئ الحجز: محجوز", "أُرسل للحلاق", "محجوز ← وصل الحلاق", "تصحيح: وصل الحلاق ← مكتمل", "تسجيل دفع كامل: 5.000 د.ك (كي نت)", "إلغاء قيد دفع خاطئ: 5.000 د.ك (كي نت)",
+      "Reservation created: Booked", "Sent to barber", "Booked → Barber arrived", "Correction: Barber arrived → Completed", "Record full payment: 5.000 KWD (KNET)", "Void an incorrect payment: 5.000 KWD (KNET)",
     ]);
-    expect(groups[0]!.events[2]).toMatchObject({ actor: "أحمد", role: "حلاق", reason: "وصل", at });
+    expect(groups[0]!.events[2]).toMatchObject({ actor: "أحمد", role: "barber", reason: "وصل", at });
     expect(groups[0]!.events[5]!.reason).toBe("خطأ");
     expect(groups[1]!.events).toEqual([]);
     expect(timeline.trackingGroups({ ...data, bookings: [] })).toEqual([]);
@@ -34,8 +34,8 @@ describe("tracking report grouping", () => {
     const before = { date: "2026-10-13", startTime: "10:00", endTime: "11:00", employee: { id: "a", displayName: "أحمد" }, address: { area: "حولي", block: "1", street: "1", houseNumber: "1" }, adultCount: 1, childCount: 2, specialChildCount: 0, notes: null, invoice: { total: "5.000" } };
     const data = { bookings: [{ booking: { id: "a" }, events: [{ type: "revision", at, actor, revision: { id: "r", before, after: { ...before, notes: "جرس الباب", specialChildCount: 1 }, reason: "تصحيح العدد" } }] }] } as unknown as BookingTrackingResponse;
     expect(timeline.trackingGroups(data)[0]!.events[0]).toMatchObject({
-      title: "تعديل الحجز", reason: "تصحيح العدد", actor: "المدير", role: "مدير",
-      details: ["العدد: من 1 بالغ و2 طفل (0 احتياج خاص) إلى 1 بالغ و2 طفل (1 احتياج خاص)", "الملاحظات: من «لا شيء» إلى «جرس الباب»"],
+      title: "Edit reservation", reason: "تصحيح العدد", actor: "Administrator", role: "Administrator",
+      details: ["Count: from 1 adult and 2 children (0 special needs) to 1 adult and 2 children (1 special needs)", "Notes: from None to جرس الباب"],
     });
   });
 });
@@ -49,7 +49,7 @@ describe("tracking report period", () => {
   });
   it("refuses a period longer than 31 days", () => {
     expect(trackingRangeError("2026-09-01", "2026-10-01")).toBeUndefined();
-    expect(trackingRangeError("2026-09-01", "2026-10-02")).toBe("الفترة لا تتجاوز 31 يومًا");
-    expect(trackingRangeError("2026-10-02", "2026-10-01")).toBe("تاريخ النهاية قبل تاريخ البداية");
+    expect(trackingRangeError("2026-09-01", "2026-10-02")).toBe("Period cannot exceed 31 days");
+    expect(trackingRangeError("2026-10-02", "2026-10-01")).toBe("End date is before start date");
   });
 });

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ChevronLeft, Plus, Scissors } from "lucide-react";
+import { ChevronRight, Plus, Scissors } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { Field, FormAlert } from "@/components/field";
@@ -25,23 +25,23 @@ function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", phone: "", password: "" } });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, phone: values.phone, password: values.password }, {
-    onSuccess: employee => { toast.success("تمت إضافة الحلاق"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
+    onSuccess: employee => { toast.success("Barber added"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
   }));
 
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) create.reset(); onOpenChange(value); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>إضافة حلاق</DialogTitle>
-          <DialogDescription>يدخل الحلاق برقم هاتفه وكلمة المرور هذه. أعطه كلمة المرور بنفسك.</DialogDescription>
+          <DialogTitle>Add barber</DialogTitle>
+          <DialogDescription>The barber logs in with this phone and password. Give them the password directly.</DialogDescription>
         </DialogHeader>
         <form id="employee-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-          <Field label="الاسم" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
-          <Field label="رقم الهاتف" error={errors.phone?.message} hint="بالصيغة الدولية، مثل ‎+96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
-          <Field label="كلمة المرور" error={errors.password?.message} hint="8 أحرف على الأقل."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
+          <Field label="Name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="Phone number" error={errors.phone?.message} hint="International format, e.g. +96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
+          <Field label="Password" error={errors.password?.message} hint="At least 8 characters."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>
         <FormAlert error={create.error} />
-        <DialogFooter><Button type="submit" form="employee-form" disabled={create.isPending}>إضافة الحلاق</Button></DialogFooter>
+        <DialogFooter><Button type="submit" form="employee-form" disabled={create.isPending}>Add barber</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -50,14 +50,14 @@ function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 function EmployeesScreen() {
   const employees = useEmployees();
   const [open, setOpen] = useState(false);
-  const addButton = <Button onClick={() => setOpen(true)}><Plus aria-hidden />إضافة حلاق</Button>;
+  const addButton = <Button onClick={() => setOpen(true)}><Plus aria-hidden />Add barber</Button>;
 
   return (
     <>
-      <PageHeader title="الحلاقون" description="حسابات الحلاقين وساعات عملهم." actions={addButton} />
+      <PageHeader title="Barbers" description="Barber accounts and working hours." actions={addButton} />
       <Card>
         {employees.isPending ? <LoadingRows /> : employees.isError ? <ErrorState error={employees.error} onRetry={() => employees.refetch()} /> : employees.data.length === 0 ? (
-          <EmptyState icon={Scissors} title="لا يوجد حلاقون بعد" description="أضف حلاقاً ليظهر في الحجوزات بعد تحديد ساعات عمله." />
+          <EmptyState icon={Scissors} title="No barbers yet" description="Add a barber and set their working hours to enable bookings." />
         ) : (
           <ul className="divide-y divide-border">
             {employees.data.map(employee => (
@@ -67,11 +67,11 @@ function EmployeesScreen() {
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {employee.displayName}
-                      {employee.enabled ? null : <Badge variant="muted">موقوف</Badge>}
+                      {employee.enabled ? null : <Badge variant="muted">Stopped</Badge>}
                     </p>
                     <p className="text-sm text-muted-foreground"><Ltr>{employee.phone}</Ltr></p>
                   </div>
-                  <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
+                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                 </Link>
               </li>
             ))}

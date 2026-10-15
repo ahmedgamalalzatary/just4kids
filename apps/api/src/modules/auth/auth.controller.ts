@@ -21,14 +21,14 @@ export function createAuthController(service: AuthService, env: ApiEnv) {
   const login: RequestHandler = async (request, response, next) => {
     try {
       if (!service.verifyChallenge(readCookie(request, preloginCookieName), request.get("X-CSRF-Token"))) {
-        deny(response, 403, "INVALID_CSRF", "رمز حماية الطلب غير صالح"); return;
+        deny(response, 403, "INVALID_CSRF", "Invalid request security token"); return;
       }
       const parsed = loginRequestSchema.safeParse(request.body);
-      if (!parsed.success) { deny(response, 400, "INVALID_INPUT", "بيانات الدخول غير صالحة"); return; }
+      if (!parsed.success) { deny(response, 400, "INVALID_INPUT", "Invalid login details"); return; }
       const result = await service.authenticate(parsed.data.phone, parsed.data.password, request.ip ?? "unknown", readCookie(request, sessionCookieName));
-      if (result.kind === "limited") { response.set("Retry-After", String(result.retryAfter)); deny(response, 429, "LOGIN_RATE_LIMITED", "محاولات كثيرة، حاول لاحقاً"); return; }
-      if (result.kind === "expired") { deny(response, 403, "ACCOUNT_EXPIRED", "حسابك منتهي الصلاحية، برجاء مراجعة الإدارة"); return; }
-      if (result.kind === "invalid") { deny(response, 401, "INVALID_CREDENTIALS", "رقم الهاتف أو كلمة المرور غير صحيحين"); return; }
+      if (result.kind === "limited") { response.set("Retry-After", String(result.retryAfter)); deny(response, 429, "LOGIN_RATE_LIMITED", "Too many attempts. Try again later"); return; }
+      if (result.kind === "expired") { deny(response, 403, "ACCOUNT_EXPIRED", "Your account has expired. Contact the administrator"); return; }
+      if (result.kind === "invalid") { deny(response, 401, "INVALID_CREDENTIALS", "Incorrect phone number or password"); return; }
       response.clearCookie(preloginCookieName, cookieOptions);
       response.cookie(sessionCookieName, result.session.token, { ...cookieOptions, maxAge: sessionLengthMs });
       response.set("Cache-Control", "no-store").json(sessionResponseSchema.parse({ account: result.session.account, expiresAt: result.session.expiresAt.toISOString(), csrfToken: service.csrf(result.session.token) }));
@@ -43,7 +43,7 @@ export function createAuthController(service: AuthService, env: ApiEnv) {
   const logout: RequestHandler = async (request, response, next) => {
     try {
       const authenticated = response.locals.auth as Authenticated;
-      if (!equalHex(request.get("X-CSRF-Token") ?? "", service.csrf(authenticated.token))) { deny(response, 403, "INVALID_CSRF", "رمز حماية الطلب غير صالح"); return; }
+      if (!equalHex(request.get("X-CSRF-Token") ?? "", service.csrf(authenticated.token))) { deny(response, 403, "INVALID_CSRF", "Invalid request security token"); return; }
       await service.revokeSession(authenticated.token);
       response.clearCookie(sessionCookieName, cookieOptions).set("Cache-Control", "no-store").status(204).end();
     } catch (error) { next(error); }

@@ -81,66 +81,64 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, duration
   });
 }
 
-const hourWords: Record<number, string> = { 1: "الواحدة", 2: "الثانية", 3: "الثالثة", 4: "الرابعة", 5: "الخامسة", 6: "السادسة", 7: "السابعة", 8: "الثامنة", 9: "التاسعة", 10: "العاشرة", 11: "الحادية عشرة", 12: "الثانية عشرة" };
+const hourWords: Record<number, string> = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve" };
 
 function dayPart(hours: number): string {
-  if (hours >= 5 && hours < 12) return "صباحاً";
-  if (hours >= 12 && hours < 16) return "ظهراً";
-  if (hours >= 16 && hours < 19) return "عصراً";
-  if (hours >= 19 && hours < 22) return "مساءً";
-  return "ليلاً";
+  if (hours >= 5 && hours < 12) return "in the morning";
+  if (hours >= 12 && hours < 16) return "at noon";
+  if (hours >= 16 && hours < 19) return "in the afternoon";
+  if (hours >= 19 && hours < 22) return "in the evening";
+  return "at night";
 }
 
-/** A local HH:mm time in Arabic words, e.g. "الرابعة والنصف عصراً". */
+/** A local HH:mm time in English words, e.g. "half past four in the afternoon". */
 export function timeWords(time: string): string {
   const hours = Number(time.slice(0, 2));
   const minutes = Number(time.slice(3, 5));
   const hourWord = hourWords[hours % 12 === 0 ? 12 : hours % 12]!;
-  const minuteWord = minutes === 0 ? "" : minutes === 30 ? " والنصف" : ` و${minutes} دقيقة`;
-  return `${hourWord}${minuteWord} ${dayPart(hours)}`;
+  const clock = minutes === 0 ? hourWord : minutes === 30 ? `half past ${hourWord}` : `${minutes} minute${minutes === 1 ? "" : "s"} past ${hourWord}`;
+  return `${clock} ${dayPart(hours)}`;
 }
 
 type ShareableBooking = {
   reference: string; date: string; startTime: string; endTime: string; adultCount: number; childCount: number; specialChildCount: number; notes: string | null;
-  client: { name: string; phone: string }; address: Parameters<typeof formatAddress>[0];
+  client: { phone: string }; address: Parameters<typeof formatAddress>[0];
 };
 
 export function haircutSummary(booking: Pick<ShareableBooking, "adultCount" | "childCount" | "specialChildCount">): string {
   return [
-    booking.childCount ? `${booking.childCount} طفل${booking.specialChildCount ? ` (${booking.specialChildCount} احتياجات خاصة)` : ""}` : null,
-    booking.adultCount ? `${booking.adultCount} بالغ` : null,
-  ].filter(Boolean).join("، ");
+    booking.childCount ? `${booking.childCount} ${booking.childCount === 1 ? "child" : "children"}${booking.specialChildCount ? ` (${booking.specialChildCount} with special needs)` : ""}` : null,
+    booking.adultCount ? `${booking.adultCount} adult${booking.adultCount === 1 ? "" : "s"}` : null,
+  ].filter(Boolean).join(", ");
 }
 
 /** A wa.me link to the barber with the visit details ready to send. */
 export function whatsAppLink(barberPhone: string, booking: ShareableBooking): string {
   const map = mapLink(booking.address);
   const lines = [
-    `حجز رقم ${booking.reference}`,
-    `التاريخ: ${formatDate(booking.date)}`,
-    `الوقت: ${formatWindow(booking.startTime, booking.endTime)}`,
-    `العميل: ${booking.client.name}`,
-    `الهاتف: ${booking.client.phone}`,
-    `العنوان: ${formatAddress(booking.address)}`,
-    booking.address.instructions ? `ملاحظات العنوان: ${booking.address.instructions}` : null,
-    map ? `الموقع: ${map}` : null,
-    `العدد: ${haircutSummary(booking)}`,
-    booking.notes ? `ملاحظات: ${booking.notes}` : null,
+    `Reservation ${booking.reference}`,
+    `Date: ${formatDate(booking.date)}`,
+    `Time: ${formatWindow(booking.startTime, booking.endTime)}`,
+    `Phone: ${booking.client.phone}`,
+    `Address: ${formatAddress(booking.address)}`,
+    map ? `Location: ${map}` : null,
+    `Count: ${haircutSummary(booking)}`,
+    booking.notes ? `Notes: ${booking.notes}` : null,
   ].filter(Boolean);
   return `https://wa.me/${barberPhone.replace(/\D/g, "")}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
 export const cancelReasons = [
-  { value: "not_home", label: "العميل غير متواجد" },
-  { value: "client_cancelled", label: "العميل ألغى الحجز" },
-  { value: "no_answer", label: "لا يوجد رد على الهاتف" },
-  { value: "location", label: "مشكلة في العنوان" },
-  { value: "traffic", label: "تأخير بسبب الزحمة" },
-  { value: "barber", label: "مشكلة من الحلاق" },
-  { value: "other", label: "سبب آخر" },
+  { value: "not_home", label: "Client not at home" },
+  { value: "client_cancelled", label: "Client cancelled" },
+  { value: "no_answer", label: "No answer on phone" },
+  { value: "location", label: "Address problem" },
+  { value: "traffic", label: "Traffic delay" },
+  { value: "barber", label: "Barber problem" },
+  { value: "other", label: "Other reason" },
 ] as const;
 
-/** The reason saved with a cancellation, or null when none is chosen or «سبب آخر» has no written reason. */
+/** The reason saved with a cancellation, or null when none is chosen or «Other reason» has no written reason. */
 export function cancelReasonText(reason: string, other: string): string | null {
   const option = cancelReasons.find(item => item.value === reason);
   if (!option) return null;

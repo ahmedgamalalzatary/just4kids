@@ -18,22 +18,22 @@ import { cn } from "@/lib/utils";
 type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label?: string; items: NavItem[] };
 
-const home: NavItem = { href: "/", label: "الرئيسية", icon: House };
+const home: NavItem = { href: "/", label: "Home", icon: House };
 
 // Grouped like the old dashboard sidebar the team is used to: barbers, system, reports.
 const adminNav: NavGroup[] = [
-  { items: [home, { href: "/bookings", label: "توجيه الحجز", icon: CalendarDays }] },
-  { label: "الحلاقون", items: [{ href: "/employees", label: "الحلاقون وساعات العمل", icon: Scissors }, { href: "/bookings/new", label: "حجز لحلاق", icon: CalendarPlus }] },
-  { label: "النظام", items: [{ href: "/clients", label: "العملاء", icon: Users }, { href: "/areas", label: "المناطق", icon: MapPin }, { href: "/branches", label: "الفروع", icon: Store }, { href: "/salon", label: "شغل الصالون", icon: Coins }, { href: "/collections", label: "تحصيلات الحلاقين", icon: Coins }] },
-  { label: "التقارير", items: [{ href: "/reports", label: "التقارير", icon: ChartColumn }, { href: "/reports/salon", label: "تقرير الصالون", icon: ChartPie }, { href: "/reports/comprehensive", label: "التقرير الشامل", icon: ClipboardList }] },
+  { items: [home, { href: "/bookings", label: "Reservation dispatch", icon: CalendarDays }] },
+  { label: "Barbers", items: [{ href: "/employees", label: "Barbers and working hours", icon: Scissors }, { href: "/bookings/new", label: "Book a barber", icon: CalendarPlus }] },
+  { label: "System", items: [{ href: "/clients", label: "Clients", icon: Users }, { href: "/areas", label: "Areas", icon: MapPin }, { href: "/branches", label: "Branches", icon: Store }, { href: "/salon", label: "Salon work", icon: Coins }, { href: "/collections", label: "Barber collections", icon: Coins }] },
+  { label: "Reports", items: [{ href: "/reports", label: "Reports", icon: ChartColumn }, { href: "/reports/salon", label: "Salon report", icon: ChartPie }, { href: "/reports/comprehensive", label: "Combined report", icon: ClipboardList }] },
 ];
 
 const employeeNav: NavGroup[] = [
-  { items: [home, { href: "/bookings", label: "حجوزاتي", icon: CalendarDays }, { href: "/schedule", label: "جدولي", icon: CalendarClock }, { href: "/collections", label: "تحصيلاتي", icon: Coins }, { href: "/reports", label: "تقاريري", icon: ChartColumn }, { href: "/profile", label: "ملفي", icon: UserRound }] },
+  { items: [home, { href: "/bookings", label: "My reservations", icon: CalendarDays }, { href: "/schedule", label: "My schedule", icon: CalendarClock }, { href: "/collections", label: "My collections", icon: Coins }, { href: "/reports", label: "My reports", icon: ChartColumn }, { href: "/profile", label: "My profile", icon: UserRound }] },
 ];
 
 // The phone bar keeps the five places used most during the day.
-const adminQuick: NavItem[] = [home, { href: "/bookings", label: "الحجوزات", icon: CalendarDays }, { href: "/employees", label: "الحلاقون", icon: Scissors }, { href: "/clients", label: "العملاء", icon: Users }, { href: "/reports", label: "التقارير", icon: ChartColumn }];
+const adminQuick: NavItem[] = [home, { href: "/bookings", label: "Reservations", icon: CalendarDays }, { href: "/employees", label: "Barbers", icon: Scissors }, { href: "/clients", label: "Clients", icon: Users }, { href: "/reports", label: "Reports", icon: ChartColumn }];
 const employeeQuick: NavItem[] = employeeNav[0]!.items;
 
 /** The single link that best matches the address, so a parent and its child page are never both highlighted. */
@@ -77,7 +77,7 @@ function NavLinks({ groups, pathname, onNavigate }: { groups: NavGroup[]; pathna
 function AccountFooter({ account }: { account: Account }) {
   const logout = useLogout();
   const me = useMyEmployee(account.role === "employee");
-  const name = account.role === "admin" ? "المدير" : me.data?.displayName;
+  const name = account.role === "admin" ? "Administrator" : me.data?.displayName;
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-4">
       <div className="flex items-center gap-3 px-1">
@@ -93,7 +93,7 @@ function AccountFooter({ account }: { account: Account }) {
         <ThemeToggle />
         <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
           <LogOut aria-hidden />
-          خروج
+          Log out
         </Button>
       </div>
     </div>
@@ -116,8 +116,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="grid min-h-dvh place-items-center" aria-busy="true">
         {session.isError ? (
           <div className="flex flex-col items-center gap-3 text-center">
-            <p className="text-sm">تعذر الاتصال بالخادم.</p>
-            <Button variant="outline" onClick={() => session.refetch()}>إعادة المحاولة</Button>
+            <p className="text-sm">Could not connect to the server.</p>
+            <Button variant="outline" onClick={() => session.refetch()}>Retry</Button>
           </div>
         ) : <Wordmark className="animate-pulse opacity-60" />}
       </div>
@@ -132,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-5 border-e border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex" data-print-hidden>
         <Link href="/" className="px-2"><Wordmark /></Link>
-        <nav aria-label="القائمة الرئيسية" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} /></nav>
+        <nav aria-label="Main navigation" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} /></nav>
         <AccountFooter account={account} />
       </aside>
 
@@ -140,13 +140,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur lg:hidden" data-print-hidden>
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="القائمة"><Menu /></Button>
+              <Button variant="ghost" size="icon" aria-label="Menu"><Menu /></Button>
             </SheetTrigger>
-            <SheetContent side="right" className="flex w-72 flex-col gap-6 bg-sidebar p-5">
-              <SheetTitle className="sr-only">القائمة</SheetTitle>
-              <SheetDescription className="sr-only">التنقل والحساب</SheetDescription>
+            <SheetContent side="left" className="flex w-72 flex-col gap-6 bg-sidebar p-5">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <SheetDescription className="sr-only">Navigation and account</SheetDescription>
               <Wordmark className="self-start px-2" />
-              <nav aria-label="القائمة الرئيسية" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} onNavigate={() => setMenuOpen(false)} /></nav>
+              <nav aria-label="Main navigation" className="flex-1 overflow-y-auto"><NavLinks groups={groups} pathname={pathname} onNavigate={() => setMenuOpen(false)} /></nav>
               <AccountFooter account={account} />
             </SheetContent>
           </Sheet>
@@ -155,7 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-24 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">{children}</main>
 
-        <nav aria-label="التنقل السريع" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" data-print-hidden>
+        <nav aria-label="Quick navigation" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" data-print-hidden>
           <ul className="grid" style={{ gridTemplateColumns: `repeat(${quick.length}, minmax(0, 1fr))` }}>
             {quick.map(item => {
               const active = item.href === quickActive;
@@ -179,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 export function AdminOnly({ children }: { children: ReactNode }) {
   const session = useSession();
   if (session.data?.account.role !== "admin") {
-    return <p className="py-16 text-center text-sm text-muted-foreground">هذه الصفحة متاحة للمدير فقط.</p>;
+    return <p className="py-16 text-center text-sm text-muted-foreground">This page is available to administrators only.</p>;
   }
   return children;
 }

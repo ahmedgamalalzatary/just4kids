@@ -29,7 +29,7 @@ export function TimeChip({ booking, className }: { booking: Pick<Booking, "start
 
 /** The orange dot that marks a booking the assigned barber has not opened yet. */
 export function NewBookingDot({ className }: { className?: string }) {
-  return <span role="img" aria-label="حجز جديد" title="لم تفتح هذا الحجز بعد" className={cn("inline-block size-2.5 shrink-0 rounded-full bg-sun ring-2 ring-sun/25", className)} />;
+  return <span role="img" aria-label="New reservation" title="You have not opened this reservation yet" className={cn("inline-block size-2.5 shrink-0 rounded-full bg-sun ring-2 ring-sun/25", className)} />;
 }
 
 /** Opens WhatsApp to the barber with the visit details, recording the send in the booking history first (G13). */
@@ -43,16 +43,16 @@ export function WhatsAppButton({ booking, barberPhone, size = "sm" }: { booking:
         onClick={async () => {
           setProblem(null);
           try { await sendLoggedWhatsApp(whatsAppLink(barberPhone, booking), () => send.mutateAsync({ id: booking.id })); }
-          catch (error) { setProblem(error instanceof Error ? error : new Error("تعذر تسجيل الإرسال، حاول مرة أخرى")); }
+          catch (error) { setProblem(error instanceof Error ? error : new Error("Could not record the send. Try again")); }
         }}>
-        <MessageCircle aria-hidden />واتساب
+        <MessageCircle aria-hidden />WhatsApp
       </Button>
       {problem ? <span role="alert" className="text-xs text-destructive">{problem.message}</span> : null}
     </span>
   );
 }
 
-/** One row of the administrator's day list («توجيه الحجز»): barber, time, client, counts, and the quick actions. */
+/** One row of the administrator's day list («Reservation dispatch»): barber, time, client, counts, and the quick actions. */
 export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking: Booking; barberPhone: string | undefined; photoVersion?: string | null | undefined }) {
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -67,8 +67,8 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
         <TimeChip booking={booking} />
       </div>
       <Link href={`/bookings/${booking.id}`} className="min-w-0 rounded-md hover:underline">
-        <p className="flex flex-wrap items-center gap-x-2 font-medium">{booking.client.name} <Ltr className="text-sm font-normal text-muted-foreground">{booking.client.phone}</Ltr></p>
-        <p className="truncate text-sm text-muted-foreground">{booking.address.area}، {haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
+        <p className="flex flex-wrap items-center gap-x-2 font-medium"><Ltr className="text-sm font-normal">{booking.client.phone}</Ltr></p>
+        <p className="truncate text-sm text-muted-foreground">{booking.address.area}, {haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <VisitStatusBadge status={booking.visitStatus} />
           <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
@@ -77,8 +77,8 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
       </Link>
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
         {!muted ? <WhatsAppButton booking={booking} barberPhone={barberPhone} /> : null}
-        {canEditBooking(booking) ? <Button size="sm" variant="sun" onClick={() => setEditOpen(true)}><Pencil aria-hidden />تعديل</Button> : null}
-        {cancellable(booking) ? <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}><X aria-hidden />إلغاء</Button> : null}
+        {canEditBooking(booking) ? <Button size="sm" variant="sun" onClick={() => setEditOpen(true)}><Pencil aria-hidden />Edit</Button> : null}
+        {cancellable(booking) ? <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}><X aria-hidden />Cancel</Button> : null}
       </div>
       <BookingEditDialog booking={booking} open={editOpen} onOpenChange={setEditOpen} />
       <CancelVisitDialog booking={booking} open={cancelOpen} onOpenChange={setCancelOpen} />
@@ -103,16 +103,16 @@ export function VisitCard({ booking }: { booking: Booking }) {
         </span>
       </div>
       <div>
-        <p className="text-lg font-semibold">{booking.client.name}</p>
+        <p className="text-lg font-semibold">{booking.client.phone}</p>
         <p className="text-sm">{formatAddress(booking.address)}</p>
-        {booking.address.instructions ? <p className="mt-0.5 text-sm text-muted-foreground">{booking.address.instructions}</p> : null}
+
         <p className="mt-1 text-sm text-muted-foreground">{haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
-        {booking.notes ? <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">ملاحظات: {booking.notes}</p> : null}
+        {booking.notes ? <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">Notes: {booking.notes}</p> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline"><a href={`tel:${booking.client.phone}`}><Phone aria-hidden />اتصال <Ltr>{booking.client.phone}</Ltr></a></Button>
-        {map ? <Button asChild variant="outline"><a href={map} target="_blank" rel="noopener noreferrer"><MapPin aria-hidden />الموقع</a></Button> : null}
-        <Button asChild variant="ghost"><Link href={`/bookings/${booking.id}`}>التفاصيل</Link></Button>
+        <Button asChild variant="outline"><a href={`tel:${booking.client.phone}`}><Phone aria-hidden />Call <Ltr>{booking.client.phone}</Ltr></a></Button>
+        {map ? <Button asChild variant="outline"><a href={map} target="_blank" rel="noopener noreferrer"><MapPin aria-hidden />Location</a></Button> : null}
+        <Button asChild variant="ghost"><Link href={`/bookings/${booking.id}`}>Details</Link></Button>
       </div>
       {cancellable(booking) || canRecordPayment(booking, isAdmin) ? (
         <div className="flex flex-wrap items-start gap-2 border-t border-border pt-3">

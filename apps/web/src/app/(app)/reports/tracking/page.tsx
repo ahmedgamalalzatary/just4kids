@@ -13,7 +13,7 @@ function TrackingScreen() {
   const report = useBookingTrackingReport(filters, isAdmin);
   if (report.isPending) return <Card><LoadingRows /></Card>;
   if (report.isError) return <Card><ErrorState error={report.error} onRetry={() => report.refetch()} /></Card>;
-  return <div className={cn(report.isPlaceholderData && "opacity-60")}><p className="mb-4 text-xs text-muted-foreground">الحجوزات من الأحدث إلى الأقدم، وحركات كل حجز من الأقدم إلى الأحدث. إرسال واتساب يسجل إجراء الإرسال، ولا يؤكد وصول الرسالة.</p><TrackingBookings data={report.data} /></div>;
+  return <div className={cn(report.isPlaceholderData && "opacity-60")}><p className="mb-4 text-xs text-muted-foreground">Reservations are newest first; each history is oldest first. WhatsApp records the send action, not delivery.</p><TrackingBookings data={report.data} /></div>;
 }
 
 export default function BookingTrackingPage() {

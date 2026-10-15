@@ -40,7 +40,7 @@ function validateBooking(value: Pick<z.infer<typeof bookingFields>, "date" | "st
 }
 export const bookingCreateSchema = bookingFields.superRefine(validateBooking);
 export const bookingWithClientCreateSchema = bookingFields.omit({ clientId: true, addressId: true }).extend({
-  client: z.strictObject({ phone: phoneSchema, name: z.string().trim().max(120).optional(), address: addressCreateSchema.safeExtend({ areaId: z.uuid() }) }),
+  client: z.strictObject({ phone: phoneSchema, address: addressCreateSchema.safeExtend({ areaId: z.uuid() }) }),
 }).superRefine(validateBooking);
 export type BookingWithClientCreate = z.infer<typeof bookingWithClientCreateSchema>;
 // Historical JSON snapshots predate these optional address details; current client-address responses stay strict.
@@ -49,7 +49,7 @@ export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: tru
   gate: addressResponseSchema.shape.gate.default(null),
   blueNumber: addressResponseSchema.shape.blueNumber.default(null),
 });
-export const bookingClientSnapshotSchema = z.strictObject({ name: z.string().min(1).max(120), phone: phoneSchema });
+export const bookingClientSnapshotSchema = z.strictObject({ phone: phoneSchema });
 // Snapshots saved while barbers and bookings had a branch still carry it; bookings no longer have one, so it is dropped on read.
 const withoutKeys = (keys: string[]) => (value: unknown) => typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key))) : value;
 export const bookingEmployeeSnapshotSchema = z.preprocess(withoutKeys(["branchId", "branchName", "branchLocation"]), z.strictObject({ id: z.uuid(), displayName: z.string().min(1).max(120) }));

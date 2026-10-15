@@ -21,7 +21,7 @@ function serialize(row: Record) {
 function rethrowDatabaseConflict(error: unknown): never {
   const underlying = typeof error === "object" && error !== null && "cause" in error ? error.cause : error;
   if (typeof underlying === "object" && underlying !== null && "code" in underlying && underlying.code === "ER_DUP_ENTRY") {
-    throw new HttpError(409, "PHONE_ALREADY_USED", "رقم الهاتف مستخدم بالفعل");
+    throw new HttpError(409, "PHONE_ALREADY_USED", "Phone number is already in use");
   }
   throw error;
 }

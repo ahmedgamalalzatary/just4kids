@@ -1,6 +1,6 @@
 // All schedule and booking times are Asia/Kuwait local values (UTC+3, no daylight saving).
 export const KUWAIT_TIME_ZONE = "Asia/Kuwait";
-const locale = "ar-KW-u-nu-latn";
+const locale = "en-KW";
 
 const partsFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: KUWAIT_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -36,11 +36,11 @@ export function formatShortDate(date: string): string {
   return shortDateFormatter.format(new Date(`${date}T00:00:00.000Z`));
 }
 
-/** Formats a local HH:mm time as a 12-hour Arabic time with Western digits, e.g. "4:30 م". */
+/** Formats a local HH:mm time as a 12-hour English time, e.g. "4:30 PM". */
 export function formatTime(time: string): string {
   const hours = Number(time.slice(0, 2));
   const minutes = time.slice(3, 5);
-  return `${hours % 12 === 0 ? 12 : hours % 12}:${minutes} ${hours < 12 ? "ص" : "م"}`;
+  return `${hours % 12 === 0 ? 12 : hours % 12}:${minutes} ${hours < 12 ? "AM" : "PM"}`;
 }
 
 export function formatWindow(startTime: string, endTime: string): string {
@@ -52,20 +52,17 @@ export function formatDateTime(iso: string): string {
   return dateTimeFormatter.format(new Date(iso));
 }
 
-// Arabic counted nouns: one and two have their own words, 3–10 (by the last two digits) take the plural, and the rest the singular.
-function counted(count: number, one: string, two: string, plural: string): string {
-  if (count === 1) return one;
-  if (count === 2) return two;
-  return count % 100 >= 3 && count % 100 <= 10 ? `${count} ${plural}` : `${count} ${one}`;
+function counted(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  const minuteText = counted(rest, "دقيقة", "دقيقتان", "دقائق");
+  const minuteText = counted(rest, "minute");
   if (hours === 0) return minuteText;
-  const hourText = counted(hours, "ساعة", "ساعتان", "ساعات");
-  return rest === 0 ? hourText : `${hourText} و${minuteText}`;
+  const hourText = counted(hours, "hour");
+  return rest === 0 ? hourText : `${hourText} and ${minuteText}`;
 }
 
-export const WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"] as const;
+export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;

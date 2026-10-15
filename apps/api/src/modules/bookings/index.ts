@@ -21,7 +21,7 @@ export function createBookings(connection: ReturnType<typeof createDatabase>, au
   const router = Router();
   const handle = (action: RequestHandler): RequestHandler => async (request, response, next) => {
     try { await action(request, response, next); }
-    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات الحجز غير صالحة"); return; } next(error); }
+    catch (error) { if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid reservation details"); return; } next(error); }
   };
   router.use((_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
   router.use(auth.requireAuth);
@@ -45,7 +45,7 @@ export function createBookings(connection: ReturnType<typeof createDatabase>, au
   }));
   const detail = (invoiceOnly: boolean): RequestHandler => handle(async (request, response) => {
     const booking = await service.get(String(request.params.id), (response.locals.auth as Authenticated).account);
-    if (!booking) { deny(response, 404, "NOT_FOUND", "الحجز غير موجود"); return; }
+    if (!booking) { deny(response, 404, "NOT_FOUND", "Reservation not found"); return; }
     response.json(invoiceOnly ? booking.invoice : booking);
   });
   router.get("/:id/invoice", detail(true));

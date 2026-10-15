@@ -16,7 +16,7 @@ import type { ReportFilters } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
 function haircuts(booking: { adultCount: number; childCount: number }) {
-  return [booking.adultCount ? `${booking.adultCount} بالغ` : null, booking.childCount ? `${booking.childCount} طفل` : null].filter(Boolean).join("، ");
+  return [booking.adultCount ? `${booking.adultCount} adult` : null, booking.childCount ? `${booking.childCount} child` : null].filter(Boolean).join(", ");
 }
 
 function BookingRow({ booking, showBarber }: { booking: ReservationReport["bookings"][number]; showBarber: boolean }) {
@@ -31,15 +31,15 @@ function BookingRow({ booking, showBarber }: { booking: ReservationReport["booki
           <Ltr className="min-w-0 break-all text-xs text-muted-foreground">{booking.reference}</Ltr>
         </div>
         <div className="min-w-0">
-          <p className="truncate font-medium">{booking.client.name}</p>
+          <p className="truncate font-medium">{booking.client.phone}</p>
           <p className="truncate text-sm text-muted-foreground">
-            {booking.address.area}، {haircuts(booking)}{showBarber ? `، مع ${booking.employee.displayName}` : ""}
+            {booking.address.area}, {haircuts(booking)}{showBarber ? `, with ${booking.employee.displayName}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <SourceLabel source={booking.source} />
-            <span className="text-xs text-muted-foreground">أُنشئ {formatDateTime(booking.createdAt)}</span>
-            {booking.editCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.editCount} تعديل</span> : null}
-            {booking.correctionCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.correctionCount} تصحيح حالة</span> : null}
+            <span className="text-xs text-muted-foreground">Created {formatDateTime(booking.createdAt)}</span>
+            {booking.editCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.editCount} Edit</span> : null}
+            {booking.correctionCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.correctionCount} Status correction</span> : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -63,11 +63,11 @@ function ReservationsReport({ filters, isAdmin }: { filters: ReportFilters; isAd
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>تفاصيل الحجوزات</CardTitle>
-            <CardDescription>{filters.dateBasis === "created_date" ? "الأحدث إنشاءً أولاً." : "الأحدث موعداً أولاً."} افتح الحجز لعرض الفاتورة والسجل.</CardDescription>
+            <CardTitle>Reservation details</CardTitle>
+            <CardDescription>{filters.dateBasis === "created_date" ? "Newest created first." : "Latest appointment first."} Open the reservation to view its invoice and history.</CardDescription>
           </div>
         </CardHeader>
-        {data.bookings.length === 0 ? <EmptyState icon={CalendarDays} title="لا توجد حجوزات مطابقة" description="غيّر الفترة أو المرشحات لعرض حجوزات أخرى." /> : (
+        {data.bookings.length === 0 ? <EmptyState icon={CalendarDays} title="No matching reservations" description="Change the period or filters to view other reservations." /> : (
           <>
             <ul className="divide-y divide-border">{data.bookings.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} />)}</ul>
             <div data-print-hidden><Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={setOffset} /></div>

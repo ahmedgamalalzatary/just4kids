@@ -1,13 +1,8 @@
 import { z } from "zod";
 import { phoneSchema } from "./auth.js";
 
-const name = z.string().trim().min(1).max(120);
 const addressPart = z.string().trim().min(1).max(120);
 const optionalPart = addressPart.nullable().optional();
-const coordinate = (limit: number) => z.string().regex(/^-?(?:0|[1-9][0-9]{0,2})(?:\.[0-9]{1,7})?$/)
-  .refine(value => Math.abs(Number(value)) <= limit);
-const latitude = coordinate(90);
-const longitude = coordinate(180);
 const googleMapsUrl = z.url().max(2048).refine(value => {
   const url = new URL(value);
   const host = url.hostname.toLowerCase();
@@ -30,15 +25,11 @@ const addressFields = z.strictObject({
   blueNumber: optionalPart,
   floor: optionalPart,
   apartment: optionalPart,
-  instructions: z.string().trim().min(1).max(1000).nullable().optional(),
   mapsUrl: googleMapsUrl.nullable().optional(),
-  latitude: latitude.nullable().optional(),
-  longitude: longitude.nullable().optional(),
 });
 
 export const addressCreateSchema = addressFields.superRefine((address, context) => {
   if (!address.houseNumber && !address.buildingName) context.addIssue({ code: "custom", path: ["houseNumber"], message: "House number or building name is required" });
-  if (Boolean(address.latitude) !== Boolean(address.longitude)) context.addIssue({ code: "custom", path: ["longitude"], message: "Both location coordinates are required" });
 });
 export const addressUpdateSchema = addressFields.partial().refine(value => Object.keys(value).length > 0);
 export const addressResponseSchema = z.strictObject({
@@ -54,17 +45,14 @@ export const addressResponseSchema = z.strictObject({
   blueNumber: addressPart.nullable(),
   floor: addressPart.nullable(),
   apartment: addressPart.nullable(),
-  instructions: z.string().trim().min(1).max(1000).nullable(),
   mapsUrl: googleMapsUrl.nullable(),
-  latitude: latitude.nullable(),
-  longitude: longitude.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
 
-export const clientCreateSchema = z.strictObject({ name, phone: phoneSchema, address: addressCreateSchema });
-export const clientUpdateSchema = z.strictObject({ name: name.optional(), phone: phoneSchema.optional() }).refine(value => Object.keys(value).length > 0);
-export const clientSummarySchema = z.strictObject({ id: z.uuid(), name, phone: phoneSchema, enabled: z.boolean(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
+export const clientCreateSchema = z.strictObject({ phone: phoneSchema, address: addressCreateSchema });
+export const clientUpdateSchema = z.strictObject({ phone: phoneSchema.optional() }).refine(value => Object.keys(value).length > 0);
+export const clientSummarySchema = z.strictObject({ id: z.uuid(), phone: phoneSchema, enabled: z.boolean(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
 export const clientResponseSchema = clientSummarySchema.extend({ addresses: z.array(addressResponseSchema) });
 export const clientLookupResponseSchema = clientResponseSchema.extend({ lastUsedAddressId: z.uuid().nullable() });
 export const clientSearchSchema = z.strictObject({

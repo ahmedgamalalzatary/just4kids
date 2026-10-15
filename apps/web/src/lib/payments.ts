@@ -1,6 +1,6 @@
 import type { PaymentMethod } from "@just4kids/contracts";
 
-export const paymentMethodLabels: Record<PaymentMethod, string> = { cash: "نقداً", link: "رابط دفع", knet: "كي نت" };
+export const paymentMethodLabels: Record<PaymentMethod, string> = { cash: "Cash", link: "Payment link", knet: "KNET" };
 
 export const paymentMethodOptions: { value: PaymentMethod; label: string }[] = [
   { value: "cash", label: paymentMethodLabels.cash },

@@ -18,12 +18,12 @@ import { cn } from "@/lib/utils";
 
 type Interval = { startTime: string; endTime: string };
 
-/** Returns an Arabic problem description, or null when the shifts are valid for the API. */
+/** Returns an English problem description, or null when the shifts are valid for the API. */
 export function intervalsProblem(intervals: Interval[]): string | null {
-  if (intervals.some(interval => !interval.startTime || !interval.endTime)) return "اكتب وقت البداية والنهاية لكل فترة";
-  if (intervals.some(interval => minuteOfDay(interval.endTime) <= minuteOfDay(interval.startTime))) return "يجب أن تنتهي كل فترة بعد بدايتها في اليوم نفسه";
+  if (intervals.some(interval => !interval.startTime || !interval.endTime)) return "Enter start and end times for each shift";
+  if (intervals.some(interval => minuteOfDay(interval.endTime) <= minuteOfDay(interval.startTime))) return "Each shift must end after it starts on the same day";
   const sorted = [...intervals].sort((a, b) => a.startTime.localeCompare(b.startTime));
-  for (let index = 1; index < sorted.length; index++) if (sorted[index]!.startTime < sorted[index - 1]!.endTime) return "الفترات متداخلة";
+  for (let index = 1; index < sorted.length; index++) if (sorted[index]!.startTime < sorted[index - 1]!.endTime) return "Shifts overlap";
   return null;
 }
 
@@ -33,14 +33,14 @@ function IntervalsEditor({ intervals, onChange, label }: { intervals: Interval[]
     <div className="flex flex-col gap-2">
       {intervals.map((interval, index) => (
         <div key={index} className="flex items-center gap-2">
-          <Input type="time" aria-label={`${label}: بداية الفترة ${index + 1}`} value={interval.startTime} onChange={event => set(index, { startTime: event.target.value })} className="w-32" dir="ltr" />
-          <span className="text-xs text-muted-foreground">إلى</span>
-          <Input type="time" aria-label={`${label}: نهاية الفترة ${index + 1}`} value={interval.endTime} onChange={event => set(index, { endTime: event.target.value })} className="w-32" dir="ltr" />
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`حذف الفترة ${index + 1}`} onClick={() => onChange(intervals.filter((_, current) => current !== index))}><X /></Button>
+          <Input type="time" aria-label={`${label}: interval start ${index + 1}`} value={interval.startTime} onChange={event => set(index, { startTime: event.target.value })} className="w-32" dir="ltr" />
+          <span className="text-xs text-muted-foreground">To</span>
+          <Input type="time" aria-label={`${label}: interval end ${index + 1}`} value={interval.endTime} onChange={event => set(index, { endTime: event.target.value })} className="w-32" dir="ltr" />
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Delete shift ${index + 1}`} onClick={() => onChange(intervals.filter((_, current) => current !== index))}><X /></Button>
         </div>
       ))}
       <Button type="button" variant="ghost" size="sm" className="w-fit text-primary" onClick={() => onChange([...intervals, { startTime: "", endTime: "" }])}>
-        <Plus aria-hidden />{intervals.length === 0 ? "إضافة فترة عمل" : "فترة أخرى"}
+        <Plus aria-hidden />{intervals.length === 0 ? "Add shift" : "Another shift"}
       </Button>
     </div>
   );
@@ -64,7 +64,7 @@ export function WeeklyScheduleEditor({ employeeId, schedule }: { employeeId: str
     setProblem(null);
     replace.mutate(
       { id: employeeId, days: days.map((intervals, dayOfWeek) => ({ dayOfWeek, intervals })).filter(day => day.intervals.length > 0) },
-      { onSuccess: updated => { setDays(toDays(updated)); toast.success("تم حفظ الجدول الأسبوعي"); } },
+      { onSuccess: updated => { setDays(toDays(updated)); toast.success("Weekly schedule saved"); } },
     );
   };
 
@@ -72,8 +72,8 @@ export function WeeklyScheduleEditor({ employeeId, schedule }: { employeeId: str
     <Card>
       <CardHeader>
         <div>
-          <CardTitle>ساعات العمل الأسبوعية</CardTitle>
-          <CardDescription>تتكرر كل أسبوع بتوقيت الكويت. يمكن تقسيم اليوم إلى عدة فترات.</CardDescription>
+          <CardTitle>Weekly working hours</CardTitle>
+          <CardDescription>Repeats weekly in Kuwait time. A day can contain multiple shifts.</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-0 p-0">
@@ -89,8 +89,8 @@ export function WeeklyScheduleEditor({ employeeId, schedule }: { employeeId: str
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={replace.error} />
           <div className="flex gap-2">
-            <Button onClick={save} disabled={!dirty || replace.isPending}>حفظ الجدول</Button>
-            {dirty ? <Button variant="ghost" onClick={() => { setDays(toDays(schedule)); setProblem(null); replace.reset(); }}>تراجع</Button> : null}
+            <Button onClick={save} disabled={!dirty || replace.isPending}>Save schedule</Button>
+            {dirty ? <Button variant="ghost" onClick={() => { setDays(toDays(schedule)); setProblem(null); replace.reset(); }}>Undo</Button> : null}
           </div>
         </div>
       </CardContent>
@@ -106,12 +106,12 @@ function ExceptionDialog({ employeeId, open, onOpenChange }: { employeeId: strin
   const [problem, setProblem] = useState<string | null>(null);
 
   const save = () => {
-    if (!date) { setProblem("اختر التاريخ"); return; }
-    const issue = closed ? null : intervals.length === 0 ? "أضف فترة عمل واحدة على الأقل أو اجعل اليوم مغلقاً" : intervalsProblem(intervals);
+    if (!date) { setProblem("Select date"); return; }
+    const issue = closed ? null : intervals.length === 0 ? "Add at least one shift or close the day" : intervalsProblem(intervals);
     if (issue) { setProblem(issue); return; }
     setProblem(null);
     replace.mutate({ id: employeeId, date, intervals: closed ? [] : intervals }, {
-      onSuccess: () => { toast.success("تم حفظ الاستثناء"); onOpenChange(false); setDate(""); setClosed(true); setIntervals([{ startTime: "", endTime: "" }]); },
+      onSuccess: () => { toast.success("Exception saved"); onOpenChange(false); setDate(""); setClosed(true); setIntervals([{ startTime: "", endTime: "" }]); },
     });
   };
 
@@ -119,20 +119,20 @@ function ExceptionDialog({ employeeId, open, onOpenChange }: { employeeId: strin
     <Dialog open={open} onOpenChange={value => { if (!value) { replace.reset(); setProblem(null); } onOpenChange(value); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>استثناء ليوم محدد</DialogTitle>
-          <DialogDescription>يستبدل ساعات ذلك اليوم فقط، أو يغلقه. استثناء جديد لنفس التاريخ يحل محل السابق.</DialogDescription>
+          <DialogTitle>Exception for a specific day</DialogTitle>
+          <DialogDescription>Replaces this day&apos;s hours or closes it. Another exception for the same date replaces this one.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field label="التاريخ"><Input type="date" value={date} min={kuwaitNow().date} onChange={event => setDate(event.target.value)} dir="ltr" className="w-48" /></Field>
+          <Field label="Date"><Input type="date" value={date} min={kuwaitNow().date} onChange={event => setDate(event.target.value)} dir="ltr" className="w-48" /></Field>
           <div className="flex items-center gap-3">
             <Switch id="exception-closed" checked={closed} onCheckedChange={setClosed} />
-            <Label htmlFor="exception-closed">اليوم مغلق</Label>
+            <Label htmlFor="exception-closed">Day closed</Label>
           </div>
-          {closed ? null : <IntervalsEditor label="الاستثناء" intervals={intervals} onChange={setIntervals} />}
+          {closed ? null : <IntervalsEditor label="Exception" intervals={intervals} onChange={setIntervals} />}
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={replace.error} />
         </div>
-        <DialogFooter><Button onClick={save} disabled={replace.isPending}>حفظ الاستثناء</Button></DialogFooter>
+        <DialogFooter><Button onClick={save} disabled={replace.isPending}>Save exception</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -148,13 +148,13 @@ export function ExceptionsCard({ employeeId, schedule, editable }: { employeeId:
     <Card>
       <CardHeader>
         <div>
-          <CardTitle>أيام مستثناة</CardTitle>
-          <CardDescription>إغلاق يوم أو تغيير ساعاته لتاريخ معيّن.</CardDescription>
+          <CardTitle>Date exceptions</CardTitle>
+          <CardDescription>Close a day or change its hours for a specific date.</CardDescription>
         </div>
-        {editable ? <Button variant="outline" size="sm" onClick={() => setOpen(true)}><CalendarPlus aria-hidden />إضافة استثناء</Button> : null}
+        {editable ? <Button variant="outline" size="sm" onClick={() => setOpen(true)}><CalendarPlus aria-hidden />Add exception</Button> : null}
       </CardHeader>
       {upcoming.length === 0 ? (
-        <EmptyState icon={CalendarOff} title="لا توجد استثناءات قادمة" className="py-8" />
+        <EmptyState icon={CalendarOff} title="No upcoming exceptions" className="py-8" />
       ) : (
         <ul className="divide-y divide-border">
           {upcoming.map(exception => (
@@ -162,12 +162,12 @@ export function ExceptionsCard({ employeeId, schedule, editable }: { employeeId:
               <div>
                 <p className="text-sm font-medium">{formatDate(exception.date)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {exception.intervals.length === 0 ? "مغلق" : exception.intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join("، ")}
+                  {exception.intervals.length === 0 ? "Closed" : exception.intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join(", ")}
                 </p>
               </div>
               {editable ? (
-                <Button variant="ghost" size="icon-sm" aria-label={`حذف استثناء ${formatDate(exception.date)}`} disabled={remove.isPending}
-                  onClick={() => remove.mutate({ id: employeeId, date: exception.date }, { onSuccess: () => toast.success("تم حذف الاستثناء"), onError: error => toast.error(error.message) })}>
+                <Button variant="ghost" size="icon-sm" aria-label={`Delete exception ${formatDate(exception.date)}`} disabled={remove.isPending}
+                  onClick={() => remove.mutate({ id: employeeId, date: exception.date }, { onSuccess: () => toast.success("Exception deleted"), onError: error => toast.error(error.message) })}>
                   <Trash2 />
                 </Button>
               ) : null}
@@ -186,13 +186,13 @@ export function WeeklyScheduleView({ schedule }: { schedule: Schedule }) {
   const today = new Date(`${kuwaitNow().date}T00:00:00.000Z`).getUTCDay();
   return (
     <Card>
-      <CardHeader><CardTitle>ساعات العمل الأسبوعية</CardTitle></CardHeader>
+      <CardHeader><CardTitle>Weekly working hours</CardTitle></CardHeader>
       <ul className="divide-y divide-border">
         {days.map((intervals, day) => (
           <li key={day} className={cn("flex items-center justify-between gap-3 px-5 py-3", day === today && "bg-accent/60")}>
-            <span className="text-sm font-medium">{WEEKDAYS[day]}{day === today ? <span className="ms-2 text-xs font-normal text-primary">اليوم</span> : null}</span>
+            <span className="text-sm font-medium">{WEEKDAYS[day]}{day === today ? <span className="ms-2 text-xs font-normal text-primary">Today</span> : null}</span>
             <span className={cn("text-sm", intervals.length === 0 && "text-muted-foreground")}>
-              {intervals.length === 0 ? "إجازة" : intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join("، ")}
+              {intervals.length === 0 ? "Day off" : intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join(", ")}
             </span>
           </li>
         ))}

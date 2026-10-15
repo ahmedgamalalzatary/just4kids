@@ -12,7 +12,7 @@ const PHOTO_EDGE = 512;
 // A 24 MP cap covers any phone photo while keeping peak decode memory well inside the container limit.
 const MAX_INPUT_PIXELS = 24_000_000;
 const allowedFormats = new Set(["jpeg", "png", "webp"]);
-const unsupported = () => new HttpError(415, "UNSUPPORTED_PHOTO_TYPE", "صيغة الصورة غير مدعومة، استخدم JPEG أو PNG أو WEBP");
+const unsupported = () => new HttpError(415, "UNSUPPORTED_PHOTO_TYPE", "Unsupported photo format. Use JPEG, PNG or WEBP");
 
 sharp.concurrency(1);
 
@@ -29,7 +29,7 @@ export function createEmployeePhotoService(options: { uploadsDir: string; reposi
   }
 
   async function requireEmployee(id: string) {
-    if (!await options.repository.get(id)) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "الموظف غير موجود");
+    if (!await options.repository.get(id)) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Employee not found");
   }
 
   return {
@@ -41,7 +41,7 @@ export function createEmployeePhotoService(options: { uploadsDir: string; reposi
     async save(id: string, body: unknown): Promise<void> {
       await requireEmployee(id);
       if (!Buffer.isBuffer(body)) throw unsupported();
-      if (body.length > MAX_PHOTO_BYTES) throw new HttpError(413, "PHOTO_TOO_LARGE", "حجم الصورة يتجاوز 2 ميغابايت");
+      if (body.length > MAX_PHOTO_BYTES) throw new HttpError(413, "PHOTO_TOO_LARGE", "Photo exceeds 2 MB");
       let format: string | undefined;
       try { format = (await sharp(body, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()).format; } catch { throw unsupported(); }
       if (!format || !allowedFormats.has(format)) throw unsupported();

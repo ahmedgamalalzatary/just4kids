@@ -44,9 +44,9 @@ beforeAll(async () => {
     { accountId: sameId, displayName: "same", createdAt: now, updatedAt: now },
     { accountId: otherId, displayName: "second", createdAt: now, updatedAt: now },
   ]);
-  await connection.db.insert(clients).values({ id: clientId, name: "client", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
+  await connection.db.insert(clients).values({ id: clientId, phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values([addressId, secondAddressId].map((id, index) => ({ id, clientId, area: "area", block: "3", street: index ? "new street" : "original street", houseNumber: "12", createdAt: now, updatedAt: now })));
-  await connection.db.insert(clients).values({ id: foreignClientId, name: "other client", phone: `+965${randomInt(50000000, 59999999)}`, createdAt: now, updatedAt: now });
+  await connection.db.insert(clients).values({ id: foreignClientId, phone: `+965${randomInt(50000000, 59999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: foreignAddressId, clientId: foreignClientId, area: "area", block: "3", street: "private street", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values([employeeId, sameId, otherId].flatMap(employeeId => Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" }))));
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD); employee = await signIn(phone, "employee-password-123"); other = await signIn(otherPhone, "employee-password-123");

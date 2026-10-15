@@ -101,7 +101,7 @@
 @theme inline {
   --font-sans: "Readex Pro Variable", "Segoe UI", Tahoma, sans-serif;
 
-  /* Type scale (≈1.2 ratio). Arabic needs generous line height. */
+  /* Type scale (≈1.2 ratio). Comfortable line height for forms and reports. */
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.5;
   --text-sm: 0.875rem;
@@ -177,7 +177,7 @@
     @apply bg-background font-sans text-base text-foreground antialiased;
     font-feature-settings: "kern";
   }
-  /* Phone numbers, amounts, and codes are left-to-right inside Arabic text. */
+  /* Phone numbers, amounts, and codes are left-to-right inside text. */
   [data-numeric] {
     font-variant-numeric: tabular-nums;
   }

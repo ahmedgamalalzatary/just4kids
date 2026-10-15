@@ -6,7 +6,7 @@ import { deny } from "../../lib/security.js";
 import type { ScheduleService } from "./schedule.service.js";
 
 function handleError(error: unknown, response: Response, next: NextFunction) {
-  if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "بيانات الجدول غير صالحة"); return; }
+  if (error instanceof ZodError) { deny(response, 400, "INVALID_INPUT", "Invalid schedule details"); return; }
   next(error);
 }
 
@@ -20,7 +20,7 @@ export function createScheduleController(service: ScheduleService, auth: AuthMod
   const deleteBlock: RequestHandler = async (request, response, next) => {
     try {
       const found = await service.deleteBlock(String(request.params.id), String(request.params.blockId), (response.locals.auth as Authenticated).account);
-      if (!found) { deny(response, 404, "NOT_FOUND", "القفل غير موجود لهذا الحلاق، أعد تحميل الأوقات"); return; }
+      if (!found) { deny(response, 404, "NOT_FOUND", "Lock not found for this barber. Reload the times"); return; }
       response.status(204).end();
     } catch (error) { handleError(error, response, next); }
   };
@@ -29,7 +29,7 @@ export function createScheduleController(service: ScheduleService, auth: AuthMod
       const id = String(request.params.id);
       auth.assertCanAccessAccount((response.locals.auth as Authenticated).account, id);
       const schedule = await service.get(id);
-      if (!schedule) { deny(response, 404, "NOT_FOUND", "الموظف غير موجود"); return; }
+      if (!schedule) { deny(response, 404, "NOT_FOUND", "Employee not found"); return; }
       response.json(schedule);
     } catch (error) { next(error); }
   };
@@ -37,28 +37,28 @@ export function createScheduleController(service: ScheduleService, auth: AuthMod
     try {
       const id = (response.locals.auth as Authenticated).account.id;
       const schedule = await service.get(id);
-      if (!schedule) { deny(response, 404, "NOT_FOUND", "الموظف غير موجود"); return; }
+      if (!schedule) { deny(response, 404, "NOT_FOUND", "Employee not found"); return; }
       response.json(schedule);
     } catch (error) { next(error); }
   };
   const replaceWeekly: RequestHandler = async (request, response, next) => {
     try {
       const schedule = await service.replaceWeekly(String(request.params.id), request.body);
-      if (!schedule) { deny(response, 404, "NOT_FOUND", "الموظف غير موجود"); return; }
+      if (!schedule) { deny(response, 404, "NOT_FOUND", "Employee not found"); return; }
       response.json(schedule);
     } catch (error) { handleError(error, response, next); }
   };
   const replaceException: RequestHandler = async (request, response, next) => {
     try {
       const schedule = await service.replaceException(String(request.params.id), request.params.date, request.body);
-      if (!schedule) { deny(response, 404, "NOT_FOUND", "الموظف غير موجود"); return; }
+      if (!schedule) { deny(response, 404, "NOT_FOUND", "Employee not found"); return; }
       response.json(schedule);
     } catch (error) { handleError(error, response, next); }
   };
   const deleteException: RequestHandler = async (request, response, next) => {
     try {
       const found = await service.deleteException(String(request.params.id), request.params.date);
-      if (!found) { deny(response, 404, "NOT_FOUND", "الموظف غير موجود"); return; }
+      if (!found) { deny(response, 404, "NOT_FOUND", "Employee not found"); return; }
       response.status(204).end();
     } catch (error) { handleError(error, response, next); }
   };

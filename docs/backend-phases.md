@@ -1,5 +1,8 @@
 # Just4Kids backend phases
 
+Current UI and client model (2026-10-15): the dashboard, validation/errors, dates, reports, invoices and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details` (including payment receipts and events). The reservation action is **Save reservation and send WhatsApp**: save first, then ask whether to open WhatsApp for the barber or return to today's reservations. Saving still creates the invoice atomically. This supersedes older UI/name/location descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+
+
 Created: 2026-09-29. Product authority: [project-contract.md](project-contract.md). Frontend tracker: [frontend-phases.md](frontend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md). Setup commands: [README.md](../README.md).
 
 ## Scope and checklist rules
@@ -29,7 +32,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, cash receipt/undo/reconciliation, and report filter/response contracts |
 | Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
-| Frontend | Arabic RTL dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
+| Frontend | English LTR dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
 | Business features | Backend phases 1–11 implemented; phases 12–14 and all frontend journeys pending |
@@ -55,7 +58,7 @@ Backend/setup checklist:
 Frontend checklist (separate owner):
 
 - [x] Verify frontend dependency installation, lint, typecheck, tests, and build.
-- [x] Verify Arabic RTL responsive shell and same-origin API proxy in the browser.
+- [x] Verify English LTR responsive shell and same-origin API proxy in the browser.
 - [ ] Verify the web production image and Compose integration when Docker is available.
 
 Acceptance:
@@ -79,7 +82,7 @@ Backend checklist:
 
 Frontend checklist:
 
-- [ ] Build the shared Arabic phone/password login page, session handling, logout, and role-aware navigation.
+- [ ] Build the shared English phone/password login page, session handling, logout, and role-aware navigation.
 - [ ] Show usable authentication/authorization errors and expired-session behavior on all screen sizes.
 
 Acceptance:
@@ -152,15 +155,15 @@ CodeRabbit follow-up (2026-10-02): `coderabbit review --committed --base backup-
 
 ## Phase 4 — Clients and usable service addresses
 
-Depends on: phase 1. Confirmed: one client per international-format phone; each address requires area, block, street, and house number or building name. Optional location data may be a Google Maps link or paired WhatsApp coordinates.
+Depends on: phase 1. Confirmed: one client per international-format phone; each address requires area, block, street, and house number or building name. Optional location data is a Google Maps link.
 
 Outcome: administrator maintains the primary contact and reusable visit addresses.
 
 Backend checklist:
 
 - [x] Add client/address contracts, tables, migration, and administrator search/list/detail/create/update operations.
-- [x] Support area, block, street, house number or building name, optional floor/apartment, and additional instructions.
-- [x] Accept paired WhatsApp coordinates or a Google Maps link alongside usable visit details; floor/apartment are optional.
+- [x] Support area, block, street, house number or building name, optional floor/apartment.
+- [x] Accept a Google Maps link alongside usable visit details; floor/apartment are optional.
 - [x] Support unique primary-contact phone lookup/reuse for the later WhatsApp journey behind administrator authorization and an internal service.
 - [x] Expose complete address records for phase 5 to snapshot; do not add child profiles. Phase 5 now saves the selected address in the reservation transaction.
 - [x] Test contact/address validation, lookup, role boundaries, and snapshot-ready data; pass targeted checks.
@@ -199,7 +202,7 @@ Backend checklist:
 Frontend checklist:
 
 - [ ] Build administrator booking creation, eligible barber selection, price review, reservation list/detail, and employee-own reservation views.
-- [ ] Build the combined Arabic invoice view with normal browser print/Save as PDF.
+- [ ] Build the combined English invoice view with normal browser print/Save as PDF.
 - [ ] Display backend conflict/validation errors and a booking reference only after creation succeeds.
 
 Acceptance:
@@ -356,14 +359,14 @@ Backend checklist:
 
 Frontend checklist:
 
-- [ ] Build responsive Arabic overview/reservation and haircut report pages, filters, summaries, and detail navigation.
+- [ ] Build responsive English overview/reservation and haircut report pages, filters, summaries, and detail navigation.
 - [ ] Show date basis and provide normal browser print layouts.
 
 Acceptance:
 
 - [ ] Filtered counts and quantities match permitted records, including completed unpaid visits and retained cancellations/no-shows.
 
-Backend handoff (2026-10-08): `GET /api/reports/reservations` and `GET /api/reports/haircuts` require a session (administrator or employee) and are read-only. Filters: `dateBasis` (`visit_date` default, or `created_date` = Kuwait day the reservation was made, computed from UTC `created_at` + 3 hours), inclusive `from`/`to`, `branchId`, `employeeId`, `clientId`, `status`, `source`, and `q` (literal match on reference or saved client name/phone). The reservations report adds `limit`/`offset` and returns `{ dateBasis, timeZone, summary, bookings, total, limit, offset }`. The summary counts all matching reservations by visit status and source, plus `editedBookings`/`edits` (administrator revisions) and `correctedBookings`/`corrections` (administrator visit-status corrections), regardless of the page. Each booking is the normal booking/invoice response plus `editCount` and `correctionCount`; visit-date results are ordered by newest visit and window, booking-date results by newest creation. The haircut report returns `totals`, `byDate`, `byBranch`, and `byEmployee`, each with `bookings` and adult/child `reserved`, `completed`, `open` (booked/arrived), `cancelled`, and `noShow` quantities from current reservation counts and visit status, independent of payment. Attribution uses the branch/barber recorded on the reservation, so a transferred barber's earlier work stays with the earlier branch; employee rows are split per recorded branch and show current names. Employees are always limited to reservations currently assigned to them (the same records they can open directly); an `employeeId` for another barber returns 403. Invalid filters return `INVALID_INPUT` (400). No migration, dependency, or environment change.
+Backend handoff (2026-10-08): `GET /api/reports/reservations` and `GET /api/reports/haircuts` require a session (administrator or employee) and are read-only. Filters: `dateBasis` (`visit_date` default, or `created_date` = Kuwait day the reservation was made, computed from UTC `created_at` + 3 hours), inclusive `from`/`to`, `branchId`, `employeeId`, `clientId`, `status`, `source`, and `q` (literal match on reference or saved client phone). The reservations report adds `limit`/`offset` and returns `{ dateBasis, timeZone, summary, bookings, total, limit, offset }`. The summary counts all matching reservations by visit status and source, plus `editedBookings`/`edits` (administrator revisions) and `correctedBookings`/`corrections` (administrator visit-status corrections), regardless of the page. Each booking is the normal booking/invoice response plus `editCount` and `correctionCount`; visit-date results are ordered by newest visit and window, booking-date results by newest creation. The haircut report returns `totals`, `byDate`, `byBranch`, and `byEmployee`, each with `bookings` and adult/child `reserved`, `completed`, `open` (booked/arrived), `cancelled`, and `noShow` quantities from current reservation counts and visit status, independent of payment. Attribution uses the branch/barber recorded on the reservation, so a transferred barber's earlier work stays with the earlier branch; employee rows are split per recorded branch and show current names. Employees are always limited to reservations currently assigned to them (the same records they can open directly); an `employeeId` for another barber returns 403. Invalid filters return `INVALID_INPUT` (400). No migration, dependency, or environment change.
 
 Backend verification (2026-10-08): baseline forced backend lint/typecheck/build passed (11 tasks) and booking/visit/edit/payment/contract tests passed (5 files, 91 tests). The new report contract tests failed before the schemas existed (13 cases), and all nine report API tests failed with 404 before the routes existed. Real-MySQL fixtures cover six reservations across three visit dates, both sources, all five visit states, a completed unpaid visit, a paid cancelled visit, edits, a status correction, and a barber transferred between branches. Tests now pass for summary counts, ordering, inclusive visit-date and Kuwait booking-date boundaries (a reservation made at 00:00 Kuwait time while it is still the previous day in UTC), every filter, literal search, pagination with an unchanged summary, haircut breakdowns by date/branch/barber, transfer attribution, employee scoping, and cross-barber 403. Forced backend lint/typecheck/build passed (11 tasks); targeted tests passed (11 files, 91 tests). Full `pnpm check` passed: lint, typecheck, 35 test files/239 tests, and build. Frontend and acceptance items remain unchecked.
 
@@ -383,7 +386,7 @@ Backend checklist:
 
 Frontend checklist:
 
-- [ ] Build Arabic employee and branch report summaries, breakdowns, detail links, filters, and print layouts.
+- [ ] Build English employee and branch report summaries, breakdowns, detail links, filters, and print layouts.
 - [ ] Display own-record scope for employees and label reserved hours/date basis clearly.
 
 Acceptance:
@@ -412,7 +415,7 @@ Backend checklist:
 Frontend checklist:
 
 - [ ] Build client history and invoice/cash report pages with filters, separate financial measures, and revision/correction details.
-- [ ] Build Arabic responsive invoice/report printing through normal browser print/Save as PDF.
+- [ ] Build English responsive invoice/report printing through normal browser print/Save as PDF.
 
 Acceptance:
 
@@ -485,7 +488,7 @@ Backend/operations checklist:
 Frontend checklist:
 
 - [ ] Verify all frontend checks and the web production image, Compose wiring, and HTTPS same-origin API behavior.
-- [ ] Verify Arabic-only RTL flows on computer/tablet/phone, role access, errors, and normal browser invoice/report printing.
+- [ ] Verify English-only LTR flows on computer/tablet/phone, role access, errors, and normal browser invoice/report printing.
 - [ ] Verify every vertical slice end to end against the production-like backend.
 
 Acceptance:

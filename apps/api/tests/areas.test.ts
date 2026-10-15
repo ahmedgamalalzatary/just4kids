@@ -73,7 +73,7 @@ describe("Arabic area catalogue", () => {
   it("rechecks selected areas atomically while keeping old free-text addresses unchanged", async () => {
     const admin = await login(), area = await add(admin, `السالمية ${suffix}`);
     const phone = `+965${randomInt(30000000, 39999999)}`;
-    const created = await write(admin, "/clients", { name: "مريم", phone, address: { ...base, area: area.name, areaId: area.id } });
+    const created = await write(admin, "/clients", { phone, address: { ...base, area: area.name, areaId: area.id } });
     expect(created.status).toBe(201); clientIds.push(created.body.id);
     expect(created.body.addresses[0].area).toBe(area.name);
     await write(admin, `/areas/${area.id}`, { name: `اسم جديد ${suffix}`, enabled: false }, "patch");
@@ -81,7 +81,7 @@ describe("Arabic area catalogue", () => {
     expect((await write(admin, `/clients/${created.body.id}/addresses`, { ...base, area: area.name, areaId: area.id })).status).toBe(409);
     expect((await write(admin, `/clients/${created.body.id}/addresses/${created.body.addresses[0].id}`, { area: area.name, areaId: area.id }, "patch")).status).toBe(409);
     const failedPhone = `+965${randomInt(40000000, 49999999)}`;
-    expect((await write(admin, "/clients", { name: "لم يحفظ", phone: failedPhone, address: { ...base, area: area.name, areaId: area.id } })).status).toBe(409);
+    expect((await write(admin, "/clients", { phone: failedPhone, address: { ...base, area: area.name, areaId: area.id } })).status).toBe(409);
     expect(await connection.db.select().from(clients).where(eq(clients.phone, failedPhone))).toHaveLength(0);
     const addressId = created.body.addresses[0].id;
     expect((await write(admin, `/clients/${created.body.id}/addresses/${addressId}`, { street: "5" }, "patch")).body.area).toBe(area.name);

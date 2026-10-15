@@ -20,9 +20,9 @@ import { formatKwd } from "@/lib/money";
 import { paymentMethodOptions } from "@/lib/payments";
 import { emptyReportFilters, rangeError, readReportFilters, reportSearch, trackingFilters, trackingRangeError, withTrackingPeriod, type ReportFilters } from "@/lib/reports";
 
-export const dateBasisLabels = { visit_date: "تاريخ الزيارة", created_date: "تاريخ إنشاء الحجز" } as const;
-export const sourceLabels = { manual: "حجز يدوي", ai: "عبر واتساب" } as const;
-export const paymentStatusLabels = { paid: "مدفوعة", unpaid: "غير مدفوعة" } as const;
+export const dateBasisLabels = { visit_date: "Visit date", created_date: "Reservation creation date" } as const;
+export const sourceLabels = { manual: "Manual reservation", ai: "Via WhatsApp" } as const;
+export const paymentStatusLabels = { paid: "Paid", unpaid: "Unpaid" } as const;
 
 /** The current report filters from the address; the barber filter applies to the administrator only. */
 export function useReportFilters() {
@@ -42,19 +42,19 @@ export function reservationsHref(filters: ReportFilters, changes: Partial<Report
 }
 
 const tabs = [
-  { href: "/reports", label: "الحجوزات" },
-  { href: "/reports/haircuts", label: "الحلاقات" },
-  { href: "/reports/barbers", label: "الحلاقون", employeeLabel: "أدائي" },
-  { href: "/reports/clients", label: "العملاء" },
-  { href: "/reports/tracking", label: "تتبع الحجوزات", adminOnly: true },
-  { href: "/reports/invoices", label: "الفواتير والنقد" },
-  { href: "/reports/salon", label: "شغل الصالون", adminOnly: true },
-  { href: "/reports/comprehensive", label: "التحصيل الشامل", adminOnly: true },
+  { href: "/reports", label: "Reservations" },
+  { href: "/reports/haircuts", label: "Haircuts" },
+  { href: "/reports/barbers", label: "Barbers", employeeLabel: "My performance" },
+  { href: "/reports/clients", label: "Clients" },
+  { href: "/reports/tracking", label: "Reservation tracking", adminOnly: true },
+  { href: "/reports/invoices", label: "Invoices and payments" },
+  { href: "/reports/salon", label: "Salon work", adminOnly: true },
+  { href: "/reports/comprehensive", label: "Combined collections", adminOnly: true },
 ];
 
 export function reportTitle(pathname: string, isAdmin: boolean) {
   const tab = tabs.find(item => item.href === pathname) ?? tabs[0]!;
-  return `تقرير ${isAdmin ? tab.label : tab.employeeLabel ?? tab.label}`;
+  return `Report ${isAdmin ? tab.label : tab.employeeLabel ?? tab.label}`;
 }
 
 export function ReportTabs() {
@@ -74,7 +74,7 @@ export function ReportTabs() {
     return () => observer.disconnect();
   }, [pathname, isAdmin]);
   return (
-    <Tabs value={pathname} dir="rtl" activationMode="manual" data-print-hidden>
+    <Tabs value={pathname} dir="ltr" activationMode="manual" data-print-hidden>
       <TabsList ref={list} className="w-full max-w-full justify-start overflow-x-auto [scrollbar-width:none] sm:w-fit">
         {tabs.filter(tab => isAdmin || !tab.adminOnly).map(tab => (
           <TabsTrigger key={tab.href} value={tab.href} asChild>
@@ -119,50 +119,50 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
   return (
     <Card data-print-hidden>
       <CardContent>
-        <form onSubmit={submit} className="flex flex-col gap-4" aria-label="مرشحات التقرير">
+        <form onSubmit={submit} className="flex flex-col gap-4" aria-label="Report filters">
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Field label="أساس التاريخ" className="col-span-2 lg:col-span-1">
+            <Field label="Date basis" className="col-span-2 lg:col-span-1">
               <OptionSelect value={draft.dateBasis} onChange={value => set("dateBasis")(value === "created_date" ? "created_date" : "visit_date")}
                 options={[{ value: "visit_date", label: dateBasisLabels.visit_date }, { value: "created_date", label: dateBasisLabels.created_date }]} />
             </Field>
-            <Field label="من تاريخ" optional>
+            <Field label="From date" optional>
               <Input type="date" value={draft.from} onChange={event => set("from")(event.target.value)} />
             </Field>
-            <Field label="إلى تاريخ" optional error={error}>
+            <Field label="To date" optional error={error}>
               <Input type="date" value={draft.to} onChange={event => set("to")(event.target.value)} />
             </Field>
-            <Field label="بحث" optional className="col-span-2 lg:col-span-1">
-              <Input type="search" value={draft.q} maxLength={120} onChange={event => set("q")(event.target.value)} placeholder="المرجع أو اسم العميل أو هاتفه" />
+            <Field label="Search" optional className="col-span-2 lg:col-span-1">
+              <Input type="search" value={draft.q} maxLength={120} onChange={event => set("q")(event.target.value)} placeholder="Reference or client phone" />
             </Field>
             {isAdmin ? (
-              <Field label="الحلاق">
-                <OptionSelect value={draft.employeeId} onChange={set("employeeId")} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
+              <Field label="Barber">
+                <OptionSelect value={draft.employeeId} onChange={set("employeeId")} all="All barbers" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
               </Field>
             ) : null}
-            <Field label="حالة الزيارة">
-              <OptionSelect value={draft.status} onChange={value => set("status")(value as VisitStatus | "")} all="كل الحالات"
+            <Field label="Visit status">
+              <OptionSelect value={draft.status} onChange={value => set("status")(value as VisitStatus | "")} all="All statuses"
                 options={Object.entries(visitStatusLabels).map(([value, label]) => ({ value, label }))} />
             </Field>
-            <Field label="المصدر">
-              <OptionSelect value={draft.source} onChange={value => set("source")(value as ReportFilters["source"])} all="كل المصادر"
+            <Field label="Source">
+              <OptionSelect value={draft.source} onChange={value => set("source")(value as ReportFilters["source"])} all="All sources"
                 options={Object.entries(sourceLabels).map(([value, label]) => ({ value, label }))} />
             </Field>
             {pathname === "/reports/invoices" ? (
-              <Field label="حالة الدفع">
-                <OptionSelect value={draft.paymentStatus} onChange={value => set("paymentStatus")(value as ReportFilters["paymentStatus"])} all="مدفوعة وغير مدفوعة"
-                  options={[{ value: "paid", label: "مدفوعة" }, { value: "unpaid", label: "غير مدفوعة" }]} />
+              <Field label="Payment status">
+                <OptionSelect value={draft.paymentStatus} onChange={value => set("paymentStatus")(value as ReportFilters["paymentStatus"])} all="Paid and unpaid"
+                  options={[{ value: "paid", label: "Paid" }, { value: "unpaid", label: "Unpaid" }]} />
               </Field>
             ) : null}
           </div>
           {isAdmin && filters.clientId ? (
             <p className="text-sm text-muted-foreground">
-              مُقيّد على عميل واحد.{" "}
-              <Button type="button" variant="link" className="h-auto p-0" onClick={() => apply({ ...draft, clientId: "" })}>عرض كل العملاء</Button>
+              Filtered to one client.{" "}
+              <Button type="button" variant="link" className="h-auto p-0" onClick={() => apply({ ...draft, clientId: "" })}>View all clients</Button>
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
-            <Button type="button" variant="ghost" onClick={() => { setDraft(emptyReportFilters); apply(emptyReportFilters); }}>مسح المرشحات</Button>
+            <Button type="submit" disabled={Boolean(error)}>View report</Button>
+            <Button type="button" variant="ghost" onClick={() => { setDraft(emptyReportFilters); apply(emptyReportFilters); }}>Clear filters</Button>
           </div>
         </form>
       </CardContent>
@@ -193,26 +193,26 @@ function TrackingFilterForm({ filters }: { filters: ReportFilters }) {
   return (
     <Card data-print-hidden>
       <CardContent>
-        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="مرشحات التقرير">
+        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="Report filters">
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Field label="من تاريخ" optional><Input type="date" value={draft.from} onChange={event => set("from", event.target.value)} /></Field>
-            <Field label="إلى تاريخ" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to", event.target.value)} /></Field>
-            <Field label="الحلاق" className="col-span-2 lg:col-span-1"><OptionSelect value={draft.employeeId} onChange={value => set("employeeId", value)} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} /></Field>
+            <Field label="From date" optional><Input type="date" value={draft.from} onChange={event => set("from", event.target.value)} /></Field>
+            <Field label="To date" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to", event.target.value)} /></Field>
+            <Field label="Barber" className="col-span-2 lg:col-span-1"><OptionSelect value={draft.employeeId} onChange={value => set("employeeId", value)} all="All barbers" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} /></Field>
             <div className="col-span-2 flex flex-col gap-2 lg:col-span-1">
               {draft.clientId ? (
-                <><p className="text-sm">العميل: {client.data?.name ?? "…"}</p><Button type="button" variant="link" className="h-auto self-start p-0" onClick={() => set("clientId", "")}>كل العملاء / اختيار عميل آخر</Button></>
+                <><p className="text-sm">Client: {client.data?.phone ?? "…"}</p><Button type="button" variant="link" className="h-auto self-start p-0" onClick={() => set("clientId", "")}>All clients / choose another client</Button></>
               ) : (
                 <>
-                  <Field label="بحث عن عميل" optional hint="اتركه دون اختيار لعرض كل العملاء."><Input type="search" maxLength={120} value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} placeholder="الاسم أو رقم الهاتف" /></Field>
+                  <Field label="Find client" optional hint="Leave unselected to include all clients."><Input type="search" maxLength={120} value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} placeholder="Phone number" /></Field>
                   {clients.isPending ? <LoadingRows rows={1} /> : clients.isError ? <ErrorState error={clients.error} onRetry={() => clients.refetch()} /> : (
                     <>
                       <ul className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border">
-                        {clients.data.clients.map(person => <li key={person.id}><button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-muted/60" onClick={() => set("clientId", person.id)}><span>{person.name}{person.enabled ? "" : " (موقوف)"}</span><Ltr>{person.phone}</Ltr></button></li>)}
+                        {clients.data.clients.map(person => <li key={person.id}><button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-muted/60" onClick={() => set("clientId", person.id)}><Ltr>{person.phone}</Ltr>{person.enabled ? null : <span>(stopped)</span>}</button></li>)}
                       </ul>
-                      {clients.data.clients.length === 0 ? <p className="text-xs text-muted-foreground">لا يوجد عميل مطابق</p> : null}
+                      {clients.data.clients.length === 0 ? <p className="text-xs text-muted-foreground">No matching client</p> : null}
                       <div className="flex gap-2">
-                        {offset > 0 ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => Math.max(0, current - PAGE_SIZE))}>السابق</Button> : null}
-                        {offset + PAGE_SIZE < clients.data.total ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => current + PAGE_SIZE)}>التالي</Button> : null}
+                        {offset > 0 ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => Math.max(0, current - PAGE_SIZE))}>Previous</Button> : null}
+                        {offset + PAGE_SIZE < clients.data.total ? <Button type="button" variant="ghost" size="sm" onClick={() => setOffset(current => current + PAGE_SIZE)}>Next</Button> : null}
                       </div>
                     </>
                   )}
@@ -221,8 +221,8 @@ function TrackingFilterForm({ filters }: { filters: ReportFilters }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
-            <Button type="button" variant="ghost" onClick={() => { setDraft(withTrackingPeriod(emptyReportFilters)); setSearch(""); setOffset(0); apply(emptyReportFilters); }}>مسح المرشحات</Button>
+            <Button type="submit" disabled={Boolean(error)}>View report</Button>
+            <Button type="button" variant="ghost" onClick={() => { setDraft(withTrackingPeriod(emptyReportFilters)); setSearch(""); setOffset(0); apply(emptyReportFilters); }}>Clear filters</Button>
           </div>
         </form>
       </CardContent>
@@ -252,15 +252,15 @@ function SalonFilterForm({ from, to, branchId, isAdmin, withBranch }: { from: st
   return (
     <Card data-print-hidden>
       <CardContent>
-        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="مرشحات التقرير">
+        <form onSubmit={event => { event.preventDefault(); if (!error) apply(draft); }} className="flex flex-col gap-4" aria-label="Report filters">
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Field label="من تاريخ" optional><Input type="date" value={draft.from} onChange={event => set("from")(event.target.value)} /></Field>
-            <Field label="إلى تاريخ" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to")(event.target.value)} /></Field>
-            {withBranch ? <Field label="الفرع" className="col-span-2"><OptionSelect value={draft.branchId} onChange={set("branchId")} all="كل الفروع" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} /></Field> : null}
+            <Field label="From date" optional><Input type="date" value={draft.from} onChange={event => set("from")(event.target.value)} /></Field>
+            <Field label="To date" optional error={error}><Input type="date" value={draft.to} onChange={event => set("to")(event.target.value)} /></Field>
+            {withBranch ? <Field label="Branch" className="col-span-2"><OptionSelect value={draft.branchId} onChange={set("branchId")} all="All branches" options={(branches.data ?? []).map(branch => ({ value: branch.id, label: branch.name }))} /></Field> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={Boolean(error)}>عرض التقرير</Button>
-            <Button type="button" variant="ghost" onClick={() => { const cleared = { from: "", to: "", branchId: "" }; setDraft(cleared); apply(cleared); }}>مسح المرشحات</Button>
+            <Button type="submit" disabled={Boolean(error)}>View report</Button>
+            <Button type="button" variant="ghost" onClick={() => { const cleared = { from: "", to: "", branchId: "" }; setDraft(cleared); apply(cleared); }}>Clear filters</Button>
           </div>
         </form>
       </CardContent>
@@ -273,10 +273,10 @@ export function SalonScope() {
   const { filters, isAdmin } = useReportFilters();
   const withBranch = !periodOnly(usePathname());
   const branches = useBranches(isAdmin && withBranch);
-  const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
-    : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
-  const branch = filters.branchId ? branches.data?.find(item => item.id === filters.branchId)?.name ?? "…" : "كل الفروع";
-  return <p className="text-sm text-muted-foreground">الفترة: {range}{withBranch ? ` — الفرع: ${branch}` : ""} (بتوقيت الكويت).</p>;
+  const range = filters.from && filters.to ? `From ${formatDate(filters.from)} To ${formatDate(filters.to)}`
+    : filters.from ? `From ${formatDate(filters.from)}` : filters.to ? `Until ${formatDate(filters.to)}` : "All dates";
+  const branch = filters.branchId ? branches.data?.find(item => item.id === filters.branchId)?.name ?? "…" : "All branches";
+  return <p className="text-sm text-muted-foreground">Period: {range}{withBranch ? ` Branch: ${branch}` : ""} (Kuwait time).</p>;
 }
 
 /** The report name, date basis, and applied filters, shown on screen and on paper. */
@@ -285,23 +285,23 @@ export function ReportScope() {
   const { filters, isAdmin } = useReportFilters();
   const employees = useEmployees(isAdmin);
   const client = useClient(isAdmin && filters.clientId ? filters.clientId : null);
-  const range = filters.from && filters.to ? `من ${formatDate(filters.from)} إلى ${formatDate(filters.to)}`
-    : filters.from ? `من ${formatDate(filters.from)}` : filters.to ? `حتى ${formatDate(filters.to)}` : "كل التواريخ";
+  const range = filters.from && filters.to ? `From ${formatDate(filters.from)} To ${formatDate(filters.to)}`
+    : filters.from ? `From ${formatDate(filters.from)}` : filters.to ? `Until ${formatDate(filters.to)}` : "All dates";
   const applied = [
-    filters.employeeId ? `الحلاق: ${employees.data?.find(employee => employee.id === filters.employeeId)?.displayName ?? "…"}` : null,
-    filters.clientId ? `العميل: ${client.data?.name ?? "…"}` : null,
-    filters.status ? `الحالة: ${visitStatusLabels[filters.status]}` : null,
-    filters.source ? `المصدر: ${sourceLabels[filters.source]}` : null,
-    filters.paymentStatus && pathname === "/reports/invoices" ? `حالة الدفع: ${paymentStatusLabels[filters.paymentStatus]}` : null,
-    filters.q ? `بحث: «${filters.q}»` : null,
+    filters.employeeId ? `Barber: ${employees.data?.find(employee => employee.id === filters.employeeId)?.displayName ?? "…"}` : null,
+    filters.clientId ? `Client: ${client.data?.phone ?? "…"}` : null,
+    filters.status ? `Status: ${visitStatusLabels[filters.status]}` : null,
+    filters.source ? `Source: ${sourceLabels[filters.source]}` : null,
+    filters.paymentStatus && pathname === "/reports/invoices" ? `Payment status: ${paymentStatusLabels[filters.paymentStatus]}` : null,
+    filters.q ? `Search: ${filters.q}` : null,
   ].filter(Boolean);
   return (
     <div className="flex flex-col gap-1">
       <h2 className="text-lg font-semibold">{reportTitle(pathname, isAdmin)}</h2>
       <p className="text-sm text-muted-foreground">
-        حسب {dateBasisLabels[filters.dateBasis]}، {range} (بتوقيت الكويت).
-        {applied.length ? ` ${applied.join("، ")}.` : ""}
-        {isAdmin ? "" : " زياراتك المسندة إليك فقط."}
+        By {dateBasisLabels[filters.dateBasis]}, {range} (Kuwait time).
+        {applied.length ? ` ${applied.join(", ")}.` : ""}
+        {isAdmin ? "" : " Only visits assigned to you."}
       </p>
     </div>
   );
@@ -312,7 +312,7 @@ export function Quantity({ value }: { value: { adult: number; child: number; spe
   return (
     <span className="inline-flex flex-col">
       <span className="font-medium" data-numeric>{value.adult + value.child}</span>
-      <span className="text-xs text-muted-foreground" data-numeric>{value.adult} بالغ، {value.child} طفل، {value.special} احتياج خاص</span>
+      <span className="text-xs text-muted-foreground" data-numeric>{value.adult} adults, {value.child} children, {value.special} special needs</span>
     </span>
   );
 }
@@ -327,25 +327,25 @@ export function Money({ value, unit }: { value: { count: number; total: string }
   );
 }
 
-export const reservedHoursLabel = "الساعات المحجوزة (تشمل التنقل)";
+export const reservedHoursLabel = "Reserved hours (including travel)";
 
 type Collected = ClientReport["clients"][number]["cash"];
 
 /** Collected money with the overall total and its split across the used payment methods. */
-export function CashMoney({ value, unit = "إيصال" }: { value: Collected; unit?: string | undefined }) {
+export function CashMoney({ value, unit = "Receipt" }: { value: Collected; unit?: string | undefined }) {
   const parts = paymentMethodOptions.filter(option => value.byMethod[option.value].count > 0).map(option => `${option.label} ${formatKwd(value.byMethod[option.value].total)}`);
   return (
     <span className="inline-flex flex-col">
       <Ltr className="font-medium">{formatKwd(value.total)}</Ltr>
       <span className="text-xs text-muted-foreground" data-numeric>{value.count} {unit}</span>
-      {parts.length ? <span className="text-xs text-muted-foreground" data-numeric>{parts.join("، ")}</span> : null}
+      {parts.length ? <span className="text-xs text-muted-foreground" data-numeric>{parts.join(", ")}</span> : null}
     </span>
   );
 }
 
 /** The barbers' daily collections, or a note when a filter they cannot follow hides them. */
 export function CollectedCash({ value, unit }: { value: Collected | null; unit?: string | undefined }) {
-  return value ? <CashMoney value={value} unit={unit} /> : <span className="text-xs text-muted-foreground">التحصيلات تُفلتر بالفترة والحلاق فقط</span>;
+  return value ? <CashMoney value={value} unit={unit} /> : <span className="text-xs text-muted-foreground">Collections are filtered by period and barber only</span>;
 }
 
 type Performance = Pick<ClientReport["clients"][number], "work" | "invoices"> & { cash: Collected | null };
@@ -356,21 +356,21 @@ export function PerformanceDetails({ value, cashUnit, children }: { value: Perfo
   const group = "grid grid-cols-2 gap-4 sm:grid-cols-4";
   return (
     <div className="flex flex-col gap-4">
-      <dl className={group} aria-label="العمل">
-        <Detail label="الحجوزات"><span data-numeric>{work.bookings}</span></Detail>
-        <Detail label="الزيارات المكتملة"><span data-numeric>{work.completedVisits}</span></Detail>
-        <Detail label="الحلاقات المحجوزة"><Quantity value={work.reserved} /></Detail>
-        <Detail label="الحلاقات المكتملة"><Quantity value={work.completed} /></Detail>
+      <dl className={group} aria-label="Work">
+        <Detail label="Reservations"><span data-numeric>{work.bookings}</span></Detail>
+        <Detail label="Completed visits"><span data-numeric>{work.completedVisits}</span></Detail>
+        <Detail label="Reserved haircuts"><Quantity value={work.reserved} /></Detail>
+        <Detail label="Completed haircuts"><Quantity value={work.completed} /></Detail>
       </dl>
-      <dl className={`${group} border-t border-border pt-4`} aria-label="الوقت">
+      <dl className={`${group} border-t border-border pt-4`} aria-label="Time">
         <Detail label={reservedHoursLabel}>{formatDuration(work.reservedMinutes)}</Detail>
         {children}
       </dl>
-      <dl className={`${group} border-t border-border pt-4`} aria-label="الفواتير والنقد">
-        <Detail label="الفواتير الصادرة"><Money value={invoices.issued} unit="فاتورة" /></Detail>
-        <Detail label="فواتير غير مدفوعة"><Money value={invoices.outstanding} unit="فاتورة" /></Detail>
-        <Detail label="الفواتير الملغاة"><Money value={invoices.cancelled} unit="فاتورة" /></Detail>
-        <Detail label="المبلغ المستلم"><CollectedCash value={cash} unit={cashUnit} /></Detail>
+      <dl className={`${group} border-t border-border pt-4`} aria-label="Invoices and payments">
+        <Detail label="Issued invoices"><Money value={invoices.issued} unit="invoice" /></Detail>
+        <Detail label="Unpaid invoices"><Money value={invoices.outstanding} unit="invoice" /></Detail>
+        <Detail label="Cancelled invoices"><Money value={invoices.cancelled} unit="invoice" /></Detail>
+        <Detail label="Collected amount"><CollectedCash value={cash} unit={cashUnit} /></Detail>
       </dl>
     </div>
   );

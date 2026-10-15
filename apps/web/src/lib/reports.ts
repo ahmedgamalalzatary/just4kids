@@ -19,7 +19,7 @@ export function withTrackingPeriod(filters: ReportFilters, now: Date = new Date(
 }
 
 export function trackingRangeError(from: string, to: string): string | undefined {
-  return rangeError(from, to) ?? (from && to && !bookingTrackingQuerySchema.safeParse({ from, to }).success ? `الفترة لا تتجاوز ${TRACKING_MAX_DAYS} يومًا` : undefined);
+  return rangeError(from, to) ?? (from && to && !bookingTrackingQuerySchema.safeParse({ from, to }).success ? `Period cannot exceed ${TRACKING_MAX_DAYS} days` : undefined);
 }
 
 const date = z.iso.date();
@@ -56,7 +56,7 @@ export function reportSearch(filters: ReportFilters): string {
 }
 
 export function rangeError(from: string, to: string): string | undefined {
-  return from && to && from > to ? "تاريخ النهاية قبل تاريخ البداية" : undefined;
+  return from && to && from > to ? "End date is before start date" : undefined;
 }
 
 /** Reserved minutes as a rounded percentage of scheduled minutes; null when no schedule is known. */

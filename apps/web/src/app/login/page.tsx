@@ -29,14 +29,14 @@ function LoginScreen() {
           <ThemeToggle />
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
-          <h1 className="text-2xl font-semibold">تسجيل الدخول</h1>
-          <p className="mt-2 mb-8 text-sm text-muted-foreground">للمدير والحلاقين. استخدم رقم هاتفك وكلمة المرور التي أعطاك إياها المدير.</p>
+          <h1 className="text-2xl font-semibold">Log in</h1>
+          <p className="mt-2 mb-8 text-sm text-muted-foreground">For administrators and barbers. Use your phone number and the password provided by the administrator.</p>
           <LoginForm onSuccess={() => router.replace(next)} />
         </div>
       </main>
       <aside aria-hidden className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:flex lg:flex-col lg:justify-end lg:p-12">
         <span className="absolute -top-24 -start-24 grid size-[26rem] -rotate-12 place-items-center rounded-[5rem] bg-sun text-[18rem] leading-none font-bold text-sun-foreground">4</span>
-        <p className="relative max-w-xs text-2xl leading-snug font-medium text-balance">حلاقة في البيت، للكبار والصغار.</p>
+        <p className="relative max-w-xs text-2xl leading-snug font-medium text-balance">Haircuts at home for adults and children.</p>
       </aside>
     </div>
   );

@@ -32,7 +32,7 @@ async function signIn(phone: string, password: string) {
 
 async function createClient(session: { cookie: string; csrf: string }, phone: string) {
   const response = await request(app).post("/clients").set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf)
-    .send({ name: "مريم", phone, address: baseAddress });
+    .send({ phone, address: baseAddress });
   expect(response.status).toBe(201);
   createdIds.push(response.body.id);
   return response.body as { id: string; addresses: { id: string }[] };
@@ -60,18 +60,18 @@ describe("clients and reusable visit addresses", () => {
     expect((await request(app).get("/clients")).status).toBe(401);
     const employee = await signIn(employeePhone, "employee-password-123");
     expect((await request(app).get("/clients").set("Cookie", employee.cookie)).status).toBe(403);
-    expect((await request(app).post("/clients").set("Origin", origin).set("Cookie", employee.cookie).set("X-CSRF-Token", employee.csrf).send({ name: "مريم", phone: phoneA, address: baseAddress })).status).toBe(403);
+    expect((await request(app).post("/clients").set("Origin", origin).set("Cookie", employee.cookie).set("X-CSRF-Token", employee.csrf).send({ phone: phoneA, address: baseAddress })).status).toBe(403);
     const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
-    expect((await request(app).post("/clients").set("Origin", origin).set("Cookie", admin.cookie).send({ name: "مريم", phone: phoneA, address: baseAddress })).status).toBe(403);
+    expect((await request(app).post("/clients").set("Origin", origin).set("Cookie", admin.cookie).send({ phone: phoneA, address: baseAddress })).status).toBe(403);
   });
 
   it("atomically creates a client and address, supports search and phone lookup, and rejects duplicate phones", async () => {
     const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
     const created = await request(app).post("/clients").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ name: " مريم ", phone: phoneA, address: { ...baseAddress, floor: "2", latitude: "29.3375000", longitude: "47.9333000" } });
+      .send({ phone: phoneA, address: { ...baseAddress, floor: "2" } });
     expect(created.status).toBe(201);
     createdIds.push(created.body.id);
-    expect(created.body).toMatchObject({ name: "مريم", phone: phoneA, addresses: [{ area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", floor: "2", latitude: "29.3375000", longitude: "47.9333000" }] });
+    expect(created.body).toMatchObject({ phone: phoneA, addresses: [{ area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", floor: "2" }] });
     const stored = await connection.db.select().from(clientAddresses).where(eq(clientAddresses.clientId, created.body.id));
     expect(stored).toHaveLength(1);
     const found = await request(app).get(`/clients/lookup?phone=${encodeURIComponent(phoneA)}`).set("Cookie", admin.cookie);
@@ -84,7 +84,7 @@ describe("clients and reusable visit addresses", () => {
     expect(literalWildcard.status).toBe(200);
     expect(literalWildcard.body.clients).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id })]));
     const duplicate = await request(app).post("/clients").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ name: "أخرى", phone: phoneA, address: baseAddress });
+      .send({ phone: phoneA, address: baseAddress });
     expect(duplicate.status).toBe(409);
     expect(duplicate.body.error.code).toBe("PHONE_ALREADY_USED");
     expect(await connection.db.select().from(clientAddresses).where(eq(clientAddresses.clientId, created.body.id))).toHaveLength(1);
@@ -118,12 +118,10 @@ describe("clients and reusable visit addresses", () => {
     const otherPhone = `+965${randomInt(20000000, 29999999)}`;
     await createClient(admin, otherPhone);
     const changed = await request(app).patch(`/clients/${client.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ phone: `+965${randomInt(90000000, 99999999)}`, name: "مريم جديدة" });
+      .send({ phone: `+965${randomInt(90000000, 99999999)}` });
     expect(changed.status).toBe(200);
     expect(changed.body.id).toBe(client.id);
-    expect(changed.body.name).toBe("مريم جديدة");
     const duplicate = await request(app).patch(`/clients/${client.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ phone: otherPhone });
     expect(duplicate.status).toBe(409);
-    expect((await request(app).get(`/clients/${client.id}`).set("Cookie", admin.cookie)).body.name).toBe("مريم جديدة");
   });
 });

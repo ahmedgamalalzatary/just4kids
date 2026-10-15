@@ -172,7 +172,7 @@ describe("employee management", () => {
     const refused = await signIn(phone, "employee-password-123");
     expect(refused.response.status).toBe(403);
     expect(refused.response.body.error.code).toBe("ACCOUNT_EXPIRED");
-    expect(refused.response.body.error.message).toContain("منتهي الصلاحية");
+    expect(refused.response.body.error.message).toContain("expired");
     const cleared = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ accessUntil: null });
     expect(cleared.status).toBe(200);
     expect(cleared.body.accessUntil).toBeNull();

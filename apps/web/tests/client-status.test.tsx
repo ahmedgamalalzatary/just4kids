@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClientStatusDialog } from "@/components/client-status-dialog";
 import type { Client } from "@/lib/api/types";
 
-const client: Client = { id: "11111111-1111-4111-8111-111111111111", name: "مريم", phone: "+96555550101", enabled: true, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", addresses: [] };
+const client: Client = { id: "11111111-1111-4111-8111-111111111111", phone: "+96555550101", enabled: true, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", addresses: [] };
 
 function renderDialog() {
   render(<QueryClientProvider client={new QueryClient()}><ClientStatusDialog client={client} open onOpenChange={() => {}} /></QueryClientProvider>);
@@ -18,8 +18,8 @@ describe("ClientStatusDialog", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     renderDialog();
-    await userEvent.click(screen.getByRole("button", { name: "تأكيد" }));
-    expect(await screen.findByText("اكتب السبب")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText("Enter a reason")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -27,12 +27,12 @@ describe("ClientStatusDialog", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     renderDialog();
-    await userEvent.type(screen.getByRole("textbox"), "طلب العميل");
-    await userEvent.click(screen.getByRole("button", { name: "تأكيد" }));
+    await userEvent.type(screen.getByRole("textbox"), "طلب Client");
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`/api/clients/${client.id}/status`);
     expect(init.method).toBe("PATCH");
-    expect(init.body).toBe(JSON.stringify({ enabled: false, reason: "طلب العميل" }));
+    expect(init.body).toBe(JSON.stringify({ enabled: false, reason: "طلب Client" }));
   });
 });

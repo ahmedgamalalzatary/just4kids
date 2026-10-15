@@ -7,7 +7,7 @@ import { formatKwd } from "@/lib/money";
 import { paymentMethodLabels } from "@/lib/payments";
 
 // Labels for the "message to the barber" events the booking history shows alongside visit events.
-export const messageKindLabels: Record<BookingMessage["kind"], string> = { sent_to_barber: "أُرسل للحلاق" };
+export const messageKindLabels: Record<BookingMessage["kind"], string> = { sent_to_barber: "Sent to barber" };
 
 export type TimelineEntry =
   | { type: "visit"; at: string; event: VisitEvent }
@@ -22,10 +22,10 @@ export function buildTimeline(events: VisitEvent[], messages: BookingMessage[]):
 }
 
 export function visitEventTitle(event: VisitEvent) {
-  return event.fromStatus === null ? `أُنشئ الحجز: ${visitStatusLabels[event.toStatus]}` : `${event.correction ? "تصحيح: " : ""}${visitStatusLabels[event.fromStatus]} ← ${visitStatusLabels[event.toStatus]}`;
+  return event.fromStatus === null ? `Reservation created: ${visitStatusLabels[event.toStatus]}` : `${event.correction ? "Correction: " : ""}${visitStatusLabels[event.fromStatus]} → ${visitStatusLabels[event.toStatus]}`;
 }
 
-const actorRoleLabels = { admin: "مدير", employee: "حلاق", client: "عميل", system: "النظام" };
+const actorRoleLabels = { admin: "Administrator", employee: "barber", client: "client", system: "System" };
 
 /** Keeps the API's booking/time order and uses the same labels and change details as per-booking history. */
 export function trackingGroups(data: BookingTrackingResponse) {
@@ -34,9 +34,9 @@ export function trackingGroups(data: BookingTrackingResponse) {
     events: group.events.map(entry => {
       const common = { at: entry.at, actor: entry.actor.name, role: actorRoleLabels[entry.actor.role] };
       switch (entry.type) {
-        case "visit": return { ...common, key: `visit-${entry.event.id}`, title: visitEventTitle(entry.event), reason: entry.event.reason, details: entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? [`الفاتورة: ${entry.event.invoiceStatus === "cancelled" ? "أُلغيت" : "أُعيد إصدارها"}`] : [] };
+        case "visit": return { ...common, key: `visit-${entry.event.id}`, title: visitEventTitle(entry.event), reason: entry.event.reason, details: entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? [`Invoice: ${entry.event.invoiceStatus === "cancelled" ? "Cancelled" : "Reissued"}`] : [] };
         case "message": return { ...common, key: `message-${entry.message.id}`, title: messageKindLabels[entry.message.kind], reason: null, details: [] };
-        case "revision": return { ...common, key: `revision-${entry.revision.id}`, title: "تعديل الحجز", reason: entry.revision.reason, details: revisionChanges(entry.revision) };
+        case "revision": return { ...common, key: `revision-${entry.revision.id}`, title: "Edit reservation", reason: entry.revision.reason, details: revisionChanges(entry.revision) };
         case "payment": return { ...common, key: `payment-${entry.payment.id}`, title: `${paymentKinds[entry.payment.kind]}: ${formatKwd(entry.payment.amount)} (${paymentMethodLabels[entry.payment.method]})`, reason: entry.payment.reason, details: [] };
       }
     }),
@@ -47,21 +47,21 @@ export function revisionChanges(revision: BookingRevision): string[] {
   const { before, after } = revision;
   const changes: string[] = [];
   if (before.date !== after.date || before.startTime !== after.startTime || before.endTime !== after.endTime) {
-    changes.push(`الموعد: من ${formatDate(before.date)} ${formatWindow(before.startTime, before.endTime)} إلى ${formatDate(after.date)} ${formatWindow(after.startTime, after.endTime)}`);
+    changes.push(`Appointment: from ${formatDate(before.date)} ${formatWindow(before.startTime, before.endTime)} to ${formatDate(after.date)} ${formatWindow(after.startTime, after.endTime)}`);
   }
-  if (before.employee.id !== after.employee.id) changes.push(`الحلاق: من ${before.employee.displayName} إلى ${after.employee.displayName}`);
-  if (formatAddress(before.address) !== formatAddress(after.address) || before.address.instructions !== after.address.instructions) changes.push(`العنوان: ${formatAddress(after.address)}`);
+  if (before.employee.id !== after.employee.id) changes.push(`Barber: from ${before.employee.displayName} to ${after.employee.displayName}`);
+  if (formatAddress(before.address) !== formatAddress(after.address)) changes.push(`Address: ${formatAddress(after.address)}`);
   if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
-    changes.push(`العدد: من ${before.adultCount} بالغ و${before.childCount} طفل (${before.specialChildCount} احتياج خاص) إلى ${after.adultCount} بالغ و${after.childCount} طفل (${after.specialChildCount} احتياج خاص)`);
+    changes.push(`Count: from ${before.adultCount} adult${before.adultCount === 1 ? "" : "s"} and ${before.childCount} children (${before.specialChildCount} special needs) to ${after.adultCount} adult${after.adultCount === 1 ? "" : "s"} and ${after.childCount} children (${after.specialChildCount} special needs)`);
   }
-  if (before.notes !== after.notes) changes.push(`الملاحظات: من «${before.notes ?? "لا شيء"}» إلى «${after.notes ?? "لا شيء"}»`);
-  if (before.invoice.total !== after.invoice.total) changes.push(`الإجمالي: من ${formatKwd(before.invoice.total)} إلى ${formatKwd(after.invoice.total)}`);
+  if (before.notes !== after.notes) changes.push(`Notes: from ${before.notes ?? "None"} to ${after.notes ?? "None"}`);
+  if (before.invoice.total !== after.invoice.total) changes.push(`Total: from ${formatKwd(before.invoice.total)} to ${formatKwd(after.invoice.total)}`);
   return changes;
 }
 
 export const paymentKinds: Record<PaymentEvent["kind"], string> = {
-  recorded: "تسجيل دفع كامل",
-  voided: "إلغاء قيد دفع خاطئ",
-  extra_cash: "استلام مبلغ إضافي بعد تعديل",
-  refund: "إرجاع مبلغ للعميل بعد تعديل",
+  recorded: "Record full payment",
+  voided: "Void an incorrect payment",
+  extra_cash: "Collect an additional amount after an edit",
+  refund: "Refund after an edit",
 };

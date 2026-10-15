@@ -16,7 +16,7 @@ describe("money", () => {
   });
 
   it("formats with three decimals and the dinar symbol", () => {
-    expect(formatKwd("8.5")).toBe("8.500 د.ك");
+    expect(formatKwd("8.5")).toBe("8.500 KWD");
   });
 
   it("computes the invoice total from the typed cash and link", () => {

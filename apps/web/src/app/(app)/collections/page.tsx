@@ -34,19 +34,19 @@ function prefillFromVisits(bookings: Booking[]) {
 }
 
 const collectionFields = [
-  { key: "date", label: "التاريخ" },
-  { key: "normalChildren", label: "أطفال عاديون" },
-  { key: "specialChildren", label: "أطفال ذوو احتياجات خاصة" },
-  { key: "cash", label: "نقداً" },
-  { key: "link", label: "رابط" },
-  { key: "knet", label: "كي نت" },
-  { key: "total", label: "الإجمالي" },
+  { key: "date", label: "Date" },
+  { key: "normalChildren", label: "Other children" },
+  { key: "specialChildren", label: "Children with special needs" },
+  { key: "cash", label: "Cash" },
+  { key: "link", label: "Link" },
+  { key: "knet", label: "KNET" },
+  { key: "total", label: "Total" },
 ] as const;
 type CollectionSnapshot = NonNullable<BarberCollectionEvent["before"]>;
 
 /** The before → after lines for one stored collection edit. */
 function collectionChanges(before: CollectionSnapshot, after: CollectionSnapshot) {
-  return collectionFields.filter(field => before[field.key] !== after[field.key]).map(field => `${field.label}: ${before[field.key]} ← ${after[field.key]}`);
+  return collectionFields.filter(field => before[field.key] !== after[field.key]).map(field => `${field.label}: ${before[field.key]} → ${after[field.key]}`);
 }
 
 /** The stored edit history of one daily collection, latest action first. */
@@ -56,14 +56,14 @@ function CollectionHistory({ id }: { id: string }) {
   if (history.isError) return <ErrorState error={history.error} onRetry={() => history.refetch()} />;
   if (history.data.length === 0) return null;
   return (
-    <section aria-label="سجل التعديلات" className="flex flex-col gap-3 border-t border-border pt-4">
-      <h3 className="text-sm font-medium">سجل التعديلات</h3>
+    <section aria-label="Edit history" className="flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="text-sm font-medium">Edit history</h3>
       <ol className="flex flex-col gap-3">
         {[...history.data].reverse().map(event => (
           <li key={event.id} className="text-sm">
             <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
             {event.before === null
-              ? <p>أُنشئ الإدخال</p>
+              ? <p>Entry created</p>
               : <ul className="flex flex-col gap-0.5">{collectionChanges(event.before, event.after).map(change => <li key={change}>{change}</li>)}</ul>}
           </li>
         ))}
@@ -113,13 +113,13 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
   const close = (value: boolean) => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); };
   const submit = () => {
     if (prefillBlocked) return;
-    if (!entry && !form.employeeId) { setProblem("اختر الحلاق"); return; }
-    if (!form.date) { setProblem("اختر التاريخ"); return; }
+    if (!entry && !form.employeeId) { setProblem("Select barber"); return; }
+    if (!form.date) { setProblem("Select date"); return; }
     const normalChildren = Number(form.normalChildren), specialChildren = Number(form.specialChildren);
-    if (!Number.isInteger(normalChildren) || normalChildren < 0 || !Number.isInteger(specialChildren) || specialChildren < 0) { setProblem("أدخل أعداد أطفال صحيحة"); return; }
-    if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("أدخل المبالغ بثلاث خانات عشرية، مثل 5.000"); return; }
+    if (!Number.isInteger(normalChildren) || normalChildren < 0 || !Number.isInteger(specialChildren) || specialChildren < 0) { setProblem("Enter valid child counts"); return; }
+    if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
     setProblem(null);
-    const done = { onSuccess: () => { toast.success(entry ? "تم حفظ الإدخال" : "تمت إضافة الإدخال"); close(false); } };
+    const done = { onSuccess: () => { toast.success(entry ? "Entry saved" : "Entry added"); close(false); } };
     if (!entry) { create.mutate({ employeeId: form.employeeId, date: form.date, normalChildren, specialChildren, cash: form.cash, link: form.link, knet: form.knet }, done); return; }
     // Send only changed fields with the loaded version so a concurrent edit is rejected rather than overwritten.
     const patch: { date?: string; normalChildren?: number; specialChildren?: number; cash?: string; link?: string; knet?: string } = {};
@@ -136,37 +136,37 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
     <Dialog open onOpenChange={close}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{entry ? "تعديل تحصيل الحلاق" : "تحصيل الحلاق اليومي"}</DialogTitle>
-          <DialogDescription>إدخال واحد لكل حلاق في اليوم الواحد. الإجمالي يُحسب تلقائياً من النقد والرابط وكي نت.</DialogDescription>
+          <DialogTitle>{entry ? "Edit barber collection" : "Daily barber collections"}</DialogTitle>
+          <DialogDescription>One entry per barber per day. Total is calculated from cash, link and KNET.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="التاريخ"><Input type="date" value={form.date} onChange={event => set("date")(event.target.value)} /></Field>
-            <Field label="الحلاق">
+            <Field label="Date"><Input type="date" value={form.date} onChange={event => set("date")(event.target.value)} /></Field>
+            <Field label="Barber">
               <Select value={form.employeeId} onValueChange={set("employeeId")} disabled={Boolean(entry)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="اختر الحلاق" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select barber" /></SelectTrigger>
                 <SelectContent>{(employees.data ?? []).map(employee => <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="أطفال عاديون"><Input type="number" min="0" step="1" value={form.normalChildren} onChange={event => set("normalChildren")(event.target.value)} /></Field>
-            <Field label="أطفال ذوو احتياجات خاصة"><Input type="number" min="0" step="1" value={form.specialChildren} onChange={event => set("specialChildren")(event.target.value)} /></Field>
+            <Field label="Other children"><Input type="number" min="0" step="1" value={form.normalChildren} onChange={event => set("normalChildren")(event.target.value)} /></Field>
+            <Field label="Children with special needs"><Input type="number" min="0" step="1" value={form.specialChildren} onChange={event => set("specialChildren")(event.target.value)} /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="نقداً (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.cash} onChange={event => set("cash")(event.target.value)} /></Field>
-            <Field label="رابط الدفع (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
-            <Field label="كي نت (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
+            <Field label="Cash (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.cash} onChange={event => set("cash")(event.target.value)} /></Field>
+            <Field label="Payment link (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
+            <Field label="KNET (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
           </div>
-          {canPrefill && visits.isPending ? <p role="status" className="text-sm text-muted-foreground">جارٍ تحميل زيارات اليوم المكتملة…</p> : null}
+          {canPrefill && visits.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading today&apos;s completed visits...</p> : null}
           {canPrefill && visits.isError ? <ErrorState error={visits.error} onRetry={() => visits.refetch()} /> : null}
-          {appliedPrefill === prefillKey ? <p className="text-xs text-muted-foreground">تم الملء تلقائياً من زيارات اليوم المكتملة مع الاحتفاظ بتعديلاتك. يمكنك تعديل الأرقام.</p> : null}
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">الإجمالي: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
+          {appliedPrefill === prefillKey ? <p className="text-xs text-muted-foreground">Filled from today&apos;s completed visits while keeping your edits. You can adjust the counts.</p> : null}
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>
         {entry ? <CollectionHistory id={entry.id} /> : null}
-        <DialogFooter><Button onClick={submit} disabled={mutation.isPending || prefillBlocked}>حفظ التحصيل</Button></DialogFooter>
+        <DialogFooter><Button onClick={submit} disabled={mutation.isPending || prefillBlocked}>Save collection</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -187,31 +187,31 @@ function CollectionsScreen() {
 
   return (
     <>
-      <PageHeader title="تحصيلات الحلاقين" description={isAdmin ? "إدخال تحصيلات كل حلاق (نقداً / رابط / كي نت) واحد لكل حلاق في اليوم." : "تحصيلاتك اليومية، للعرض فقط."} actions={isAdmin ? <Button onClick={openNew}><Plus aria-hidden />إدخال جديد</Button> : undefined} />
+      <PageHeader title="Barber collections" description={isAdmin ? "One daily collection entry (cash / link / KNET) per barber." : "Your daily collections, read only."} actions={isAdmin ? <Button onClick={openNew}><Plus aria-hidden />New entry</Button> : undefined} />
       <div className="flex flex-col gap-6">
         <Card className="flex flex-wrap items-end gap-4 p-5">
-          <Field label="من تاريخ"><Input type="date" value={from} onChange={event => setFrom(event.target.value)} /></Field>
-          <Field label="إلى تاريخ"><Input type="date" value={to} onChange={event => setTo(event.target.value)} /></Field>
+          <Field label="From date"><Input type="date" value={from} onChange={event => setFrom(event.target.value)} /></Field>
+          <Field label="To date"><Input type="date" value={to} onChange={event => setTo(event.target.value)} /></Field>
           {isAdmin ? (
-            <Field label="الحلاق">
-              <OptionSelect value={employeeId} onChange={setEmployeeId} all="كل الحلاقين" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
+            <Field label="Barber">
+              <OptionSelect value={employeeId} onChange={setEmployeeId} all="All barbers" options={(employees.data ?? []).map(employee => ({ value: employee.id, label: employee.displayName }))} />
             </Field>
           ) : null}
         </Card>
         {report.isPending ? <Card><LoadingRows /></Card> : report.isError ? <Card><ErrorState error={report.error} onRetry={() => report.refetch()} /></Card> : (
           <Card className={cn(report.isPlaceholderData && "opacity-60")}>
-            {report.data.entries.length === 0 ? <EmptyState icon={Coins} title="لا يوجد تحصيل مسجل" description={isAdmin ? "أضف إدخالاً لهذا الحلاق في هذا اليوم." : "لا توجد تحصيلات مسجلة لك في هذه الفترة."} /> : (
+            {report.data.entries.length === 0 ? <EmptyState icon={Coins} title="No collection recorded" description={isAdmin ? "Add an entry for this barber on this day." : "No collections recorded for you in this period."} /> : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="ps-5">التاريخ</TableHead>
-                    <TableHead>الحلاق</TableHead>
-                    <TableHead>عادي</TableHead>
-                    <TableHead>خاص</TableHead>
-                    <TableHead>نقداً</TableHead>
-                    <TableHead>رابط</TableHead>
-                    <TableHead>كي نت</TableHead>
-                    <TableHead>الإجمالي</TableHead>
+                    <TableHead className="ps-5">Date</TableHead>
+                    <TableHead>Barber</TableHead>
+                    <TableHead>Other</TableHead>
+                    <TableHead>Special</TableHead>
+                    <TableHead>Cash</TableHead>
+                    <TableHead>Link</TableHead>
+                    <TableHead>KNET</TableHead>
+                    <TableHead>Total</TableHead>
                     {isAdmin ? <TableHead className="pe-5" /> : null}
                   </TableRow>
                 </TableHeader>
@@ -226,7 +226,7 @@ function CollectionsScreen() {
                       <TableCell data-numeric>{formatKwd(entry.link)}</TableCell>
                       <TableCell data-numeric>{formatKwd(entry.knet)}</TableCell>
                       <TableCell data-numeric className="font-medium">{formatKwd(entry.total)}</TableCell>
-                      {isAdmin ? <TableCell className="pe-5 text-end"><Button variant="ghost" size="icon-sm" aria-label="تعديل الإدخال" onClick={() => openEdit(entry)}><Pencil /></Button></TableCell> : null}
+                      {isAdmin ? <TableCell className="pe-5 text-end"><Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => openEdit(entry)}><Pencil /></Button></TableCell> : null}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -234,12 +234,12 @@ function CollectionsScreen() {
             )}
             {totals ? (
               <div className="grid grid-cols-2 gap-4 border-t border-border p-5 sm:grid-cols-6">
-                <Summary label="عادي" value={String(totals.normalChildren)} />
-                <Summary label="خاص" value={String(totals.specialChildren)} />
-                <Summary label="نقداً" value={formatKwd(totals.cash)} />
-                <Summary label="رابط" value={formatKwd(totals.link)} />
-                <Summary label="كي نت" value={formatKwd(totals.knet)} />
-                <Summary label="الإجمالي" value={formatKwd(totals.total)} />
+                <Summary label="Other" value={String(totals.normalChildren)} />
+                <Summary label="Special" value={String(totals.specialChildren)} />
+                <Summary label="Cash" value={formatKwd(totals.cash)} />
+                <Summary label="Link" value={formatKwd(totals.link)} />
+                <Summary label="KNET" value={formatKwd(totals.knet)} />
+                <Summary label="Total" value={formatKwd(totals.total)} />
               </div>
             ) : null}
           </Card>

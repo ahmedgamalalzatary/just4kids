@@ -37,7 +37,7 @@ beforeAll(async () => {
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([{ id: employeeId, phone, role: "employee", passwordHash, createdAt: now, updatedAt: now }, { id: otherId, phone: otherPhone, role: "employee", passwordHash, createdAt: now, updatedAt: now }]);
   await connection.db.insert(employees).values([{ accountId: employeeId, displayName: "barber", createdAt: now, updatedAt: now }, { accountId: otherId, displayName: "other", createdAt: now, updatedAt: now }]);
-  await connection.db.insert(clients).values({ id: clientId, name: "client", phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
+  await connection.db.insert(clients).values({ id: clientId, phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });
   await connection.db.insert(clientAddresses).values({ id: addressId, clientId, area: "area", block: "3", street: "street", houseNumber: "12", createdAt: now, updatedAt: now });
   await connection.db.insert(employeeWorkIntervals).values(Array.from({ length: 7 }, (_, dayOfWeek) => ({ employeeId, dayOfWeek, startTime: "08:00", endTime: "23:00" })));
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD); employee = await signIn(phone, "employee-password-123"); other = await signIn(otherPhone, "employee-password-123");

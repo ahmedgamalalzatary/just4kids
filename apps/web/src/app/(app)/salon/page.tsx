@@ -36,13 +36,13 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
   const set = <Key extends keyof Form>(key: Key) => (value: string) => setForm(current => ({ ...current, [key]: value }));
   const close = (value: boolean) => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); };
   const submit = () => {
-    if (!entry && !form.branchId) { setProblem("اختر الفرع"); return; }
-    if (!form.date) { setProblem("اختر التاريخ"); return; }
+    if (!entry && !form.branchId) { setProblem("Select branch"); return; }
+    if (!form.date) { setProblem("Select date"); return; }
     const childCount = Number(form.childCount);
-    if (!Number.isInteger(childCount) || childCount < 0) { setProblem("أدخل عدد أطفال صحيحاً"); return; }
-    if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("أدخل المبالغ بثلاث خانات عشرية، مثل 5.000"); return; }
+    if (!Number.isInteger(childCount) || childCount < 0) { setProblem("Enter a valid child count"); return; }
+    if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
     setProblem(null);
-    const done = { onSuccess: () => { toast.success(entry ? "تم حفظ الإدخال" : "تمت إضافة الإدخال"); close(false); } };
+    const done = { onSuccess: () => { toast.success(entry ? "Entry saved" : "Entry added"); close(false); } };
     if (!entry) { create.mutate({ branchId: form.branchId, date: form.date, childCount, cash: form.cash, link: form.link, knet: form.knet }, done); return; }
     // Send only changed fields with the loaded version so a concurrent edit is rejected rather than overwritten.
     const patch: { date?: string; childCount?: number; cash?: string; link?: string; knet?: string } = {};
@@ -58,34 +58,34 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
     <Dialog open onOpenChange={close}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{entry ? "تعديل شغل الصالون" : "شغل الصالون اليومي"}</DialogTitle>
-          <DialogDescription>إدخال واحد لكل فرع في اليوم الواحد. الإجمالي يُحسب تلقائياً من النقد والرابط وكي نت.</DialogDescription>
+          <DialogTitle>{entry ? "Edit salon entry" : "Daily salon work"}</DialogTitle>
+          <DialogDescription>One entry per branch per day. Total is calculated from cash, link and KNET.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="التاريخ">
+            <Field label="Date">
               <Input type="date" value={form.date} onChange={event => set("date")(event.target.value)} />
             </Field>
-            <Field label="الفرع">
+            <Field label="Branch">
               <Select value={form.branchId} onValueChange={set("branchId")} disabled={Boolean(entry)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="اختر الفرع" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select branch" /></SelectTrigger>
                 <SelectContent>{(branches.data ?? []).map(branch => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="عدد الأطفال">
+            <Field label="Child count">
               <Input type="number" min="0" step="1" value={form.childCount} onChange={event => set("childCount")(event.target.value)} />
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="نقداً (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.cash} onChange={event => set("cash")(event.target.value)} /></Field>
-            <Field label="رابط الدفع (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
-            <Field label="كي نت (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
+            <Field label="Cash (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.cash} onChange={event => set("cash")(event.target.value)} /></Field>
+            <Field label="Payment link (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
+            <Field label="KNET (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
           </div>
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">الإجمالي: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(salonTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(salonTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>
-        <DialogFooter><Button onClick={submit} disabled={mutation.isPending}>حفظ شغل اليوم</Button></DialogFooter>
+        <DialogFooter><Button onClick={submit} disabled={mutation.isPending}>Save daily work</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -102,22 +102,22 @@ function SalonScreen() {
 
   return (
     <>
-      <PageHeader title="شغل الصالون اليومي" description="إدخال تحصيلات الصالون (نقداً / رابط / كي نت) واحد لكل فرع في اليوم." actions={<Button onClick={openNew}><Plus aria-hidden />إدخال جديد</Button>} />
+      <PageHeader title="Daily salon work" description="One daily salon collection entry (cash / link / KNET) per branch." actions={<Button onClick={openNew}><Plus aria-hidden />New entry</Button>} />
       <div className="flex flex-col gap-6">
         <SalonFilterBar />
         {report.isPending ? <Card><LoadingRows /></Card> : report.isError ? <Card><ErrorState error={report.error} onRetry={() => report.refetch()} /></Card> : (
           <Card className={cn(report.isPlaceholderData && "opacity-60")}>
-            {report.data.entries.length === 0 ? <EmptyState icon={Coins} title="لا يوجد شغل مسجل" description="أضف إدخالاً لهذا الفرع في هذا اليوم." /> : (
+            {report.data.entries.length === 0 ? <EmptyState icon={Coins} title="No work recorded" description="Add an entry for this branch on this day." /> : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="ps-5">التاريخ</TableHead>
-                    <TableHead>الفرع</TableHead>
-                    <TableHead>الأطفال</TableHead>
-                    <TableHead>نقداً</TableHead>
-                    <TableHead>رابط</TableHead>
-                    <TableHead>كي نت</TableHead>
-                    <TableHead>الإجمالي</TableHead>
+                    <TableHead className="ps-5">Date</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>Children</TableHead>
+                    <TableHead>Cash</TableHead>
+                    <TableHead>Link</TableHead>
+                    <TableHead>KNET</TableHead>
+                    <TableHead>Total</TableHead>
                     <TableHead className="pe-5" />
                   </TableRow>
                 </TableHeader>
@@ -131,7 +131,7 @@ function SalonScreen() {
                       <TableCell data-numeric>{formatKwd(entry.link)}</TableCell>
                       <TableCell data-numeric>{formatKwd(entry.knet)}</TableCell>
                       <TableCell data-numeric className="font-medium">{formatKwd(entry.total)}</TableCell>
-                      <TableCell className="pe-5 text-end"><Button variant="ghost" size="icon-sm" aria-label="تعديل الإدخال" onClick={() => openEdit(entry)}><Pencil /></Button></TableCell>
+                      <TableCell className="pe-5 text-end"><Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => openEdit(entry)}><Pencil /></Button></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -139,11 +139,11 @@ function SalonScreen() {
             )}
             {totals ? (
               <div className="grid grid-cols-2 gap-4 border-t border-border p-5 sm:grid-cols-5">
-                <Summary label="عدد الأطفال" value={String(totals.childCount)} />
-                <Summary label="نقداً" value={formatKwd(totals.cash)} />
-                <Summary label="رابط" value={formatKwd(totals.link)} />
-                <Summary label="كي نت" value={formatKwd(totals.knet)} />
-                <Summary label="الإجمالي" value={formatKwd(totals.total)} />
+                <Summary label="Child count" value={String(totals.childCount)} />
+                <Summary label="Cash" value={formatKwd(totals.cash)} />
+                <Summary label="Link" value={formatKwd(totals.link)} />
+                <Summary label="KNET" value={formatKwd(totals.knet)} />
+                <Summary label="Total" value={formatKwd(totals.total)} />
               </div>
             ) : null}
           </Card>

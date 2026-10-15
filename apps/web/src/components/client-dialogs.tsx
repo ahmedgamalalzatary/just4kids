@@ -23,15 +23,15 @@ export function CreateClientDialog({ open, onOpenChange, onCreated }: DialogProp
   const areas = useAreas("active", open);
   const form = useForm<z.input<typeof createSchema>, unknown, z.output<typeof createSchema>>({
     resolver: zodResolver(createSchema),
-    defaultValues: { name: "", phone: "", address: emptyAddress },
+    defaultValues: { phone: "", address: emptyAddress },
   });
   const errors = form.formState.errors;
   const areaValue = useWatch({ control: form.control, name: "address.area" });
   const submit = form.handleSubmit(values => {
     const area = areas.data?.find(area => area.name === values.address.area);
-    if (!area) { form.setError("address.area", { message: "اختر منطقة متاحة من القائمة" }); return; }
+    if (!area) { form.setError("address.area", { message: "Select an available area from the list" }); return; }
     create.mutate({ ...values, address: { ...values.address, areaId: area.id } }, {
-      onSuccess: client => { toast.success("تمت إضافة العميل"); onOpenChange(false); form.reset(); onCreated(client); },
+      onSuccess: client => { toast.success("Client added"); onOpenChange(false); form.reset(); onCreated(client); },
       onError: () => { void areas.refetch(); },
     });
   });
@@ -40,20 +40,19 @@ export function CreateClientDialog({ open, onOpenChange, onCreated }: DialogProp
     <Dialog open={open} onOpenChange={value => { if (!value) create.reset(); onOpenChange(value); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>عميل جديد</DialogTitle>
-          <DialogDescription>رقم الهاتف هو هوية العميل، ولكل رقم عميل واحد فقط.</DialogDescription>
+          <DialogTitle>New client</DialogTitle>
+          <DialogDescription>The phone number identifies the client. Each number belongs to one client.</DialogDescription>
         </DialogHeader>
         <form id="client-form" onSubmit={submit} noValidate className="flex flex-col gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="اسم العميل" error={errors.name?.message}><Input {...form.register("name")} /></Field>
-            <Field label="رقم الهاتف" error={errors.phone?.message} hint="بالصيغة الدولية، مثل ‎+96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
+            <Field label="Phone number" error={errors.phone?.message} hint="International format, e.g. +96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
           </div>
           <Separator />
-          <p className="text-sm font-medium">عنوان الزيارة</p>
+          <p className="text-sm font-medium">Visit address</p>
           <AddressFields register={name => form.register(`address.${name}`)} errors={errors.address ?? {}} areaValue={areaValue} />
         </form>
         <FormAlert error={create.error} />
-        <DialogFooter><Button type="submit" form="client-form" disabled={create.isPending}>إضافة العميل</Button></DialogFooter>
+        <DialogFooter><Button type="submit" form="client-form" disabled={create.isPending}>Add client</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -61,27 +60,26 @@ export function CreateClientDialog({ open, onOpenChange, onCreated }: DialogProp
 
 export function EditClientDialog({ client, open, onOpenChange }: DialogProps & { client: Client }) {
   const update = useUpdateClient();
-  const form = useForm({ resolver: zodResolver(clientFormSchema), values: { name: client.name, phone: client.phone } });
+  const form = useForm({ resolver: zodResolver(clientFormSchema), values: { phone: client.phone } });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
-    const changes = { ...(values.name !== client.name ? { name: values.name } : {}), ...(values.phone !== client.phone ? { phone: values.phone } : {}) };
+    const changes = { ...(values.phone !== client.phone ? { phone: values.phone } : {}) };
     if (Object.keys(changes).length === 0) { onOpenChange(false); return; }
-    update.mutate({ id: client.id, ...changes }, { onSuccess: () => { toast.success("تم حفظ بيانات العميل"); onOpenChange(false); } });
+    update.mutate({ id: client.id, ...changes }, { onSuccess: () => { toast.success("Client details saved"); onOpenChange(false); } });
   });
 
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) update.reset(); onOpenChange(value); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>تعديل بيانات العميل</DialogTitle>
-          <DialogDescription>لا يتغير اسم العميل أو رقمه في الحجوزات والفواتير السابقة.</DialogDescription>
+          <DialogTitle>Edit client details</DialogTitle>
+          <DialogDescription>Previous reservations and invoices retain their saved client phone.</DialogDescription>
         </DialogHeader>
         <form id="edit-client-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-          <Field label="اسم العميل" error={errors.name?.message}><Input {...form.register("name")} /></Field>
-          <Field label="رقم الهاتف" error={errors.phone?.message}><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
+          <Field label="Phone number" error={errors.phone?.message}><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
         </form>
         <FormAlert error={update.error} />
-        <DialogFooter><Button type="submit" form="edit-client-form" disabled={update.isPending}>حفظ التغييرات</Button></DialogFooter>
+        <DialogFooter><Button type="submit" form="edit-client-form" disabled={update.isPending}>Save changes</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -90,8 +88,7 @@ export function EditClientDialog({ client, open, onOpenChange }: DialogProps & {
 const toForm = (address: Address) => ({
   area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber ?? "", buildingName: address.buildingName ?? "",
   avenue: address.avenue ?? "", gate: address.gate ?? "", blueNumber: address.blueNumber ?? "",
-  floor: address.floor ?? "", apartment: address.apartment ?? "", instructions: address.instructions ?? "", mapsUrl: address.mapsUrl ?? "",
-  latitude: address.latitude ?? "", longitude: address.longitude ?? "",
+  floor: address.floor ?? "", apartment: address.apartment ?? "", mapsUrl: address.mapsUrl ?? "",
 });
 
 /** Adds a new address, or edits `address` when given. */
@@ -107,9 +104,9 @@ export function AddressDialog({ clientId, address, open, onOpenChange, onSaved }
   const areaValue = useWatch({ control: form.control, name: "area" });
   const submit = form.handleSubmit(values => {
     const area = areas.data?.find(area => area.name === values.area);
-    if (!area && (!address || values.area !== address.area)) { form.setError("area", { message: "اختر منطقة متاحة من القائمة" }); return; }
+    if (!area && (!address || values.area !== address.area)) { form.setError("area", { message: "Select an available area from the list" }); return; }
     const input = { ...values, ...(area ? { areaId: area.id } : {}) };
-    const done = (saved: Address) => { toast.success(address ? "تم حفظ العنوان" : "تمت إضافة العنوان"); onOpenChange(false); onSaved?.(saved); };
+    const done = (saved: Address) => { toast.success(address ? "Address saved" : "Address added"); onOpenChange(false); onSaved?.(saved); };
     const onError = () => { void areas.refetch(); };
     if (address) update.mutate({ clientId, addressId: address.id, ...input }, { onSuccess: done, onError });
     else add.mutate({ clientId, ...input }, { onSuccess: done, onError });
@@ -119,12 +116,12 @@ export function AddressDialog({ clientId, address, open, onOpenChange, onSaved }
     <Dialog open={open} onOpenChange={value => { if (!value) { add.reset(); update.reset(); } onOpenChange(value); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{address ? "تعديل العنوان" : "عنوان جديد"}</DialogTitle>
-          <DialogDescription>{address ? "التعديل يظهر في الحجوزات الجديدة فقط؛ الحجوزات السابقة تحتفظ بعنوانها كما كان." : "يمكن للعميل أن يكون له أكثر من عنوان."}</DialogDescription>
+          <DialogTitle>{address ? "Edit address" : "New address"}</DialogTitle>
+          <DialogDescription>{address ? "Changes apply to new reservations. Existing reservations retain their saved address." : "A client can have more than one address."}</DialogDescription>
         </DialogHeader>
         <form id="address-form" onSubmit={submit} noValidate><AddressFields register={name => form.register(name)} errors={form.formState.errors} areaValue={areaValue} originalArea={address?.area ?? ""} /></form>
         <FormAlert error={mutation.error} />
-        <DialogFooter><Button type="submit" form="address-form" disabled={mutation.isPending}>{address ? "حفظ العنوان" : "إضافة العنوان"}</Button></DialogFooter>
+        <DialogFooter><Button type="submit" form="address-form" disabled={mutation.isPending}>{address ? "Save address" : "Add address"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

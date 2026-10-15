@@ -19,7 +19,7 @@ function setup() {
       if (init?.method === "PATCH") { rows = rows.map(row => url.endsWith(row.id) ? { ...row, ...body } : row); return new Response(JSON.stringify(rows.find(row => url.endsWith(row.id)))); }
       return new Response(JSON.stringify({ areas: url.includes("status=active") ? rows.filter(row => row.enabled) : rows }));
     }
-    if (url === "/api/clients" && init?.method === "POST") return new Response(JSON.stringify({ id, name: body.name, phone: body.phone, enabled: true, addresses: [{ ...body.address, id, clientId: id }], createdAt: area.createdAt, updatedAt: area.updatedAt }), { status: 201 });
+    if (url === "/api/clients" && init?.method === "POST") return new Response(JSON.stringify({ id, phone: body.phone, enabled: true, addresses: [{ ...body.address, id, clientId: id }], createdAt: area.createdAt, updatedAt: area.updatedAt }), { status: 201 });
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal("fetch", fetch);
@@ -31,28 +31,28 @@ afterEach(() => vi.unstubAllGlobals());
 it("adds and renames Arabic areas and stops/reactivates them from the admin list", async () => {
   const { wrap } = setup(); render(wrap(<AreasScreen />));
   await screen.findByText("الفنطاس");
-  await userEvent.type(screen.getByLabelText("اسم المنطقة بالعربية"), "حولي");
-  await userEvent.click(screen.getByRole("button", { name: "إضافة المنطقة" }));
+  await userEvent.type(screen.getByLabelText("Area name"), "حولي");
+  await userEvent.click(screen.getByRole("button", { name: "Add area" }));
   await screen.findByText("حولي");
   const row = screen.getByText("الفنطاس").closest("li")!;
-  await userEvent.click(within(row).getByRole("button", { name: "تعديل" }));
-  const input = screen.getByLabelText("اسم المنطقة بالعربية");
+  await userEvent.click(within(row).getByRole("button", { name: "Edit" }));
+  const input = screen.getByLabelText("Area name");
   await userEvent.clear(input); await userEvent.type(input, "الفنطاس الجديدة");
-  await userEvent.click(screen.getByRole("button", { name: "حفظ الاسم" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save name" }));
   const renamed = (await screen.findByText("الفنطاس الجديدة")).closest("li")!;
-  await userEvent.click(within(renamed).getByRole("button", { name: "إيقاف" }));
-  await within(renamed).findByText("موقوفة");
-  await userEvent.click(within(renamed).getByRole("button", { name: "تفعيل" }));
-  await within(renamed).findByText("متاحة");
+  await userEvent.click(within(renamed).getByRole("button", { name: "Stop" }));
+  await within(renamed).findByText("Stopped");
+  await userEvent.click(within(renamed).getByRole("button", { name: "Activate" }));
+  await within(renamed).findByText("Available");
 });
 it("sends the selected area identity with a new client's address and the session CSRF token", async () => {
   const { wrap, fetch } = setup(), saved = vi.fn();
   render(wrap(<CreateClientDialog open onOpenChange={() => {}} onCreated={saved} />));
   await screen.findByRole("option", { name: "الفنطاس" });
-  for (const [label, value] of [["اسم العميل", "مريم"], ["رقم الهاتف", "50000001"], ["القطعة", "1"], ["الشارع", "2"], ["رقم المنزل", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "المنطقة" }), "الفنطاس");
-  await userEvent.click(screen.getByRole("button", { name: "إضافة العميل" }));
-  await waitFor(() => expect(saved).toHaveBeenCalledWith(expect.objectContaining({ name: "مريم" })));
+  for (const [label, value] of [["Phone number", "50000001"], ["Block", "1"], ["Street", "2"], ["House number", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "Area" }), "الفنطاس");
+  await userEvent.click(screen.getByRole("button", { name: "Add client" }));
+  await waitFor(() => expect(saved).toHaveBeenCalledWith(expect.objectContaining({ phone: "+96550000001" })));
   const call = fetch.mock.calls.find(([url, init]) => String(url) === "/api/clients" && init?.method === "POST")!;
   expect(JSON.parse(String(call[1]?.body))).toMatchObject({ phone: "+96550000001", address: { area: "الفنطاس", areaId: id } });
   expect(new Headers(call[1]?.headers).get("X-CSRF-Token")).toBe("csrf");

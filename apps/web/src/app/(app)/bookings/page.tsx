@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useId, useState, type ReactNode } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronRight, ChevronLeft, Plus } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
 import { DayBookingRow, NewBookingDot, TimeChip, VisitCard } from "@/components/day-bookings";
 import { Field } from "@/components/field";
@@ -48,8 +48,8 @@ function BookingRow({ booking, showBarber, unseen, photoVersion }: { booking: Bo
           ) : null}
         </div>
         <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-x-2 font-medium">{booking.client.name} <Ltr className="text-sm font-normal text-muted-foreground">{booking.client.phone}</Ltr></p>
-          <p className="truncate text-sm text-muted-foreground">{booking.address.area}، {haircutSummary(booking)}</p>
+          <p className="flex flex-wrap items-center gap-x-2 font-medium"><Ltr className="text-sm font-normal">{booking.client.phone}</Ltr></p>
+          <p className="truncate text-sm text-muted-foreground">{booking.address.area}, {haircutSummary(booking)}</p>
           <p className="truncate text-xs text-muted-foreground"><Ltr>{booking.reference}</Ltr></p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -70,20 +70,20 @@ function DayFilters({ date, barber, isAdmin, employees, onChange }: { date: stri
   return (
     <Card className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-end">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={dateId}>التاريخ</Label>
+        <Label htmlFor={dateId}>Date</Label>
         <div className="flex items-center gap-1">
-          <Button type="button" variant="outline" size="icon" aria-label="اليوم السابق" onClick={() => onChange({ date: shiftDate(date, -1) })}><ChevronRight /></Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Previous day" onClick={() => onChange({ date: shiftDate(date, -1) })}><ChevronLeft /></Button>
           <Input id={dateId} type="date" dir="ltr" value={date} onChange={event => { if (event.target.value) onChange({ date: event.target.value }); }} className="w-40" />
-          <Button type="button" variant="outline" size="icon" aria-label="اليوم التالي" onClick={() => onChange({ date: shiftDate(date, 1) })}><ChevronLeft /></Button>
-          {date !== today ? <Button type="button" variant="ghost" onClick={() => onChange({ date: today })}>اليوم</Button> : null}
+          <Button type="button" variant="outline" size="icon" aria-label="Next day" onClick={() => onChange({ date: shiftDate(date, 1) })}><ChevronRight /></Button>
+          {date !== today ? <Button type="button" variant="ghost" onClick={() => onChange({ date: today })}>Today</Button> : null}
         </div>
       </div>
       {isAdmin ? (
-        <Field label="الحلاق" className="sm:w-56">
+        <Field label="Barber" className="sm:w-56">
           <Select value={barber || "all"} onValueChange={value => onChange({ barber: value === "all" ? "" : value })}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل الحلاقين</SelectItem>
+              <SelectItem value="all">All barbers</SelectItem>
               {employees.map(employee => <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -103,16 +103,16 @@ function DayView({ date, barber, isAdmin, employees, newButton }: { date: string
   return (
     <div className={cn("flex flex-col gap-3", day.isPlaceholderData && "opacity-60")}>
       <p className="px-1 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{formatDate(date)}</span> · <span data-numeric>{summary.active}</span> حجز، <span data-numeric>{summary.open}</span> مفتوح
+        <span className="font-medium text-foreground">{formatDate(date)}</span> · <span data-numeric>{summary.active}</span> reservations, <span data-numeric>{summary.open}</span> Open
       </p>
       {bookings.length === 0 ? (
-        <Card><EmptyState icon={CalendarDays} title="لا توجد مواعيد في هذا اليوم" description={isAdmin ? "اختر يوماً آخر أو أنشئ حجزاً جديداً." : "ستظهر هنا الزيارات التي يسندها إليك المدير."} action={newButton} /></Card>
+        <Card><EmptyState icon={CalendarDays} title="No appointments on this day" description={isAdmin ? "Choose another day or create a reservation." : "Visits assigned to you will appear here."} action={newButton} /></Card>
       ) : isAdmin ? (
         <Card><ul className="divide-y divide-border">{bookings.map(booking => <DayBookingRow key={booking.id} booking={booking} barberPhone={byId.get(booking.employeeId)?.phone} photoVersion={byId.get(booking.employeeId)?.photoUpdatedAt} />)}</ul></Card>
       ) : (
         <div className="flex flex-col gap-3">{bookings.map(booking => <VisitCard key={booking.id} booking={booking} />)}</div>
       )}
-      {total > bookings.length ? <p className="px-1 text-xs text-muted-foreground">يظهر أول <span data-numeric>{bookings.length}</span> من <span data-numeric>{total}</span> موعداً. اختر حلاقاً لعرض مواعيده كاملة.</p> : null}
+      {total > bookings.length ? <p className="px-1 text-xs text-muted-foreground">Showing the first <span data-numeric>{bookings.length}</span> From <span data-numeric>{total}</span> appointments. Select a barber to view the full day.</p> : null}
     </div>
   );
 }
@@ -125,7 +125,7 @@ function AllView({ isAdmin, employees, newButton }: { isAdmin: boolean; employee
   if (bookings.isPending) return <Card><LoadingRows /></Card>;
   if (bookings.isError) return <Card><ErrorState error={bookings.error} onRetry={() => bookings.refetch()} /></Card>;
   if (bookings.data.bookings.length === 0) {
-    return <Card><EmptyState icon={CalendarDays} title="لا توجد حجوزات بعد" description={isAdmin ? "أنشئ أول حجز لعميل مع حلاق متاح." : "ستظهر هنا الزيارات التي يسندها إليك المدير."} action={newButton} /></Card>;
+    return <Card><EmptyState icon={CalendarDays} title="No reservations yet" description={isAdmin ? "Create the first reservation with an available barber." : "Visits assigned to you will appear here."} action={newButton} /></Card>;
   }
   return (
     <div className={cn("flex flex-col gap-6", bookings.isPlaceholderData && "opacity-60")}>
@@ -133,7 +133,7 @@ function AllView({ isAdmin, employees, newButton }: { isAdmin: boolean; employee
         <section key={date} aria-labelledby={`day-${date}`}>
           <h2 id={`day-${date}`} className="mb-2 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
             {formatDate(date)}
-            {date === today ? <span className="rounded-full bg-sun px-2 py-0.5 text-xs font-semibold text-sun-foreground">اليوم</span> : null}
+            {date === today ? <span className="rounded-full bg-sun px-2 py-0.5 text-xs font-semibold text-sun-foreground">Today</span> : null}
           </h2>
           <Card><ul className="divide-y divide-border">{items.map(booking => <BookingRow key={booking.id} booking={booking} showBarber={isAdmin} unseen={isNewForBarber(booking, isAdmin)} photoVersion={photos.get(booking.employeeId)} />)}</ul></Card>
         </section>
@@ -159,19 +159,19 @@ function BookingsScreen() {
     const query = search.toString();
     router.replace(query ? `/bookings?${query}` : "/bookings", { scroll: false });
   };
-  const newButton = isAdmin ? <Button asChild variant="sun"><Link href={barber ? `/bookings/new?barber=${barber}` : "/bookings/new"}><Plus aria-hidden />حجز جديد</Link></Button> : null;
+  const newButton = isAdmin ? <Button asChild variant="sun"><Link href={barber ? `/bookings/new?barber=${barber}` : "/bookings/new"}><Plus aria-hidden />New reservation</Link></Button> : null;
 
   return (
     <>
       <PageHeader
-        title={isAdmin ? "توجيه الحجز" : "حجوزاتي"}
-        description={isAdmin ? "مواعيد الحلاقين في اليوم، وإرسال تفاصيل الموعد للحلاق عبر واتساب." : "زياراتك المسندة إليك."}
+        title={isAdmin ? "Reservation dispatch" : "My reservations"}
+        description={isAdmin ? "Daily barber appointments and WhatsApp reservation details." : "Visits assigned to you."}
         actions={newButton}
       />
       <Tabs value={view} onValueChange={value => update({ view: value === "all" ? "all" : "" })} className="mb-4">
         <TabsList>
-          <TabsTrigger value="day">مواعيد يوم</TabsTrigger>
-          <TabsTrigger value="all">كل الحجوزات</TabsTrigger>
+          <TabsTrigger value="day">Appointments for</TabsTrigger>
+          <TabsTrigger value="all">All reservations</TabsTrigger>
         </TabsList>
       </Tabs>
       {view === "day" ? (

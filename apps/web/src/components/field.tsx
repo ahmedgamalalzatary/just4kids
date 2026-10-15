@@ -20,7 +20,7 @@ export function Field({ label, error, hint, optional, className, children }: {
     <div className={cn("flex flex-col gap-1.5", className)}>
       <Label htmlFor={id}>
         {label}
-        {optional ? <span className="text-xs font-normal text-muted-foreground">(اختياري)</span> : null}
+        {optional ? <span className="text-xs font-normal text-muted-foreground">(optional)</span> : null}
       </Label>
       <Slot.Root id={id} aria-invalid={error ? true : undefined} aria-describedby={described}>{children}</Slot.Root>
       {hint && !error ? <p id={`${id}-hint`} className="text-xs text-muted-foreground">{hint}</p> : null}

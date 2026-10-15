@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus, Search, Users } from "lucide-react";
+import { ChevronRight, Plus, Search, Users } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { CreateClientDialog } from "@/components/client-dialogs";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
@@ -27,22 +27,22 @@ function ClientsScreen() {
 
   return (
     <>
-      <PageHeader title="العملاء" description="جهات الاتصال وعناوين الزيارات." actions={<Button onClick={() => setOpen(true)}><Plus aria-hidden />عميل جديد</Button>} />
+      <PageHeader title="Clients" description="Client phones and visit addresses." actions={<Button onClick={() => setOpen(true)}><Plus aria-hidden />New client</Button>} />
       <Card>
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
           <label className="relative block flex-1 sm:max-w-md">
-            <span className="sr-only">بحث بالاسم أو الهاتف</span>
+            <span className="sr-only">Search by phone</span>
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input type="search" value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} placeholder="بحث بالاسم أو رقم الهاتف" className="ps-9" />
+            <Input type="search" value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} placeholder="Search by phone number" className="ps-9" />
           </label>
           <Select value={status} onValueChange={value => { setStatus(value as ClientStatusFilter); setOffset(0); }}>
-            <SelectTrigger className="w-full sm:w-48" aria-label="تصفية حسب الحالة"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48" aria-label="Filter by status"><SelectValue /></SelectTrigger>
             <SelectContent>{clientStatusOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         {clients.isPending ? <LoadingRows /> : clients.isError ? <ErrorState error={clients.error} onRetry={() => clients.refetch()} /> : clients.data.clients.length === 0 ? (
-          query || status !== "all" ? <EmptyState icon={Search} title="لا يوجد عميل مطابق" description="غيّر البحث أو مرشح الحالة، أو أضف عميلاً جديداً." /> : (
-            <EmptyState icon={Users} title="لا يوجد عملاء بعد" description="أضف العميل مع عنوان الزيارة لتتمكن من حجز موعد له." action={<Button onClick={() => setOpen(true)}><Plus aria-hidden />عميل جديد</Button>} />
+          query || status !== "all" ? <EmptyState icon={Search} title="No matching client" description="Change the search or status filter, or add a new client." /> : (
+            <EmptyState icon={Users} title="No clients yet" description="Add a client and visit address to book an appointment." action={<Button onClick={() => setOpen(true)}><Plus aria-hidden />New client</Button>} />
           )
         ) : (
           <>
@@ -52,12 +52,12 @@ function ClientsScreen() {
                   <Link href={`/clients/${client.id}`} className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/50">
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-2 font-medium">
-                        {client.name}
-                        {client.enabled ? null : <Badge variant="muted">موقوف</Badge>}
+                        <Ltr>{client.phone}</Ltr>
+                        {client.enabled ? null : <Badge variant="muted">Stopped</Badge>}
                       </p>
-                      <Ltr className="text-sm text-muted-foreground">{client.phone}</Ltr>
+
                     </div>
-                    <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
+                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                   </Link>
                 </li>
               ))}

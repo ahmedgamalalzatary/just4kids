@@ -49,16 +49,16 @@ beforeAll(async () => {
   const passwordHash = await hashPassword("employee-password-123");
   await connection.db.insert(accounts).values([barberA, barberB, barberC].map(id => ({ id, phone: phones[id]!, role: "employee" as const, passwordHash, createdAt: now, updatedAt: now })));
   await connection.db.insert(employees).values([{ accountId: barberA, displayName: "حلاق أ" }, { accountId: barberB, displayName: "حلاق ب" }, { accountId: barberC, displayName: "حلاق ج" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
-  await connection.db.insert(clients).values([{ id: clientOne, name: "نورة التقارير", phone: `+965${randomInt(55000000, 59999999)}` }, { id: clientTwo, name: "سلمى التقارير", phone: `+965${randomInt(60000000, 64999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
+  await connection.db.insert(clients).values([{ id: clientOne, phone: `+965${randomInt(55000000, 59999999)}` }, { id: clientTwo, phone: `+965${randomInt(60000000, 64999999)}` }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
   await connection.db.insert(clientAddresses).values([{ id: addressOne, clientId: clientOne }, { id: addressTwo, clientId: clientTwo }].map(row => ({ ...row, area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", createdAt: now, updatedAt: now })));
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   for (const [index, fixture] of fixtures.entries()) {
     const id = ids[index]!, price = fixture.tier === 1 ? { adult: 5, child: 3 } : { adult: 6, child: 4 };
-    const client = fixture.clientId === clientOne ? { name: "نورة التقارير", phone: "+96555000001" } : { name: "سلمى التقارير", phone: "+96555000002" };
+    const client = fixture.clientId === clientOne ? { phone: "+96555000001" } : { phone: "+96555000002" };
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
       date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: fixture.source, visitStatus: fixture.status, visitVersion: 3,
-      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, instructions: null, mapsUrl: null, latitude: null, longitude: null },
+      clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(fixture.createdAt),
     });
     const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;
@@ -123,7 +123,7 @@ describe("reservation overview report", () => {
     expect(await idsFor({ clientId: clientTwo })).toEqual([ids[1], ids[3]].sort());
     expect((await report("reservations", { ...range, branchId: randomUUID() })).status).toBe(400);
     expect(await idsFor({ employeeId: barberA })).toEqual([ids[0], ids[1], ids[4]].sort());
-    expect(await idsFor({ q: "سلمى" })).toEqual([ids[1], ids[3]].sort());
+    expect(await idsFor({ q: "+96555000002" })).toEqual([ids[1], ids[3]].sort());
     expect(await idsFor({ q: references[2]!.toLowerCase() })).toEqual([ids[2]]);
     expect(await idsFor({ q: "%" })).toEqual([]);
     const page = await report("reservations", { ...range, limit: "2", offset: "2" });

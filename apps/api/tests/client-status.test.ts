@@ -27,7 +27,7 @@ async function signIn(phone: string, password: string) {
 }
 async function createClient(phone: string) {
   const response = await request(app).post("/clients").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-    .send({ name: "مريم", phone, address: { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12" } });
+    .send({ phone, address: { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12" } });
   expect(response.status).toBe(201);
   createdClientIds.push(response.body.id);
   return response.body;

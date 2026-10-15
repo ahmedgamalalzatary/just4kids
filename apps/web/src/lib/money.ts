@@ -14,7 +14,7 @@ export function fromFils(fils: bigint): string {
 }
 
 export function formatKwd(amount: string): string {
-  return `${fromFils(toFils(amount))} د.ك`;
+  return `${fromFils(toFils(amount))} KWD`;
 }
 
 const priceFormat = /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,3})?$/;

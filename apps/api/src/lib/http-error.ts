@@ -3,5 +3,5 @@ export class HttpError extends Error {
 }
 
 export class ForbiddenError extends HttpError {
-  constructor() { super(403, "FORBIDDEN", "غير مسموح بهذا الإجراء"); }
+  constructor() { super(403, "FORBIDDEN", "This action is not allowed"); }
 }

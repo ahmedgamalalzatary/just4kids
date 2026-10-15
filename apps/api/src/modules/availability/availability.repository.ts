@@ -33,6 +33,6 @@ export async function assertSchedulePreservesBookings(transaction: Transaction, 
     if (Date.parse(`${booking.date}T${booking.endTime}:00+03:00`) <= now) continue;
     const hours = hoursByDate.get(booking.date) ?? await readWorkingHours(transaction, employeeId, booking.date);
     hoursByDate.set(booking.date, hours);
-    if (!isWindowAvailable({ date: booking.date, startTime: booking.startTime, endTime: booking.endTime }, hours.days, hours.exception, [])) throw new HttpError(409, "SCHEDULE_BOOKING_CONFLICT", "تعديل الجدول يتعارض مع حجز قائم");
+    if (!isWindowAvailable({ date: booking.date, startTime: booking.startTime, endTime: booking.endTime }, hours.days, hours.exception, [])) throw new HttpError(409, "SCHEDULE_BOOKING_CONFLICT", "Schedule change conflicts with an existing reservation");
   }
 }

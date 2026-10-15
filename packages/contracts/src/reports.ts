@@ -125,7 +125,7 @@ export const invoiceReportQuerySchema = z.strictObject({
 export const clientReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   clients: z.array(z.strictObject({
-    clientId: z.uuid(), name: z.string().min(1).max(120), phone: phoneSchema,
+    clientId: z.uuid(), phone: phoneSchema,
     // completedVisits is the client's completed-visit count, so values above one are repeat visits.
     ...performance,
   })),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, FileText, MapPin, Pencil, Phone, RotateCcw } from "lucide-react";
+import { ChevronLeft, FileText, MapPin, Pencil, Phone, RotateCcw } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
 import { CorrectionDialog, RecordPaymentButton, VisitActions } from "@/components/booking-actions";
 import { WhatsAppButton } from "@/components/day-bookings";
@@ -27,16 +27,16 @@ function InvoiceSummary({ booking }: { booking: Booking }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>الفاتورة</CardTitle>
-        <Button asChild variant="outline" size="sm"><Link href={`/bookings/${booking.id}/invoice`}><FileText aria-hidden />عرض وطباعة</Link></Button>
+        <CardTitle>Invoice</CardTitle>
+        <Button asChild variant="outline" size="sm"><Link href={`/bookings/${booking.id}/invoice`}><FileText aria-hidden />View and print</Link></Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">
         <PaymentBadge paymentStatus={invoice.paymentStatus} invoiceStatus={invoice.status} />
         <dl className="flex flex-col gap-1.5">
-          {invoice.amountCash !== "0.000" ? <div className="flex justify-between gap-2"><dt>نقدي</dt><dd><Ltr>{formatKwd(invoice.amountCash)}</Ltr></dd></div> : null}
-          {invoice.amountLink !== "0.000" ? <div className="flex justify-between gap-2"><dt>رابط</dt><dd><Ltr>{formatKwd(invoice.amountLink)}</Ltr></dd></div> : null}
+          {invoice.amountCash !== "0.000" ? <div className="flex justify-between gap-2"><dt>Cash</dt><dd><Ltr>{formatKwd(invoice.amountCash)}</Ltr></dd></div> : null}
+          {invoice.amountLink !== "0.000" ? <div className="flex justify-between gap-2"><dt>Link</dt><dd><Ltr>{formatKwd(invoice.amountLink)}</Ltr></dd></div> : null}
           <div className="mt-1 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
-            <dt>الإجمالي</dt>
+            <dt>Total</dt>
             <dd className={invoice.status === "cancelled" ? "text-muted-foreground line-through" : undefined}><Ltr>{formatKwd(invoice.total)}</Ltr></dd>
           </div>
         </dl>
@@ -52,11 +52,11 @@ function BookingScreen({ id }: { id: string }) {
   const [editOpen, setEditOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
 
-  const back = <Link href="/bookings" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden />الحجوزات</Link>;
+  const back = <Link href="/bookings" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" aria-hidden />Reservations</Link>;
   if (booking.isPending) return <>{back}<LoadingRows /></>;
   if (booking.isError) {
     const missing = booking.error instanceof ApiError && (booking.error.status === 404 || booking.error.status === 403);
-    return <>{back}<ErrorState error={missing ? new ApiError(404, "NOT_FOUND", "الحجز غير موجود أو غير مسند إليك") : booking.error} {...(missing ? {} : { onRetry: () => booking.refetch() })} /></>;
+    return <>{back}<ErrorState error={missing ? new ApiError(404, "NOT_FOUND", "Reservation not found or not assigned to you") : booking.error} {...(missing ? {} : { onRetry: () => booking.refetch() })} /></>;
   }
 
   const data = booking.data;
@@ -70,11 +70,11 @@ function BookingScreen({ id }: { id: string }) {
       {back}
       <header className="mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{data.client.name}</h1>
+          <h1 className="text-2xl font-semibold">{data.client.phone}</h1>
           <VisitStatusBadge status={data.visitStatus} />
         </div>
         <p className="text-muted-foreground">
-          {formatDate(data.date)}، <span data-numeric>{formatWindow(data.startTime, data.endTime)}</span> ({formatDuration(windowMinutes(data.startTime, data.endTime))})
+          {formatDate(data.date)}, <span data-numeric>{formatWindow(data.startTime, data.endTime)}</span> ({formatDuration(windowMinutes(data.startTime, data.endTime))})
         </p>
         <div className="flex flex-wrap items-start gap-3">
           <VisitActions booking={data} />
@@ -83,8 +83,8 @@ function BookingScreen({ id }: { id: string }) {
         {isAdmin ? (
           <div className="flex flex-wrap gap-2">
             <WhatsAppButton booking={data} barberPhone={barberPhone} size="sm" />
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil aria-hidden />{correction ? "تصحيح الحجز" : "تعديل الحجز"}</Button>
-            <Button variant="ghost" size="sm" onClick={() => setCorrectionOpen(true)}><RotateCcw aria-hidden />تصحيح الحالة</Button>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil aria-hidden />{correction ? "Correct reservation" : "Edit reservation"}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setCorrectionOpen(true)}><RotateCcw aria-hidden />Correct status</Button>
           </div>
         ) : null}
       </header>
@@ -92,32 +92,32 @@ function BookingScreen({ id }: { id: string }) {
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem] lg:items-start">
         <div className="flex flex-col gap-6">
           <Card>
-            <CardHeader><CardTitle>تفاصيل الزيارة</CardTitle><Ltr className="text-sm text-muted-foreground">{data.reference}</Ltr></CardHeader>
+            <CardHeader><CardTitle>Visit details</CardTitle><Ltr className="text-sm text-muted-foreground">{data.reference}</Ltr></CardHeader>
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
-                <Detail label="العميل" className="sm:col-span-2">
-                  {data.client.name}، <a href={`tel:${data.client.phone}`} className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"><Phone className="size-3.5" aria-hidden /><Ltr>{data.client.phone}</Ltr></a>
+                <Detail label="Client" className="sm:col-span-2">
+                  <a href={`tel:${data.client.phone}`} className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"><Phone className="size-3.5" aria-hidden /><Ltr>{data.client.phone}</Ltr></a>
                 </Detail>
-                <Detail label="العنوان" className="sm:col-span-2">
+                <Detail label="Address" className="sm:col-span-2">
                   {formatAddress(data.address)}
-                  {data.address.instructions ? <span className="mt-1 block text-muted-foreground">{data.address.instructions}</span> : null}
-                  {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"><MapPin className="size-3.5" aria-hidden />فتح الموقع على الخريطة</a> : null}
+
+                  {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"><MapPin className="size-3.5" aria-hidden />Open location on map</a> : null}
                 </Detail>
-                <Detail label="الحلاق">
+                <Detail label="Barber">
                   <span className="flex items-center gap-2">
                     <EmployeeAvatar employeeId={data.employee.id} name={data.employee.displayName} className="size-8" />
                     <span>{data.employee.displayName}</span>
                   </span>
                 </Detail>
-                <Detail label="الحلاقات">{[data.adultCount ? `${data.adultCount} بالغ` : null, data.childCount ? `${data.childCount} طفل` : null, data.specialChildCount ? `${data.specialChildCount} من ذوي الاحتياجات الخاصة` : null].filter(Boolean).join("، ")}</Detail>
-                {data.notes ? <Detail label="ملاحظات" className="sm:col-span-2">{data.notes}</Detail> : null}
-                <Detail label="المصدر"><SourceLabel source={data.source} /></Detail>
-                <Detail label="تاريخ الحجز">{formatDateTime(data.createdAt)}</Detail>
+                <Detail label="Haircuts">{[data.adultCount ? `${data.adultCount} adult` : null, data.childCount ? `${data.childCount} child` : null, data.specialChildCount ? `${data.specialChildCount} with special needs` : null].filter(Boolean).join(", ")}</Detail>
+                {data.notes ? <Detail label="Notes" className="sm:col-span-2">{data.notes}</Detail> : null}
+                <Detail label="Source"><SourceLabel source={data.source} /></Detail>
+                <Detail label="Reservation date">{formatDateTime(data.createdAt)}</Detail>
               </dl>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>السجل</CardTitle></CardHeader>
+            <CardHeader><CardTitle>History</CardTitle></CardHeader>
             <CardContent><BookingHistory booking={data} /></CardContent>
           </Card>
         </div>

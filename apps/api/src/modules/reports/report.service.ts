@@ -40,7 +40,7 @@ export function createReportService(repository: ReportRepository) {
       const query = { ...parsed, ...trackingPeriod(parsed) };
       const data = await repository.tracking(query);
       const accounts = new Map(data.actors.map(actor => [actor.id, actor]));
-      const clients = new Map(data.clients.map(client => [client.id, client.name]));
+      const clients = new Map(data.clients.map(client => [client.id, client.phone]));
       const byBooking = <Row extends { bookingId: string }>(rows: Row[]) => {
         const groups = new Map<string, Row[]>();
         for (const row of rows) { const group = groups.get(row.bookingId); if (group) group.push(row); else groups.set(row.bookingId, [row]); }
@@ -50,7 +50,7 @@ export function createReportService(repository: ReportRepository) {
       const actor = (id: string | null, role?: BookingTrackingEvent["actor"]["role"]): BookingTrackingEvent["actor"] => {
         const account = id ? accounts.get(id) : undefined;
         const kind = role ?? account?.role ?? "system";
-        const name = kind === "client" ? (id ? clients.get(id) : undefined) ?? "العميل" : kind === "admin" ? "المدير" : kind === "system" ? "النظام" : account?.name ?? "حساب آخر";
+        const name = kind === "client" ? (id ? clients.get(id) : undefined) ?? "Client" : kind === "admin" ? "Administrator" : kind === "system" ? "System" : account?.name ?? "Another account";
         return { id, name, role: kind };
       };
       return bookingTrackingResponseSchema.parse({
@@ -127,7 +127,7 @@ export function createReportService(repository: ReportRepository) {
       const rows = await repository.clients(query);
       return clientReportResponseSchema.parse({
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
-        clients: rows.map(row => ({ clientId: row.clientId, name: row.name, phone: row.phone, ...shapePerformance(row) })),
+        clients: rows.map(row => ({ clientId: row.clientId, phone: row.phone, ...shapePerformance(row) })),
       });
     },
     async comprehensive(queryInput: unknown) {
