@@ -42,11 +42,15 @@ function mount(known: boolean, failFirst = false, sendFails = 0, deferSend?: () 
   return fetch;
 }
 afterEach(() => vi.unstubAllGlobals());
+const pickWindow = async () => {
+  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "End at 1:30 PM" }));
+};
 it("saves without opening WhatsApp when the administrator declines", async () => {
   const open = vi.spyOn(window, "open");
   const fetch = mount(true);
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
-  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await pickWindow();
   await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
   const save = screen.getByRole("button", { name: "Save reservation and send WhatsApp" });
   await waitFor(() => expect(save).toBeEnabled());
@@ -61,7 +65,7 @@ it("saves without opening WhatsApp when the administrator declines", async () =>
 it.each([true, false])("saves the phone-first booking through the correct atomic endpoint (known=%s)", async known => {
   const fetch = mount(known);
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
-  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await pickWindow();
   if (!known) {
     await screen.findByRole("option", { name: "الفنطاس" });
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Area" }), "الفنطاس");
@@ -84,7 +88,7 @@ it("keeps the saved booking dialog mounted while the WhatsApp send is pending", 
   vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
   mount(true, false, 0, () => new Promise<Response>(resolve => { finish = resolve; }));
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
-  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await pickWindow();
   await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
   const save = screen.getByRole("button", { name: "Save reservation and send WhatsApp" });
   await waitFor(() => expect(save).toBeEnabled());
@@ -101,7 +105,7 @@ it("keeps the saved booking dialog mounted while the WhatsApp send is pending", 
 it("retains the failed save message after lookup switches to an existing client and clears it for the next save", async () => {
   mount(false, true);
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
-  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await pickWindow();
   await screen.findByRole("option", { name: "الفنطاس" });
   await userEvent.selectOptions(screen.getByRole("combobox", { name: "Area" }), "الفنطاس");
   for (const [label, value] of [["Block", "1"], ["Street", "2"], ["House number", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
@@ -119,7 +123,7 @@ it("keeps the after-save dialog open and does not navigate when the send log fai
   vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
   mount(true, false, 1);
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
-  await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
+  await pickWindow();
   await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
   const save = screen.getByRole("button", { name: "Save reservation and send WhatsApp" });
   await waitFor(() => expect(save).toBeEnabled()); await userEvent.click(save);

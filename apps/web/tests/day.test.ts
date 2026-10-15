@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink } from "../src/lib/day";
+import { buildEndOptions, buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink } from "../src/lib/day";
 
 // 2099-01-05 is a Monday (dayOfWeek 1).
 const date = "2099-01-05";
@@ -9,18 +9,16 @@ const visit = (startTime: string, endTime: string, visitStatus: "booked" | "arri
 const early = new Date("2099-01-01T00:00:00+03:00");
 
 describe("buildSlots", () => {
-  it("shows manual locks with their reason and blocks longer visits that cross them", () => {
+  it("shows manual locks with their reason and frees the half-hours around them", () => {
     const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: "موعد Special" }];
-    const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 60, now: early });
+    const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], now: early });
     expect(slots.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "locked", reason: "manual", block: blocks[0] });
-    expect(slots.find(slot => slot.startTime === "09:30")).toMatchObject({ state: "blocked" });
+    expect(slots.find(slot => slot.startTime === "09:30")).toMatchObject({ state: "free" });
     expect(slots.find(slot => slot.startTime === "09:00")).toMatchObject({ state: "free" });
-    expect(slots.find(slot => slot.startTime === "10:30")).toMatchObject({ state: "blocked" });
-    const adjacent = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 30, now: early });
-    expect(adjacent.find(slot => slot.startTime === "10:30")).toMatchObject({ state: "free" });
-    const otherDate = buildSlots({ date, schedule: { ...schedule, blocks: [{ ...blocks[0]!, date: "2099-01-06" }] }, bookings: [], duration: 30, now: early });
+    expect(slots.find(slot => slot.startTime === "10:30")).toMatchObject({ state: "free" });
+    const otherDate = buildSlots({ date, schedule: { ...schedule, blocks: [{ ...blocks[0]!, date: "2099-01-06" }] }, bookings: [], now: early });
     expect(otherDate.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "free" });
-    const past = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], duration: 30, now: new Date(`${date}T10:01:00+03:00`) });
+    const past = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], now: new Date(`${date}T10:01:00+03:00`) });
     expect(past.find(slot => slot.startTime === "10:00")).toMatchObject({ state: "past" });
   });
   it.each(["08:15", "08:45"])("keeps on-the-hour pills when another weekday or exception starts at %s", startTime => {
@@ -28,13 +26,13 @@ describe("buildSlots", () => {
       { ...schedule, days: [...schedule.days, { dayOfWeek: 2, intervals: [{ startTime, endTime: "11:00" }] }] },
       { ...schedule, exceptions: [{ date: "2099-01-06", intervals: [{ startTime, endTime: "11:00" }] }] },
     ]) {
-      const slots = buildSlots({ date, schedule: offGridSchedule, bookings: [], duration: 30, now: early });
+      const slots = buildSlots({ date, schedule: offGridSchedule, bookings: [], now: early });
       expect(slots[0]!.startTime).toBe(startTime === "08:15" ? "08:00" : "08:30");
       expect(slots.filter(slot => slot.state === "free").map(slot => slot.startTime)).toEqual(["09:00", "09:30", "10:00", "10:30"]);
     }
   });
   it("builds 30-minute pills over the whole day (09:00–23:30) and marks overlapping blocking visits as booked", () => {
-    const slots = buildSlots({ date, schedule, bookings: [visit("09:30", "10:00"), visit("10:00", "10:30", "cancelled")], duration: 30, now: early });
+    const slots = buildSlots({ date, schedule, bookings: [visit("09:30", "10:00"), visit("10:00", "10:30", "cancelled")], now: early });
     expect(slots).toHaveLength(30);
     expect([slots[0]!.startTime, slots.at(-1)!.startTime]).toEqual(["09:00", "23:30"]);
     expect(slots.slice(0, 5).map(slot => [slot.startTime, slot.state])).toEqual([["09:00", "free"], ["09:30", "booked"], ["10:00", "free"], ["10:30", "free"], ["11:00", "locked"]]);
@@ -43,7 +41,7 @@ describe("buildSlots", () => {
   });
 
   it("marks the lunch gap and the hours outside the shifts as locked breaks", () => {
-    const slots = buildSlots({ date, schedule: twoShifts, bookings: [], duration: 30, now: early });
+    const slots = buildSlots({ date, schedule: twoShifts, bookings: [], now: early });
     const state = (startTime: string) => slots.find(slot => slot.startTime === startTime);
     expect(state("09:00")).toMatchObject({ state: "locked", reason: "break" });
     expect(state("10:00")).toMatchObject({ state: "free" });
@@ -56,28 +54,51 @@ describe("buildSlots", () => {
   });
 
   it("marks a closed weekday and a closing exception as a full day of day-off locks", () => {
-    const weekdayOff = buildSlots({ date: "2099-01-06", schedule, bookings: [], duration: 30, now: early });
+    const weekdayOff = buildSlots({ date: "2099-01-06", schedule, bookings: [], now: early });
     expect(weekdayOff).toHaveLength(30);
     expect(weekdayOff.every(slot => slot.state === "locked" && slot.reason === "day-off")).toBe(true);
-    const closingException = buildSlots({ date, schedule: { ...schedule, exceptions: [{ date, intervals: [] }] }, bookings: [], duration: 30, now: early });
+    const closingException = buildSlots({ date, schedule: { ...schedule, exceptions: [{ date, intervals: [] }] }, bookings: [], now: early });
     expect(closingException.every(slot => slot.state === "locked" && slot.reason === "day-off")).toBe(true);
   });
 
   it("uses the dated exception instead of the weekly hours for the free pills", () => {
-    const slots = buildSlots({ date, schedule: { ...schedule, exceptions: [{ date, intervals: [{ startTime: "14:00", endTime: "15:00" }] }] }, bookings: [], duration: 30, now: early });
+    const slots = buildSlots({ date, schedule: { ...schedule, exceptions: [{ date, intervals: [{ startTime: "14:00", endTime: "15:00" }] }] }, bookings: [], now: early });
     expect(slots.filter(slot => slot.state === "free").map(slot => slot.startTime)).toEqual(["14:00", "14:30"]);
     expect(slots.find(slot => slot.startTime === "09:00")).toMatchObject({ state: "locked", reason: "break" });
   });
 
-  it("blocks starts whose chosen duration would run into a booking or past closing time", () => {
-    const slots = buildSlots({ date, schedule, bookings: [visit("10:00", "10:30")], duration: 60, now: early });
-    expect(slots.slice(0, 4).map(slot => [slot.startTime, slot.state, slot.endTime])).toEqual([["09:00", "free", "10:00"], ["09:30", "blocked", "10:30"], ["10:00", "booked", "11:00"], ["10:30", "blocked", "11:30"]]);
+  it("keeps every free half-hour selectable regardless of how long the visit will be", () => {
+    const slots = buildSlots({ date, schedule, bookings: [visit("10:00", "10:30")], now: early });
+    expect(slots.slice(0, 4).map(slot => [slot.startTime, slot.state, slot.endTime])).toEqual([["09:00", "free", "09:30"], ["09:30", "free", "10:00"], ["10:00", "booked", "10:30"], ["10:30", "free", "11:00"]]);
   });
 
   it("marks starts at or before the current Kuwait time as past", () => {
-    const slots = buildSlots({ date, schedule, bookings: [], duration: 30, now: new Date(`${date}T09:30:00+03:00`) });
+    const slots = buildSlots({ date, schedule, bookings: [], now: new Date(`${date}T09:30:00+03:00`) });
     expect(slots.slice(0, 4).map(slot => slot.state)).toEqual(["past", "past", "free", "free"]);
     expect(slots.find(slot => slot.startTime === "11:00")).toMatchObject({ state: "locked" });
+  });
+});
+
+describe("buildEndOptions", () => {
+  const wide = { days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [] };
+
+  it("lists half-hour ends from 30 minutes after the start up to the shift end", () => {
+    expect(buildEndOptions({ date, schedule, bookings: [], startTime: "09:00", now: early })).toEqual(["09:30", "10:00", "10:30", "11:00"]);
+    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: early })).toEqual([
+      "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00",
+    ]);
+  });
+
+  it("stops before the next booking or manual lock", () => {
+    const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: null }];
+    const options = buildEndOptions({ date, schedule: { ...wide, blocks }, bookings: [visit("10:30", "11:00")], startTime: "09:30", now: early });
+    expect(options).toEqual(["10:00"]);
+    const afterBooking = buildEndOptions({ date, schedule: wide, bookings: [visit("10:30", "11:00")], startTime: "11:00", now: early });
+    expect(afterBooking).toEqual(["11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00"]);
+  });
+
+  it("returns no ends for a start outside the working hours", () => {
+    expect(buildEndOptions({ date, schedule, bookings: [], startTime: "12:00", now: early })).toEqual([]);
   });
 });
 

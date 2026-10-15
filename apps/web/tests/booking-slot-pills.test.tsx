@@ -32,16 +32,23 @@ async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "a
   client.setQueryData(keys.schedule(id), { ...initial, blocks });
   client.setQueryData([...keys.bookings, "list", "day", date, id], { bookings: [], total: 0, limit: 100, offset: 0 });
   const select = vi.fn(), changed = vi.fn();
-  render(<QueryClientProvider client={client}><SlotPills barber={barber} date={date} duration={60} selected={null} onSelect={select} onAvailabilityChange={changed} /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><SlotPills barber={barber} date={date} selected={null} selectedEnd={null} onSelect={select} onAvailabilityChange={changed} /></QueryClientProvider>);
   return { fetch, select, changed };
 }
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("booking time lock controls", () => {
-  it("keeps normal booking selection, and locks only half an hour even with a one-hour visit selected", async () => {
+  it("asks for the end time after tapping a start and reports the chosen window, and locks only half an hour", async () => {
     const { fetch, select, changed } = await mount();
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
-    expect(select).toHaveBeenCalledWith(expect.objectContaining({ startTime: "13:00", endTime: "14:00" }));
+    await userEvent.click(screen.getByRole("radio", { name: "End at 2:00 PM" }));
+    expect(select).toHaveBeenCalledWith({ startTime: "13:00", endTime: "14:00" });
+    expect(screen.getByRole("radio", { name: "End at 2:00 PM" })).toHaveClass("bg-primary");
+    // Choosing a different start must discard the previous end, not carry it over.
+    await userEvent.click(screen.getByRole("radio", { name: "2:00 PM" }));
+    expect(screen.getAllByRole("radio", { name: /^End at/ }).every(end => end.getAttribute("aria-checked") === "false")).toBe(true);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status").textContent).toContain("Visit starts at 2:00 PM");
     await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     await userEvent.type(screen.getByLabelText(/Lock reason/), "موعد Special");

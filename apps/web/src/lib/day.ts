@@ -6,8 +6,9 @@ import { fromFils, toFils } from "./money";
 // Helpers for the day views: barber time pills, the WhatsApp hand-off, cancel reasons, and today's totals.
 
 export const SLOT_MINUTES = 30;
-/** Visit lengths offered with the time pills; the API accepts 20 minutes to 4 hours. */
-export const durationOptions = [30, 60, 90, 120, 150, 180, 210, 240] as const;
+/** The shortest and longest visit the API accepts, in minutes. */
+export const MIN_VISIT_MINUTES = 30;
+export const MAX_VISIT_MINUTES = 240;
 
 // Visits that still hold the barber's time, exactly as the API checks availability.
 const blocking = new Set<VisitStatus>(["booked", "arrived", "completed"]);
@@ -18,7 +19,7 @@ type TimeBlock = Interval & { id: string; date: string; reason: string | null };
 type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[] }[]; exceptions: { date: string; intervals: Interval[] }[]; blocks?: TimeBlock[] };
 type Visit = Interval & { visitStatus: VisitStatus };
 
-export type SlotState = "free" | "booked" | "past" | "blocked" | "locked";
+export type SlotState = "free" | "booked" | "past" | "locked";
 export type SlotReason = "break" | "day-off" | "manual";
 export type Slot<T extends Visit> = { startTime: string; endTime: string; state: SlotState; booking?: T; reason?: SlotReason; block?: TimeBlock };
 
@@ -52,10 +53,9 @@ function covered(intervals: Interval[], startTime: string, endTime: string): boo
 /**
  * 30-minute pills across the barber's whole day. A pill is booked when a visit holds its half hour, past when it has
  * already started, locked (blue) when the half hour is outside the day's working intervals — a break between shifts
- * or a whole day off — and blocked when the chosen visit length would run into a visit or past closing time.
- * The server stays authoritative and rechecks availability on save.
+ * or a whole day off. The visit length is chosen afterwards with `buildEndOptions`; the server rechecks on save.
  */
-export function buildSlots<T extends Visit>({ date, schedule, bookings, duration, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; duration: number; now?: Date }): Slot<T>[] {
+export function buildSlots<T extends Visit>({ date, schedule, bookings, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; now?: Date }): Slot<T>[] {
   const intervals = workingIntervals(schedule, date);
   const scheduledStarts = [...schedule.days, ...schedule.exceptions].flatMap(entry => entry.intervals.map(interval => minuteOfDay(interval.startTime)));
   const firstMinute = Math.floor(Math.min(minuteOfDay(DAY_START), ...scheduledStarts) / SLOT_MINUTES) * SLOT_MINUTES;
@@ -69,16 +69,36 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, duration
   return starts.map(minute => {
     const startTime = timeOf(minute);
     const halfEndTime = timeOf(minute + SLOT_MINUTES);
-    const endTime = minute + duration < lastMinute ? timeOf(minute + duration) : DAY_END;
     const booking = overlapping(startTime, halfEndTime);
-    if (booking) return { startTime, endTime, state: "booked", booking };
-    if (kuwaitInstant(date, startTime) <= now) return { startTime, endTime, state: "past" };
+    if (booking) return { startTime, endTime: halfEndTime, state: "booked" as const, booking };
+    if (kuwaitInstant(date, startTime) <= now) return { startTime, endTime: halfEndTime, state: "past" as const };
     const block = blockedBy(startTime, halfEndTime);
-    if (block) return { startTime, endTime, state: "locked", reason: "manual", block };
-    if (intervals.length === 0 || !covered(intervals, startTime, halfEndTime)) return { startTime, endTime, state: "locked", reason: intervals.length === 0 ? "day-off" : "break" };
-    if (endTime === DAY_END || !covered(intervals, startTime, endTime) || overlapping(startTime, endTime) || blockedBy(startTime, endTime)) return { startTime, endTime, state: "blocked" };
-    return { startTime, endTime, state: "free" };
+    if (block) return { startTime, endTime: halfEndTime, state: "locked" as const, reason: "manual" as const, block };
+    if (intervals.length === 0 || !covered(intervals, startTime, halfEndTime)) return { startTime, endTime: halfEndTime, state: "locked" as const, reason: intervals.length === 0 ? "day-off" as const : "break" as const };
+    return { startTime, endTime: halfEndTime, state: "free" as const };
   });
+}
+
+/** The valid end times for a visit starting at `startTime`: half-hour steps until the shift ends, a visit, or a lock is hit. */
+export function buildEndOptions<T extends Visit>({ date, schedule, bookings, startTime, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; startTime: string; now?: Date }): string[] {
+  if (kuwaitInstant(date, startTime) <= now) return [];
+  const intervals = workingIntervals(schedule, date);
+  if (!covered(intervals, startTime, timeOf(minuteOfDay(startTime) + SLOT_MINUTES))) return [];
+  const startMinute = minuteOfDay(startTime);
+  const endMinute = Math.min(startMinute + MAX_VISIT_MINUTES, minuteOfDay(DAY_END));
+  const blocks = (schedule.blocks ?? []).filter(block => block.date === date);
+  const busy = [
+    ...bookings.filter(booking => blocking.has(booking.visitStatus)).map(booking => minuteOfDay(booking.startTime)),
+    ...blocks.map(block => minuteOfDay(block.startTime)),
+  ].filter(minute => minute > startMinute);
+  const boundary = busy.length > 0 ? Math.min(...busy) : endMinute;
+  const options: string[] = [];
+  for (let minute = startMinute + SLOT_MINUTES; minute <= Math.min(endMinute, boundary); minute += SLOT_MINUTES) {
+    const candidate = timeOf(minute);
+    if (!covered(intervals, startTime, candidate)) break;
+    options.push(candidate);
+  }
+  return options;
 }
 
 const hourWords: Record<number, string> = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve" };

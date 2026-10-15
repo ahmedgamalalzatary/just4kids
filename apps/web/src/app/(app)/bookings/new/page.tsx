@@ -16,14 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import { keys, useCreateBooking, useCreateBookingWithClient, useEmployees, useSendToBarber } from "@/lib/api/hooks";
 import type { Booking } from "@/lib/api/types";
 import { specialChildrenProblem } from "@/lib/booking";
-import { durationOptions, whatsAppLink } from "@/lib/day";
-import { formatDate, formatDuration, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
+import { whatsAppLink } from "@/lib/day";
+import { formatDate, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
 import { formatKwd, invoiceTotal, typedPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { sendLoggedWhatsApp } from "@/lib/whatsapp";
@@ -80,7 +79,6 @@ function NewBookingScreen() {
   const queryClient = useQueryClient();
   const [barberId, setBarberId] = useState<string | null>(params.get("barber"));
   const [date, setDate] = useState(() => params.get("date") || kuwaitNow().date);
-  const [duration, setDuration] = useState<number>(30);
   const [slot, setSlot] = useState<{ startTime: string; endTime: string } | null>(null);
   const [clientSelection, setClientSelection] = useState<BookingClientSelection>(null);
   const [adultCount, setAdultCount] = useState(0);
@@ -170,14 +168,8 @@ function NewBookingScreen() {
               <div className="flex flex-col gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Date"><Input type="date" dir="ltr" min={kuwaitNow().date} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setSlot(null); } }} /></Field>
-                  <Field label="Visit duration">
-                    <Select value={String(duration)} onValueChange={value => { setDuration(Number(value)); setSlot(null); }}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>{durationOptions.map(option => <SelectItem key={option} value={String(option)}>{formatDuration(option)}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </Field>
                 </div>
-                <SlotPills key={`${barber.id}:${date}:${duration}`} barber={barber} date={date} duration={duration} selected={slot?.startTime ?? null} onSelect={setSlot} onAvailabilityChange={() => setSlot(null)} />
+                <SlotPills key={`${barber.id}:${date}`} barber={barber} date={date} selected={slot?.startTime ?? null} selectedEnd={slot?.endTime ?? null} onSelect={setSlot} onAvailabilityChange={() => setSlot(null)} />
                 <p className="text-sm" role="status">
                   {slot ? <>Appointment: {formatDate(date)}, <span className="font-medium" data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : <span className="text-muted-foreground">No time selected yet.</span>}
                 </p>
