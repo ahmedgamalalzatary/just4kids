@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { canEditBooking, canRecordPayment, isCorrection, isNewForBarber, visitActions } from "@/lib/visit-rules";
+import { canEditBooking, isCorrection, isNewForBarber, visitActions } from "@/lib/visit-rules";
 
-const booking = (visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show", paymentStatus: "paid" | "unpaid" = "unpaid") => ({
-  date: "2026-10-10", startTime: "10:00", endTime: "11:00", visitStatus, invoice: { paymentStatus },
+const booking = (visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show") => ({
+  date: "2026-10-10", startTime: "10:00", endTime: "11:00", visitStatus,
 });
 const at = (kuwaitTime: string) => new Date(`2026-10-10T${kuwaitTime}:00.000+03:00`);
 
@@ -32,19 +32,6 @@ describe("visit rules", () => {
     expect(isCorrection(booking("booked"), at("09:59"))).toBe(false);
     expect(isCorrection(booking("booked"), at("10:00"))).toBe(true);
     for (const status of ["arrived", "completed", "cancelled", "no_show"] as const) expect(isCorrection(booking(status), at("09:00"))).toBe(true);
-  });
-
-  it("allows the administrator to record cash only for unpaid arrived or completed visits", () => {
-    expect(canRecordPayment(booking("arrived"), true)).toBe(true);
-    expect(canRecordPayment(booking("completed"), true)).toBe(true);
-    expect(canRecordPayment(booking("completed", "paid"), true)).toBe(false);
-    expect(canRecordPayment(booking("booked"), true)).toBe(false);
-    expect(canRecordPayment(booking("cancelled"), true)).toBe(false);
-  });
-
-  it("never offers cash recording to barbers", () => {
-    expect(canRecordPayment(booking("arrived"), false)).toBe(false);
-    expect(canRecordPayment(booking("completed"), false)).toBe(false);
   });
 
   it("shows the new-booking marker only to the barber, until they open the booking", () => {

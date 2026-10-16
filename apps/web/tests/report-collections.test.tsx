@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CollectedCash, SalonFilterBar, SalonScope } from "@/components/reports";
 import BarberReportPage from "@/app/(app)/reports/barbers/page";
-import InvoicesReportPage from "@/app/(app)/reports/invoices/page";
 import { keys } from "@/lib/api/hooks";
 import { sessionKey } from "@/lib/api/session";
 
@@ -25,7 +24,7 @@ function renderWithSession(node: React.ReactNode, pathname: string) {
 }
 afterEach(() => vi.unstubAllGlobals());
 
-// The administrator's daily collections feed the barber and invoice reports, so their counts are entries, not receipts.
+// The administrator's daily collections feed the barber reports, so their counts are entries, not receipts.
 const collected = { count: 2, total: "7.000", byMethod: { cash: { count: 2, total: "7.000" }, link: { count: 0, total: "0.000" }, knet: { count: 0, total: "0.000" } } };
 
 describe("collections scope in reports", () => {
@@ -50,7 +49,6 @@ describe("collections scope in reports", () => {
     const employee = {
       employeeId: branchId, displayName: "سالم", enabled: true, availableMinutes: null,
       work: { bookings: 0, reserved: { adult: 0, child: 0, special: 0 }, completed: { adult: 0, child: 0, special: 0 }, open: { adult: 0, child: 0, special: 0 }, cancelled: { adult: 0, child: 0, special: 0 }, noShow: { adult: 0, child: 0, special: 0 }, completedVisits: 0, reservedMinutes: 0 },
-      invoices: { issued: { count: 0, total: "0.000" }, outstanding: { count: 0, total: "0.000" }, cancelled: { count: 0, total: "0.000" } },
       cash: collected,
     };
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
@@ -59,20 +57,6 @@ describe("collections scope in reports", () => {
       throw new Error(`Unexpected request ${url}`);
     }));
     renderWithSession(<BarberReportPage />, "/reports/barbers");
-    expect(await screen.findByText("2 entry")).toBeInTheDocument();
-  });
-
-  it("labels the invoice report's collected summary as entries, not receipts", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.startsWith("/api/reports/invoices")) return new Response(JSON.stringify({
-        dateBasis: "visit_date", timeZone: "Asia/Kuwait",
-        summary: { invoices: { issued: { count: 0, total: "0.000" }, outstanding: { count: 0, total: "0.000" }, cancelled: { count: 0, total: "0.000" } }, cash: collected, editedBookings: 0, edits: 0, correctedBookings: 0, corrections: 0 },
-        invoices: [], total: 0, limit: 20, offset: 0,
-      }));
-      throw new Error(`Unexpected request ${url}`);
-    }));
-    renderWithSession(<InvoicesReportPage />, "/reports/invoices");
     expect(await screen.findByText("2 entry")).toBeInTheDocument();
   });
 });

@@ -6,10 +6,9 @@ import { bookingResponseSchema } from "@just4kids/contracts";
 import { WhatsAppButton } from "@/components/day-bookings";
 import { sessionKey } from "@/lib/api/session";
 
-const id = "11111111-1111-4111-8111-111111111111", addressId = "22222222-2222-4222-8222-222222222222", timestamp = "2026-10-13T00:00:00.000Z", phone = "+96550000002";
+const id = "11111111-1111-4111-8111-111111111111", timestamp = "2026-10-13T00:00:00.000Z", phone = "+96550000002";
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
-const invoice = { id: addressId, bookingId: id, reference: "J4K-TEST", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { phone }, address, employee: { id, displayName: "سالم" } };
-const booking = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: invoice.client, address, employee: invoice.employee, invoice });
+const booking = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId: id, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone }, address, employee: { id, displayName: "سالم" } });
 
 function mount(send: (attempt: number) => Response | Promise<Response>) {
   let attempt = 0;

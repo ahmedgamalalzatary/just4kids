@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, datetime, decimal, index, int, json, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { check, date, datetime, index, int, json, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
 import { employees } from "./organization.js";
 import { clients, clientAddresses } from "./clients.js";
@@ -26,9 +26,3 @@ export const bookings = mysqlTable("bookings", {
   check("bookings_counts_valid", sql`${table.adultCount} >= 0 AND ${table.childCount} >= 0 AND ${table.specialChildCount} >= 0 AND ${table.specialChildCount} <= ${table.childCount} AND (${table.adultCount} > 0 OR ${table.childCount} > 0)`),
   check("bookings_window_bounds", sql`TIME_TO_SEC(CONCAT(${table.endTime}, ':00')) - TIME_TO_SEC(CONCAT(${table.startTime}, ':00')) BETWEEN 1200 AND 14400`),
 ]);
-export const invoices = mysqlTable("invoices", {
-  id: varchar("id", { length: 36 }).primaryKey(), bookingId: varchar("booking_id", { length: 36 }).notNull().references(() => bookings.id, { onDelete: "restrict" }),
-  amountCash: decimal("amount_cash", { precision: 24, scale: 3 }).notNull(), amountLink: decimal("amount_link", { precision: 24, scale: 3 }).notNull(), total: decimal("total", { precision: 24, scale: 3 }).notNull(),
-  status: mysqlEnum("status", ["issued", "cancelled"]).notNull().default("issued"), paymentStatus: mysqlEnum("payment_status", ["unpaid", "paid"]).notNull().default("unpaid"),
-  issuedAt: datetime("issued_at", { mode: "date", fsp: 3 }).notNull(),
-}, table => [uniqueIndex("invoices_booking_unique").on(table.bookingId), check("invoice_amounts_valid", sql`${table.amountCash} >= 0 AND ${table.amountLink} >= 0 AND ${table.total} = ${table.amountCash} + ${table.amountLink}`)]);

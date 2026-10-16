@@ -4,20 +4,18 @@ import Link from "next/link";
 import { useState } from "react";
 import { MapPin, MessageCircle, Pencil, Phone, X } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
-import { CancelVisitDialog, RecordPaymentButton, VisitActions } from "@/components/booking-actions";
+import { CancelVisitDialog, VisitActions } from "@/components/booking-actions";
 import { BookingEditDialog } from "@/components/booking-edit-dialog";
 import { Ltr } from "@/components/page";
-import { PaymentBadge, VisitStatusBadge } from "@/components/status";
+import { VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Booking } from "@/lib/api/types";
 import { formatAddress, mapLink } from "@/lib/address";
 import { useSendToBarber } from "@/lib/api/hooks";
-import { useSession } from "@/lib/api/session";
 import { haircutSummary, whatsAppLink } from "@/lib/day";
 import { formatWindow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
-import { canEditBooking, canRecordPayment } from "@/lib/visit-rules";
+import { canEditBooking } from "@/lib/visit-rules";
 import { cn } from "@/lib/utils";
 import { sendLoggedWhatsApp } from "@/lib/whatsapp";
 
@@ -68,10 +66,9 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
       </div>
       <Link href={`/bookings/${booking.id}`} className="min-w-0 rounded-md hover:underline">
         <p className="flex flex-wrap items-center gap-x-2 font-medium"><Ltr className="text-sm font-normal">{booking.client.phone}</Ltr></p>
-        <p className="truncate text-sm text-muted-foreground">{booking.address.area}, {haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
+        <p className="truncate text-sm text-muted-foreground">{booking.address.area}, {haircutSummary(booking)}</p>
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <VisitStatusBadge status={booking.visitStatus} />
-          <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
           <Ltr className="text-xs text-muted-foreground">{booking.reference}</Ltr>
         </span>
       </Link>
@@ -86,9 +83,8 @@ export function DayBookingRow({ booking, barberPhone, photoVersion }: { booking:
   );
 }
 
-/** A barber's visit card: who, where, call and map, then the next visit steps and payment. */
+/** A barber's visit card: who, where, call and map, then the next visit steps. */
 export function VisitCard({ booking }: { booking: Booking }) {
-  const isAdmin = useSession().data?.account.role === "admin";
   const map = mapLink(booking.address);
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -99,14 +95,13 @@ export function VisitCard({ booking }: { booking: Booking }) {
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <VisitStatusBadge status={booking.visitStatus} />
-          <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
         </span>
       </div>
       <div>
         <p className="text-lg font-semibold">{booking.client.phone}</p>
         <p className="text-sm">{formatAddress(booking.address)}</p>
 
-        <p className="mt-1 text-sm text-muted-foreground">{haircutSummary(booking)} · <Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
+        <p className="mt-1 text-sm text-muted-foreground">{haircutSummary(booking)}</p>
         {booking.notes ? <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">Notes: {booking.notes}</p> : null}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -114,10 +109,9 @@ export function VisitCard({ booking }: { booking: Booking }) {
         {map ? <Button asChild variant="outline"><a href={map} target="_blank" rel="noopener noreferrer"><MapPin aria-hidden />Location</a></Button> : null}
         <Button asChild variant="ghost"><Link href={`/bookings/${booking.id}`}>Details</Link></Button>
       </div>
-      {cancellable(booking) || canRecordPayment(booking, isAdmin) ? (
+      {cancellable(booking) ? (
         <div className="flex flex-wrap items-start gap-2 border-t border-border pt-3">
           <VisitActions booking={booking} />
-          {canRecordPayment(booking, isAdmin) ? <RecordPaymentButton booking={booking} /> : null}
         </div>
       ) : null}
     </Card>

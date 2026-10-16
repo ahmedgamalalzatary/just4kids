@@ -37,7 +37,7 @@ export default function ClientReportPage() {
           </CardHeader>
           <CardContent>
             <PerformanceDetails value={client} />
-            <p className="mt-4 text-xs text-muted-foreground">More than one completed visit identifies a returning client. Cancelled invoices and collected payments are separate measures.</p>
+            <p className="mt-4 text-xs text-muted-foreground">More than one completed visit identifies a returning client.</p>
           </CardContent>
         </Card>
       ))}

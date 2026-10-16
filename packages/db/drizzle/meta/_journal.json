@@ -211,6 +211,13 @@
       "when": 1792145885127,
       "tag": "0029_add_employee_work_days",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1792146759328,
+      "tag": "0030_drop_reservation_money",
+      "breakpoints": true
     }
   ]
 }

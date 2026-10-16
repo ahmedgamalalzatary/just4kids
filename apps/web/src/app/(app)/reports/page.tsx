@@ -6,12 +6,11 @@ import { CalendarDays } from "lucide-react";
 import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Pagination } from "@/components/pagination";
 import { useReportFilters } from "@/components/reports";
-import { PaymentBadge, SourceLabel, VisitStatusBadge } from "@/components/status";
+import { SourceLabel, VisitStatusBadge } from "@/components/status";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReservationReport } from "@/lib/api/hooks";
 import type { ReservationReport } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatWindow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
 import type { ReportFilters } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +43,6 @@ function BookingRow({ booking, showBarber }: { booking: ReservationReport["booki
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <VisitStatusBadge status={booking.visitStatus} />
-          <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
-          <Ltr className="ms-auto text-sm font-medium sm:ms-0 sm:min-w-[6.5rem] sm:text-end">{formatKwd(booking.invoice.total)}</Ltr>
         </div>
       </Link>
     </li>
@@ -64,7 +61,7 @@ function ReservationsReport({ filters, isAdmin }: { filters: ReportFilters; isAd
         <CardHeader>
           <div>
             <CardTitle>Reservation details</CardTitle>
-            <CardDescription>{filters.dateBasis === "created_date" ? "Newest created first." : "Latest appointment first."} Open the reservation to view its invoice and history.</CardDescription>
+            <CardDescription>{filters.dateBasis === "created_date" ? "Newest created first." : "Latest appointment first."} Open the reservation to view its history.</CardDescription>
           </div>
         </CardHeader>
         {data.bookings.length === 0 ? <EmptyState icon={CalendarDays} title="No matching reservations" description="Change the period or filters to view other reservations." /> : (

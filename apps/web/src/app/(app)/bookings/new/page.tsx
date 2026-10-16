@@ -10,7 +10,7 @@ import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { PhoneBookingClient, type BookingClientSelection } from "@/components/phone-booking-client";
 import { Field, FormAlert } from "@/components/field";
-import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
+import { ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { SlotPills } from "@/components/booking-slot-pills";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,7 +22,6 @@ import type { Booking } from "@/lib/api/types";
 import { specialChildrenProblem } from "@/lib/booking";
 import { whatsAppLink } from "@/lib/day";
 import { formatDate, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
-import { formatKwd, invoiceTotal, typedPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { sendLoggedWhatsApp } from "@/lib/whatsapp";
 
@@ -84,8 +83,6 @@ function NewBookingScreen() {
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
   const [notes, setNotes] = useState("");
-  const [amountCash, setAmountCash] = useState("");
-  const [amountLink, setAmountLink] = useState("");
 
   const employees = useEmployees();
   const create = useCreateBooking();
@@ -95,10 +92,7 @@ function NewBookingScreen() {
   const barber = employees.data?.find(employee => employee.id === barberId) ?? null;
   const haircuts = adultCount + childCount;
   const specialProblem = specialChildrenProblem(childCount, specialChildCount);
-  // The administrator types the visit price; there is no branch-derived price.
-  const price = typedPrice({ amountCash, amountLink });
-  const total = price ? invoiceTotal(price) : null;
-  const ready = Boolean(barber?.enabled && slot && clientSelection && haircuts > 0 && !specialProblem && price);
+  const ready = Boolean(barber?.enabled && slot && clientSelection && haircuts > 0 && !specialProblem);
 
   const busy = create.isPending || createNew.isPending || send.isPending;
   const pickBarber = (id: string | null) => { setBarberId(id); setSlot(null); };
@@ -109,8 +103,8 @@ function NewBookingScreen() {
     if (error instanceof ApiError && error.code === "AREA_UNAVAILABLE") void queryClient.invalidateQueries({ queryKey: keys.areas });
   };
   const createBooking = () => new Promise<Booking>((resolve, reject) => {
-    if (!ready || !barber || !slot || !clientSelection || !price) return reject(new Error("The reservation is not ready."));
-    const details = { employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) };
+    if (!ready || !barber || !slot || !clientSelection) return reject(new Error("The reservation is not ready."));
+    const details = { employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...(notes.trim() ? { notes: notes.trim() } : {}) };
     const options = {
       onSuccess: (booking: Booking) => { toast.success(`Reservation saved: ${booking.reference}`); resolve(booking); },
       onError: (error: Error) => { onSaveError(error); reject(error); },
@@ -207,20 +201,6 @@ function NewBookingScreen() {
               <div><dt className="text-xs text-muted-foreground">Appointment</dt><dd>{slot ? <>{formatDate(date)}<br /><span data-numeric>{formatWindow(slot.startTime, slot.endTime)}</span></> : "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Client</dt><dd>{clientSelection ? clientSelection.client.phone : "—"}</dd></div>
             </dl>
-            <div className="border-t border-border px-5 py-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Cash (KWD)</span>
-                  <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountCash} onChange={event => setAmountCash(event.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Link (KWD)</span>
-                  <Input dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" value={amountLink} onChange={event => setAmountLink(event.target.value)} />
-                </label>
-              </div>
-              {(amountCash.trim() !== "" || amountLink.trim() !== "") && !price ? <p className="mt-2 text-xs text-destructive">Enter the KWD amount with up to 3 decimal places.</p> : null}
-              <div className="mt-3 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold"><dt>Total</dt><dd><Ltr>{total ? formatKwd(total) : "—"}</Ltr></dd></div>
-            </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
               <FormAlert error={create.error ?? createNew.error} />
               <Button size="lg" variant="sun" onClick={saveOnly} disabled={!ready || busy}>

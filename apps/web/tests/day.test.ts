@@ -182,12 +182,12 @@ describe("cancelReasonText", () => {
 });
 
 describe("day summaries", () => {
-  const booking = (startTime: string, endTime: string, visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show", paymentStatus: "paid" | "unpaid", total: string) =>
-    ({ startTime, endTime, visitStatus, invoice: { paymentStatus, total } });
-  const day = [booking("09:00", "09:30", "completed", "paid", "5.125"), booking("10:00", "10:30", "arrived", "unpaid", "3.000"), booking("11:00", "11:30", "booked", "unpaid", "3.000"), booking("12:00", "12:30", "cancelled", "unpaid", "3.000"), booking("13:00", "13:30", "completed", "paid", "1.000")];
+  const booking = (startTime: string, endTime: string, visitStatus: "booked" | "arrived" | "completed" | "cancelled" | "no_show") =>
+    ({ startTime, endTime, visitStatus });
+  const day = [booking("09:00", "09:30", "completed"), booking("10:00", "10:30", "arrived"), booking("11:00", "11:30", "booked"), booking("12:00", "12:30", "cancelled"), booking("13:00", "13:30", "completed")];
 
-  it("counts open visits and sums collected invoices exactly", () => {
-    expect(daySummary(day)).toEqual({ open: 2, active: 4, collected: "6.125" });
+  it("counts open visits and visits that still hold the barber's time", () => {
+    expect(daySummary(day)).toEqual({ open: 2, active: 4 });
   });
 
   it("finds the current visit, otherwise the next open one", () => {

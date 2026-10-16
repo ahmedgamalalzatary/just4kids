@@ -22,7 +22,7 @@ const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; accountId: string };
 let admin: Session, employee: Session, other: Session;
 let bookingId: string;
-const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0, amountCash: "15.375", amountLink: "0.000" };
+const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0 };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -51,12 +51,11 @@ beforeAll(async () => {
   other = await signIn(otherPhone, "employee-password-123");
 });
 afterAll(async () => {
-  // Invoice history prevents accidental production deletes; cleanup is isolated test SQL only.
+  // Booking history prevents accidental production deletes; cleanup is isolated test SQL only.
   const [tables] = await connection.pool.query("SHOW TABLES LIKE 'bookings'");
   if ((tables as unknown[]).length) {
     const [historyTables] = await connection.pool.query("SHOW TABLES LIKE 'booking_visit_events'");
     if ((historyTables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
-    await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
     await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   }
   await connection.db.delete(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, employeeId));
@@ -69,30 +68,23 @@ afterAll(async () => {
   }
   await connection.pool.end();
 });
-describe("manual bookings and initial invoices", () => {
+describe("manual bookings", () => {
   it("requires administrator authentication, origin, and CSRF for creation", async () => {
     expect((await request(app).get("/bookings")).status).toBe(401);
     expect((await post(input, employee)).status).toBe(403);
     expect((await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).send(input)).status).toBe(403);
     expect((await request(app).post("/bookings").set("Origin", "https://attacker.example").set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(input)).status).toBe(403);
   });
-  it("creates one reservation and combined exact invoice for three haircuts in 20 minutes", async () => {
+  it("creates one reservation for three haircuts in 20 minutes", async () => {
     const response = await post(input);
     expect(response.status).toBe(201);
     bookingId = response.body.id;
-    expect(response.body).toMatchObject({ source: "manual", visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0, invoice: { currency: "KWD", status: "issued", paymentStatus: "unpaid", amountCash: "15.375", amountLink: "0.000", total: "15.375" } });
+    expect(response.body).toMatchObject({ source: "manual", visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0 });
     expect(response.body.reference).toMatch(/^J4K-/);
-    expect(response.body.invoice.bookingId).toBe(bookingId);
-    const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM invoices WHERE booking_id = ?", [bookingId]);
-    expect(rows).toMatchObject([{ n: 1 }]);
   });
-  it("scopes booking and invoice list/detail reads to the assigned employee", async () => {
+  it("scopes booking list/detail reads to the assigned employee", async () => {
     expect((await request(app).get(`/bookings/${bookingId}`).set("Cookie", employee.cookie)).status).toBe(200);
-    const ownInvoice = await request(app).get(`/bookings/${bookingId}/invoice`).set("Cookie", employee.cookie);
-    expect(ownInvoice.status).toBe(200);
-    expect(ownInvoice.body.total).toBe("15.375");
     expect((await request(app).get(`/bookings/${bookingId}`).set("Cookie", other.cookie)).status).toBe(403);
-    expect((await request(app).get(`/bookings/${bookingId}/invoice`).set("Cookie", other.cookie)).status).toBe(403);
     const listed = await request(app).get("/bookings").set("Cookie", other.cookie);
     expect(listed.status).toBe(200);
     expect(listed.body.bookings).toEqual([]);
@@ -126,9 +118,8 @@ describe("manual bookings and initial invoices", () => {
     expect((await post({ ...input, clientId: randomUUID() })).status).toBe(404);
   });
   it("rejects overlapping concurrent bookings while accepting adjacent windows", async () => {
-    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" }), post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" })]);
+    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 }), post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 })]);
     expect(results.map(result => result.status).sort()).toEqual([201, 409]);
-    expect(results.find(result => result.status === 201)!.body.invoice.total).toBe("8.126");
     expect((await post({ ...input, startTime: "10:20", endTime: "10:40" })).status).toBe(201);
     expect((await post({ ...input, startTime: "14:00", endTime: "18:00" })).status).toBe(201);
   });
@@ -165,35 +156,19 @@ describe("manual bookings and initial invoices", () => {
     expect((await post({ ...input, date: exceptionDate, startTime: "06:00", endTime: "06:20" })).status).toBe(201);
     expect((await schedule("delete", `/schedules/${employeeId}/exceptions/${exceptionDate}`)).status).toBe(409);
   });
-  it("rolls back the reservation if invoice persistence fails", async () => {
-    const trigger = `verification_${randomUUID().replaceAll("-", "")}`;
-    await connection.pool.query(`CREATE TRIGGER ${trigger} BEFORE INSERT ON invoices FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'verification invoice failure'`);
-    try {
-      expect((await post({ ...input, startTime: "19:00", endTime: "19:20" })).status).toBe(500);
-      const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM bookings WHERE employee_id = ? AND start_time = '19:00'", [employeeId]);
-      expect(rows).toMatchObject([{ n: 0 }]);
-    } finally { await connection.pool.query(`DROP TRIGGER ${trigger}`); }
-  });
   it("enforces trusted AI source and sender-scoped client identity in the shared creation service", async () => {
     const service = createBookingService(createBookingRepository(connection));
     await expect(service.create(input, { kind: "whatsapp", accountId: admin.accountId, clientId: randomUUID() })).rejects.toMatchObject({ status: 403 });
     await expect(service.create(input, { kind: "administrator", accountId: employeeId })).rejects.toMatchObject({ status: 403 });
     const created = await service.create({ ...input, startTime: "11:00", endTime: "11:20" }, { kind: "whatsapp", accountId: admin.accountId, clientId });
     expect(created.source).toBe("ai");
-    expect(created.invoice.total).toBe("15.375");
   });
   it("protects a booking racing with a closure using the same employee lock", async () => {
     const raceDate = "2099-01-08";
     const [created, closed] = await Promise.all([post({ ...input, date: raceDate }), schedule("put", `/schedules/${employeeId}/exceptions/${raceDate}`, { intervals: [] })]);
     expect([[201, 409], [409, 200]]).toContainEqual([created.status, closed.status]);
   });
-  it("keeps large KWD totals exact and enforces one invoice in MySQL", async () => {
-    const created = await post({ ...input, startTime: "21:00", endTime: "21:20", amountCash: "999999999.999", amountLink: "999999999.999" });
-    expect(created.status).toBe(201);
-    expect(created.body.invoice.total).toBe("1999999999.998");
-    await expect(connection.pool.execute("INSERT INTO invoices (id, booking_id, amount_cash, amount_link, total, status, payment_status, issued_at) SELECT UUID(), booking_id, amount_cash, amount_link, total, status, payment_status, issued_at FROM invoices WHERE booking_id = ?", [created.body.id])).rejects.toMatchObject({ code: "ER_DUP_ENTRY" });
-  });
-  it("preserves address, client, employee, and price snapshots after current records change, without a branch", async () => {
+  it("preserves address, client, and employee snapshots after current records change, without a branch", async () => {
     const before = (await request(app).get(`/bookings/${bookingId}`).set("Cookie", admin.cookie)).body;
     expect(before).not.toHaveProperty("branchId");
     expect(Object.keys(before.employee)).toEqual(["id", "displayName"]);
@@ -204,7 +179,6 @@ describe("manual bookings and initial invoices", () => {
     expect(after.address).toEqual(before.address);
     expect(after.client).toEqual(before.client);
     expect(after.employee).toEqual(before.employee);
-    expect(after.invoice).toEqual(before.invoice);
   });
   it("rejects a booking at the current Kuwait minute without an extra lead-time cutoff", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-02T09:00:00Z"));

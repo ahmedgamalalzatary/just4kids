@@ -17,7 +17,7 @@ const employeePhone = `+965${randomInt(70000000, 79999999)}`;
 const phones: string[] = [];
 const newPhone = () => { const phone = `+965${randomInt(30000000, 39999999)}`; phones.push(phone); return phone; };
 const address = { areaId, area: `الفنطاس ${suffix}`, block: "1", street: "2", houseNumber: "3" };
-const booking = { employeeId, date: "2099-01-05", startTime: "09:00", endTime: "09:30", adultCount: 0, childCount: 1, amountCash: "5.000", amountLink: "1.000" };
+const booking = { employeeId, date: "2099-01-05", startTime: "09:00", endTime: "09:30", adultCount: 0, childCount: 1 };
 type Session = { cookie: string; csrf: string };
 let admin: Session, employee: Session;
 async function login(phone: string, password: string): Promise<Session> {
@@ -37,7 +37,6 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
-  await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   for (const phone of phones) {
     const [client] = await connection.db.select().from(clients).where(eq(clients.phone, phone));
@@ -53,11 +52,11 @@ it("protects atomic phone booking with admin, CSRF and origin checks", async () 
   expect((await request(app).post("/bookings/with-client").set("Origin", origin).set("Cookie", admin.cookie).send(body)).status).toBe(403);
   expect((await request(app).post("/bookings/with-client").set("Origin", "https://attacker.example").set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(body)).status).toBe(403);
 });
-it("saves a phone-only client, address, booking and invoice together, and returns the last-used address on lookup", async () => {
+it("saves a phone-only client, address and booking together, and returns the last-used address on lookup", async () => {
   const phone = newPhone();
   const created = await post({ ...booking, client: { phone, address } });
   expect(created.status).toBe(201);
-  expect(created.body).toMatchObject({ client: { phone }, address: { area: address.area }, invoice: { total: "6.000" } });
+  expect(created.body).toMatchObject({ client: { phone }, address: { area: address.area } });
   const extra = await request(app).post(`/clients/${created.body.clientId}/addresses`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ ...address, street: "جديد" });
   expect(extra.status).toBe(201);
   const lookup = await request(app).get(`/clients/lookup?phone=${encodeURIComponent(phone)}`).set("Cookie", admin.cookie);

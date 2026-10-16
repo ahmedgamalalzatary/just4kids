@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { currentKuwaitWeek } from "@just4kids/contracts";
 import { createDatabase } from "@just4kids/db";
-import { accounts, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, cashPaymentEvents, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
+import { accounts, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, clientAddresses, clients, employees, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -18,7 +18,6 @@ const app = createApp({ auth, connection, env });
 const barberA = randomUUID(), barberB = randomUUID(), clientA = randomUUID(), clientB = randomUUID();
 const addressA = randomUUID(), addressB = randomUUID();
 const ids = Array.from({ length: 4 }, () => randomUUID());
-const invoiceIds = ids.map(() => randomUUID());
 // A visit today (Kuwait) for barber A, inside the default week.
 const thisWeek = randomUUID();
 const everyId = [...ids, thisWeek];
@@ -55,7 +54,6 @@ beforeAll(async () => {
       clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: employeeId, displayName: "اسم الحلاق وقت الحجز" },
       addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
     });
-    await connection.db.insert(invoices).values({ id: invoiceIds[index]!, bookingId: id, amountCash: "5.000", amountLink: "0.000", total: "5.000", issuedAt: at(8) });
   }
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuwait" }).format(now);
   await connection.db.insert(bookings).values({
@@ -64,36 +62,22 @@ beforeAll(async () => {
     clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: barberA, displayName: "حلاق التتبع" },
     addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
   });
-  await connection.db.insert(invoices).values({ id: randomUUID(), bookingId: thisWeek, amountCash: "5.000", amountLink: "0.000", total: "5.000", issuedAt: now });
   const booking = (await request(app).get(`/bookings/${ids[0]}`).set("Cookie", admin)).body;
   await connection.db.insert(bookingVisitEvents).values([
-    { id: randomUUID(), bookingId: ids[0]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: adminId, invoiceStatus: "issued", occurredAt: at(8) },
-    { id: randomUUID(), bookingId: ids[0]!, version: 3, fromStatus: "booked", toStatus: "arrived", actorType: "employee", actorAccountId: barberA, invoiceStatus: "issued", previousInvoiceStatus: "issued", reason: "وصل إلى العنوان", occurredAt: at(11) },
-    { id: randomUUID(), bookingId: ids[0]!, version: 4, fromStatus: "arrived", toStatus: "completed", actorType: "admin", actorAccountId: adminId, invoiceStatus: "issued", previousInvoiceStatus: "issued", correction: true, reason: "تصحيح الحالة", occurredAt: at(12) },
-    { id: randomUUID(), bookingId: ids[1]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "client", actorClientId: clientB, invoiceStatus: "cancelled", reason: "طلب العميل", occurredAt: at(9) },
-    { id: randomUUID(), bookingId: ids[2]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "system", invoiceStatus: "issued", occurredAt: at(8) },
+    { id: randomUUID(), bookingId: ids[0]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: adminId, occurredAt: at(8) },
+    { id: randomUUID(), bookingId: ids[0]!, version: 3, fromStatus: "booked", toStatus: "arrived", actorType: "employee", actorAccountId: barberA, reason: "وصل إلى العنوان", occurredAt: at(11) },
+    { id: randomUUID(), bookingId: ids[0]!, version: 4, fromStatus: "arrived", toStatus: "completed", actorType: "admin", actorAccountId: adminId, correction: true, reason: "تصحيح الحالة", occurredAt: at(12) },
+    { id: randomUUID(), bookingId: ids[1]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "client", actorClientId: clientB, reason: "طلب العميل", occurredAt: at(9) },
+    { id: randomUUID(), bookingId: ids[2]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "system", occurredAt: at(8) },
   ]);
   await connection.db.insert(bookingMessages).values({ id: randomUUID(), bookingId: ids[0]!, kind: "sent_to_barber", actorAccountId: adminId, occurredAt: at(9) });
   await connection.db.insert(bookingRevisions).values({ id: randomUUID(), bookingId: ids[0]!, version: 2, actorAccountId: adminId, reason: "تعديل الملاحظات", before: { ...booking, notes: null }, after: { ...booking, notes: "جرس الباب" }, occurredAt: at(10) });
-  const paymentId = randomUUID();
-  const receipt = { id: paymentId, bookingId: ids[0]!, invoiceId: invoiceIds[0]!, amount: "5.000", originalAmount: "5.000", method: "knet" as const, status: "voided" as const, recordedBy: adminId, recordedAt: at(13), bookingAtReceipt: booking };
-  await connection.db.insert(cashPayments).values(receipt);
-  const snapshot = { ...receipt, currency: "KWD", recordedAt: at(13).toISOString() };
-  await connection.db.insert(cashPaymentEvents).values([
-    { id: randomUUID(), bookingId: ids[0]!, paymentId, version: 5, kind: "recorded", method: "knet", amount: "5.000", actorAccountId: adminId, before: null, after: { ...snapshot, status: "active" }, occurredAt: at(13) },
-    { id: randomUUID(), bookingId: ids[0]!, paymentId, version: 6, kind: "voided", method: "knet", amount: "5.000", actorAccountId: adminId, reason: "قيد خاطئ", before: { ...snapshot, status: "active" }, after: snapshot, occurredAt: at(14) },
-  ]);
-  // A historical receipt without an event still has recoverable original actor/time/amount.
-  await connection.db.insert(cashPayments).values({ ...receipt, id: randomUUID(), bookingId: ids[2]!, invoiceId: invoiceIds[2]!, originalAmount: "7.000", amount: "8.000", status: "active", method: "cash" });
   employee = await signIn(phone, "employee-password-123");
 });
 afterAll(async () => {
-  await connection.db.delete(cashPaymentEvents).where(inArray(cashPaymentEvents.bookingId, everyId));
-  await connection.db.delete(cashPayments).where(inArray(cashPayments.bookingId, everyId));
   await connection.db.delete(bookingRevisions).where(inArray(bookingRevisions.bookingId, everyId));
   await connection.db.delete(bookingMessages).where(inArray(bookingMessages.bookingId, everyId));
   await connection.db.delete(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, everyId));
-  await connection.db.delete(invoices).where(inArray(invoices.bookingId, everyId));
   await connection.db.delete(bookings).where(inArray(bookings.id, everyId));
   await connection.db.delete(clientAddresses).where(inArray(clientAddresses.id, [addressA, addressB]));
   await connection.db.delete(clients).where(inArray(clients.id, [clientA, clientB]));
@@ -111,23 +95,21 @@ describe("booking tracking report", () => {
     expect(result.status).toBe(200);
     expect(result.headers["cache-control"]).toBe("no-store");
   });
-  it("groups newest visits first and merges full histories oldest first without duplicate receipts", async () => {
+  it("groups newest visits first and merges full histories oldest first", async () => {
     const result = await report();
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait" });
     expect(result.body.bookings.map((row: { booking: { id: string } }) => row.booking.id)).toEqual([ids[1], ids[2], ids[0]]);
     const events = result.body.bookings[2].events;
-    expect(events.map((event: { type: string }) => event.type)).toEqual(["visit", "message", "revision", "visit", "visit", "payment", "payment"]);
-    expect(events.map((event: { at: string }) => event.at)).toEqual([8, 9, 10, 11, 12, 13, 14].map(hour => at(hour).toISOString()));
+    expect(events.map((event: { type: string }) => event.type)).toEqual(["visit", "message", "revision", "visit", "visit"]);
+    expect(events.map((event: { at: string }) => event.at)).toEqual([8, 9, 10, 11, 12].map(hour => at(hour).toISOString()));
     expect(events[0].event.fromStatus).toBeNull();
     expect(events[1].message.kind).toBe("sent_to_barber");
     expect(events[2].revision).toMatchObject({ reason: "تعديل الملاحظات", before: { notes: null }, after: { notes: "جرس الباب" } });
     expect(events[3]).toMatchObject({ actor: { id: barberA, name: "حلاق التتبع", role: "employee" }, event: { reason: "وصل إلى العنوان" } });
     expect(events[4]).toMatchObject({ actor: { id: adminId, name: "Administrator", role: "admin" }, event: { correction: true, reason: "تصحيح الحالة" } });
-    expect(events[6]).toMatchObject({ payment: { kind: "voided", method: "knet", reason: "قيد خاطئ" } });
     expect(result.body.bookings[0].events[1]).toMatchObject({ actor: { id: clientB, name: expect.stringMatching(/^\+965[0-9]{8}$/), role: "client" } });
     expect(result.body.bookings[1].events[0]).toMatchObject({ actor: { id: null, name: "System", role: "system" } });
-    expect(result.body.bookings[1].events[1]).toMatchObject({ payment: { kind: "recorded", amount: "7.000", method: "cash" }, actor: { id: adminId, role: "admin" } });
   });
   it("applies barber, client and inclusive visit-day filters together", async () => {
     const idsFor = async (query: Record<string, string>) => {

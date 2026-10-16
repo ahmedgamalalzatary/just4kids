@@ -235,4 +235,4 @@ REMOVE (reservation money only)              KEEP (unchanged)
 
 **Final gate:** `pnpm check` (lint, typecheck, test, build) is green across the whole repository.
 
-- [ ] P8 done
+- [x] P8 done

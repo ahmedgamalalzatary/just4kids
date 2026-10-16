@@ -19,7 +19,7 @@ const employeeId = randomUUID(), sameId = randomUUID(), otherId = randomUUID(), 
 const phone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session, other: Session;
-let day = 1, date: string, booking: { id: string; reference: string; visitVersion: number; invoice: { id: string; issuedAt: string } };
+let day = 1, date: string, booking: { id: string; reference: string; visitVersion: number };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const login = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -30,7 +30,7 @@ function write(method: "post" | "patch", path: string, body: object, session = a
 function edit(patch: object, version = 0, session = admin) { return write("patch", `/bookings/${booking.id}`, { expectedVersion: version, ...patch }, session); }
 function detail(session = admin) { return request(app).get(`/bookings/${booking.id}`).set("Cookie", session.cookie); }
 function revisions(session = admin) { return request(app).get(`/bookings/${booking.id}/revisions`).set("Cookie", session.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
@@ -61,7 +61,6 @@ afterAll(async () => {
   const [tables] = await connection.pool.query("SHOW TABLES LIKE 'booking_revisions'");
   if ((tables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_revisions WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ?)", [clientId]);
   await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ?)", [clientId]);
-  await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ?)", [clientId]);
   await connection.pool.execute("DELETE FROM bookings WHERE client_id = ?", [clientId]);
   for (const id of ids) {
     await connection.db.delete(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, id));
@@ -72,17 +71,14 @@ afterAll(async () => {
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.clientId, foreignClientId)); await connection.db.delete(clients).where(eq(clients.id, foreignClientId));
   await connection.pool.end();
 });
-describe("reservation edits and invoice revisions", () => {
+describe("reservation edits and revisions", () => {
   it("loads and edits legacy bookings without the newer address fields", async () => {
     await connection.pool.execute("UPDATE bookings SET address_snapshot = JSON_REMOVE(address_snapshot, '$.avenue', '$.gate', '$.blueNumber') WHERE id = ?", [booking.id]);
     const loaded = await detail();
     expect(loaded.status).toBe(200);
     expect(loaded.body.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
-    const invoice = await request(app).get(`/bookings/${booking.id}/invoice`).set("Cookie", admin.cookie);
-    expect(invoice.status).toBe(200);
-    expect(invoice.body.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
     expect((await edit({ adultCount: 2 })).status).toBe(200);
-    await connection.pool.execute("UPDATE booking_revisions SET `before` = JSON_REMOVE(`before`, '$.address.avenue', '$.address.gate', '$.address.blueNumber', '$.invoice.address.avenue', '$.invoice.address.gate', '$.invoice.address.blueNumber') WHERE booking_id = ?", [booking.id]);
+    await connection.pool.execute("UPDATE booking_revisions SET `before` = JSON_REMOVE(`before`, '$.address.avenue', '$.address.gate', '$.address.blueNumber') WHERE booking_id = ?", [booking.id]);
     const history = await revisions();
     expect(history.status).toBe(200);
     expect(history.body.revisions[0].before.address).toMatchObject({ avenue: null, gate: null, blueNumber: null });
@@ -119,39 +115,32 @@ describe("reservation edits and invoice revisions", () => {
     expect(current.body.seenByBarberAt).toBeNull();
     expect((await detail(employee)).body.seenByBarberAt).not.toBeNull();
   });
-  it("moves the window/address while preserving agreed prices, identity, and before/after history", async () => {
+  it("moves the window/address while preserving identity and before/after history", async () => {
     const before = (await detail()).body;
     const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });
     expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" }, invoice: { id: booking.invoice.id, issuedAt: booking.invoice.issuedAt, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
+    expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" } });
     const history = await revisions(); expect(history.status).toBe(200); expect(history.body.revisions).toHaveLength(1);
     expect(history.body.revisions[0]).toMatchObject({ version: 1, actorAccountId: admin.id, reason: "requested move", before, after: updated.body });
   });
-  it("keeps the agreed typed amount for count edits and reassignment", async () => {
-    const updated = await edit({ adultCount: 3, childCount: 0, employeeId: sameId });
-    expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ employeeId: sameId, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
-  });
-  it("changes employee ownership without a branch or another invoice", async () => {
+  it("changes employee ownership without a branch", async () => {
     const changed = await edit({ employeeId: otherId, adultCount: 2 }); expect(changed.status).toBe(200);
     expect(changed.body).not.toHaveProperty("branchId");
-    expect(changed.body).toMatchObject({ employeeId: otherId, employee: { id: otherId, displayName: "second" }, invoice: { id: booking.invoice.id, amountCash: "8.126", amountLink: "0.000", total: "8.126" } });
-    for (const suffix of ["", "/invoice", "/history", "/revisions"]) {
+    expect(changed.body).toMatchObject({ employeeId: otherId, employee: { id: otherId, displayName: "second" } });
+    for (const suffix of ["", "/history", "/revisions"]) {
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", employee.cookie)).status).toBe(403);
       expect((await request(app).get(`/bookings/${booking.id}${suffix}`).set("Cookie", other.cookie)).status).toBe(200);
     }
-    const [rows] = await connection.pool.execute("SELECT COUNT(*) AS n FROM invoices WHERE booking_id = ?", [booking.id]); expect(rows).toMatchObject([{ n: 1 }]);
   });
-  it("preserves snapshots and the typed amount for count edits after the current barber is renamed", async () => {
+  it("preserves snapshots for count edits after the current barber is renamed", async () => {
     const before = (await detail()).body;
     await connection.db.update(employees).set({ displayName: "renamed" }).where(eq(employees.accountId, employeeId));
     try {
       const changed = await edit({ adultCount: 2 }); expect(changed.status).toBe(200);
       expect(changed.body.employee).toEqual(before.employee);
-      expect(changed.body.invoice).toMatchObject({ amountCash: "8.126", amountLink: "0.000", total: "8.126" });
     } finally { await connection.db.update(employees).set({ displayName: "first" }).where(eq(employees.accountId, employeeId)); }
   });
-  it("denies employees, unauthenticated changes, missing CSRF, and caller-controlled prices", async () => {
+  it("denies employees, unauthenticated changes, missing CSRF, and caller-controlled money", async () => {
     expect((await edit({ adultCount: 2 }, 0, employee)).status).toBe(403);
     expect((await request(app).patch(`/bookings/${booking.id}`).set("Origin", origin).send({ adultCount: 2, expectedVersion: 0 })).status).toBe(401);
     expect((await request(app).patch(`/bookings/${booking.id}`).set("Origin", origin).set("Cookie", admin.cookie).send({ adultCount: 2, expectedVersion: 0 })).status).toBe(403);
@@ -192,12 +181,6 @@ describe("reservation edits and invoice revisions", () => {
     const clash = await edit({ startTime: "10:00", endTime: "10:20", reason: "move it" }, 2);
     expect(clash.status).toBe(409);
     expect(clash.body.error.code).toBe("BARBER_UNAVAILABLE");
-  });
-  it("rejects paid edits when the corresponding cash record is missing", async () => {
-    await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);
-    const before = (await detail()).body;
-    for (const patch of [{ adultCount: 2 }, { addressId: secondAddressId }, { startTime: "10:00", endTime: "10:20" }]) expect((await edit(patch)).status).toBe(409);
-    expect((await detail()).body).toEqual(before); expect((await revisions()).body.revisions).toEqual([]);
   });
   it("rolls back a conflicting reschedule/reassignment and rejects disabled barbers", async () => {
     expect((await write("post", "/bookings", { ...body(), employeeId: otherId })).status).toBe(201);
@@ -260,7 +243,7 @@ describe("reservation edits and invoice revisions", () => {
       await connection.db.update(clientAddresses).set({ street: "original street" }).where(eq(clientAddresses.id, addressId));
     }
   });
-  it("rolls back the booking/invoice if revision persistence fails", async () => {
+  it("rolls back the booking if revision persistence fails", async () => {
     const trigger = `verification_${randomUUID().replaceAll("-", "")}`;
     await connection.pool.query(`CREATE TRIGGER ${trigger} BEFORE INSERT ON booking_revisions FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'revision failure'`);
     try {

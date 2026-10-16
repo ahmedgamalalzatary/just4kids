@@ -28,7 +28,7 @@ async function signIn(phone: string, password: string): Promise<Session> {
   return { cookie: (response.headers["set-cookie"] as unknown as string[]).find(value => value.startsWith("j4k_session="))!.split(";")[0]!, csrf: response.body.csrfToken as string };
 }
 function postBooking(body: object) {
-  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", amountCash: "9.000", amountLink: "0.000", ...body });
+  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", ...body });
 }
 function report(path: string, session: Session) {
   return request(app).get(path).set("Cookie", session.cookie);
@@ -49,7 +49,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM booking_revisions WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
-  await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   await connection.db.delete(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, employeeId));
   await connection.db.delete(employeeWorkIntervals).where(eq(employeeWorkIntervals.employeeId, employeeId));
@@ -61,12 +60,11 @@ afterAll(async () => {
 });
 
 describe("special-needs children on bookings", () => {
-  it("stores the count and prices special children as ordinary children", async () => {
+  it("stores the special-needs child count", async () => {
     const created = await postBooking({ startTime: "09:00", endTime: "09:20", adultCount: 0, childCount: 3, specialChildCount: 2 });
     expect(created.status).toBe(201);
     bookingId = created.body.id;
     expect(created.body.specialChildCount).toBe(2);
-    expect(created.body.invoice).toMatchObject({ specialChildCount: 2, childCount: 3, amountCash: "9.000", amountLink: "0.000", total: "9.000" });
   });
 
   it("defaults the count to zero and rejects counts outside 0..childCount", async () => {
@@ -88,16 +86,12 @@ describe("special-needs children on bookings", () => {
     expect(revisions.body.revisions.at(-1).before.specialChildCount).toBe(2);
   });
 
-  it("shows special-needs counts next to child counts in the haircut, invoice, and booking reports", async () => {
+  it("shows special-needs counts next to child counts in the haircut and booking reports", async () => {
     const range = `dateBasis=visit_date&from=${date}&to=${date}`;
     const haircuts = await report(`/reports/haircuts?${range}`, admin);
     expect(haircuts.status).toBe(200);
     expect(haircuts.body.totals.reserved).toEqual({ adult: 1, child: 3, special: 1 });
     expect(haircuts.body.totals.completed.special).toBe(0);
-
-    const invoices = await report(`/reports/invoices?${range}`, admin);
-    expect(invoices.status).toBe(200);
-    expect(invoices.body.invoices.find((entry: { bookingId: string }) => entry.bookingId === bookingId)).toMatchObject({ specialChildCount: 1, childCount: 3 });
 
     const reservations = await report(`/reports/reservations?${range}`, admin);
     expect(reservations.status).toBe(200);

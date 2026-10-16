@@ -73,7 +73,7 @@ export function EditClientDialog({ client, open, onOpenChange }: DialogProps & {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit client details</DialogTitle>
-          <DialogDescription>Previous reservations and invoices retain their saved client phone.</DialogDescription>
+          <DialogDescription>Previous reservations retain their saved client phone.</DialogDescription>
         </DialogHeader>
         <form id="edit-client-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
           <Field label="Phone number" error={errors.phone?.message}><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>

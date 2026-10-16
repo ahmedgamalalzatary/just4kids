@@ -28,18 +28,6 @@ export function VisitStatusBadge({ status, className }: { status: VisitStatus; c
   );
 }
 
-/** Payment is shown as its own measure; a cancelled invoice is labelled separately. */
-export function PaymentBadge({ paymentStatus, invoiceStatus, className }: { paymentStatus: "paid" | "unpaid"; invoiceStatus?: "issued" | "cancelled"; className?: string }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1.5", className)}>
-      <span className={cn(chip, paymentStatus === "paid" ? "bg-status-completed-soft text-status-completed" : "border border-border text-muted-foreground")}>
-        {paymentStatus === "paid" ? "Paid" : "Unpaid"}
-      </span>
-      {invoiceStatus === "cancelled" ? <span className={cn(chip, "bg-status-cancelled-soft text-status-cancelled line-through decoration-1")}>Cancelled invoice</span> : null}
-    </span>
-  );
-}
-
 export function SourceLabel({ source }: { source: "manual" | "ai" }) {
   return <span className="text-xs text-muted-foreground">{source === "ai" ? "Via WhatsApp" : "Manual reservation"}</span>;
 }

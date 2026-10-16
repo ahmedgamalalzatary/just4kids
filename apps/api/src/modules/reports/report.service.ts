@@ -1,4 +1,4 @@
-import { bookingMessageResponseSchema, bookingRevisionResponseSchema, bookingTrackingQuerySchema, bookingTrackingResponseSchema, clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, invoiceReportQuerySchema, invoiceReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema, trackingPeriod } from "@just4kids/contracts";
+import { bookingMessageResponseSchema, bookingRevisionResponseSchema, bookingTrackingQuerySchema, bookingTrackingResponseSchema, clientReportQuerySchema, clientReportResponseSchema, comprehensiveReportQuerySchema, comprehensiveReportResponseSchema, employeeReportQuerySchema, employeeReportResponseSchema, haircutReportQuerySchema, haircutReportResponseSchema, reservationReportQuerySchema, reservationReportResponseSchema, trackingPeriod } from "@just4kids/contracts";
 import type { Account, BookingTrackingEvent, HaircutReportQuery } from "@just4kids/contracts";
 import { ForbiddenError } from "../../lib/http-error.js";
 import { fils, money } from "../bookings/booking.repository.js";
@@ -28,8 +28,8 @@ function collectionCash(row: CollectionRow | undefined) {
 }
 
 // Daily collections carry only a barber and a day, so they follow the period and barber filters and nothing else.
-function collectionsFollow(query: HaircutReportQuery & { paymentStatus?: string | undefined }) {
-  return !query.clientId && !query.status && !query.source && !query.q && !query.paymentStatus;
+function collectionsFollow(query: HaircutReportQuery) {
+  return !query.clientId && !query.status && !query.source && !query.q;
 }
 
 export function createReportService(repository: ReportRepository) {
@@ -46,7 +46,7 @@ export function createReportService(repository: ReportRepository) {
         for (const row of rows) { const group = groups.get(row.bookingId); if (group) group.push(row); else groups.set(row.bookingId, [row]); }
         return groups;
       };
-      const visits = byBooking(data.visits), revisions = byBooking(data.revisions), paymentEvents = byBooking(data.payments), receipts = byBooking(data.receipts), messages = byBooking(data.messages);
+      const visits = byBooking(data.visits), revisions = byBooking(data.revisions), messages = byBooking(data.messages);
       const actor = (id: string | null, role?: BookingTrackingEvent["actor"]["role"]): BookingTrackingEvent["actor"] => {
         const account = id ? accounts.get(id) : undefined;
         const kind = role ?? account?.role ?? "system";
@@ -65,18 +65,11 @@ export function createReportService(repository: ReportRepository) {
           for (const revision of revisions.get(id) ?? []) {
             add({ type: "revision", at: revision.occurredAt.toISOString(), actor: actor(revision.actorAccountId), revision: bookingRevisionResponseSchema.parse({ ...revision, occurredAt: revision.occurredAt.toISOString() }) }, revision.id, revision.version);
           }
-          const payments = paymentEvents.get(id) ?? [];
-          for (const payment of payments) {
-            add({ type: "payment", at: payment.occurredAt.toISOString(), actor: actor(payment.actorAccountId), payment: { id: payment.id, paymentId: payment.paymentId, kind: payment.kind, method: payment.method, amount: payment.amount, reason: payment.reason } }, payment.id, payment.version);
-          }
-          for (const receipt of receipts.get(id) ?? []) {
-            if (!payments.some(event => event.paymentId === receipt.id && event.kind === "recorded")) add({ type: "payment", at: receipt.recordedAt.toISOString(), actor: actor(receipt.recordedBy), payment: { id: receipt.id, paymentId: receipt.id, kind: "recorded", method: receipt.method, amount: receipt.originalAmount, reason: null } }, receipt.id);
-          }
           for (const message of messages.get(id) ?? []) {
             add({ type: "message", at: message.occurredAt.toISOString(), actor: actor(message.actorAccountId), message: bookingMessageResponseSchema.parse({ ...message, occurredAt: message.occurredAt.toISOString() }) }, message.id);
           }
           entries.sort((left, right) => Date.parse(left.value.at) - Date.parse(right.value.at) || left.version - right.version || left.value.type.localeCompare(right.value.type) || left.id.localeCompare(right.id));
-          return { booking: serializeBooking(row), events: entries.map(entry => entry.value) };
+          return { booking: serializeBooking(row.booking), events: entries.map(entry => entry.value) };
         }),
       });
     },
@@ -90,7 +83,7 @@ export function createReportService(repository: ReportRepository) {
           sources: { manual: summary.manual, ai: summary.ai },
           editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
         },
-        bookings: rows.map(row => ({ ...serializeBooking(row), editCount: row.editCount, correctionCount: row.correctionCount })),
+        bookings: rows.map(row => ({ ...serializeBooking(row.booking), editCount: row.editCount, correctionCount: row.correctionCount })),
         total: summary.bookings, limit: query.limit, offset: query.offset,
       });
     },
@@ -149,34 +142,6 @@ export function createReportService(repository: ReportRepository) {
         barbers: shaped.map(row => ({ ...row, share: share(row.collected.total) })),
         salon: { ...salonRow, share: share(salonRow.collected.total) },
         totals,
-      });
-    },
-    async invoices(queryInput: unknown, actor: Account) {
-      const query = scope(invoiceReportQuerySchema.parse(queryInput), actor);
-      const { summary, rows } = await repository.invoiceList(query);
-      const collected = collectionsFollow(query) ? await repository.collectionTotals(query) : null;
-      return invoiceReportResponseSchema.parse({
-        dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
-        summary: {
-          invoices: { issued: { count: summary.issuedCount, total: summary.issuedTotal }, cancelled: { count: summary.cancelledCount, total: summary.cancelledTotal }, outstanding: { count: summary.outstandingCount, total: summary.outstandingTotal } },
-          cash: collected ? collectionCash(collected) : null,
-          editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
-        },
-        invoices: rows.map(row => {
-          const { booking, invoice, cash } = row;
-          const snapshots = { client: booking.clientSnapshot, address: booking.addressSnapshot, employee: booking.employeeSnapshot };
-          return {
-            id: invoice.id, bookingId: booking.id, reference: booking.reference, issuedAt: invoice.issuedAt.toISOString(), currency: "KWD",
-            status: invoice.status, paymentStatus: invoice.paymentStatus,
-            adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount,
-            amountCash: invoice.amountCash, amountLink: invoice.amountLink, total: invoice.total,
-            date: booking.date, startTime: booking.startTime, endTime: booking.endTime, visitStatus: booking.visitStatus, source: booking.source,
-            editCount: row.editCount, correctionCount: row.correctionCount,
-            cash: cash ? { amount: cash.amount, status: cash.status, method: cash.method, recordedAt: cash.recordedAt.toISOString(), recordedBy: cash.recordedBy } : null,
-            ...snapshots,
-          };
-        }),
-        total: summary.bookings, limit: query.limit, offset: query.offset,
       });
     },
   };

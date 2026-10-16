@@ -22,7 +22,7 @@ const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session;
 const base = `/schedules/${employeeId}/blocks`;
-const booking = (visitDate = date) => ({ clientId, addressId, employeeId, date: visitDate, startTime: "12:30", endTime: "13:30", childCount: 1, adultCount: 0, amountCash: "5.000", amountLink: "0.000" });
+const booking = (visitDate = date) => ({ clientId, addressId, employeeId, date: visitDate, startTime: "12:30", endTime: "13:30", childCount: 1, adultCount: 0 });
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -54,7 +54,7 @@ beforeAll(async () => {
   employee = await signIn(phone, "employee-password-123");
 });
 afterAll(async () => {
-  for (const table of ["booking_revisions", "booking_visit_events", "invoices"]) await connection.pool.execute(`DELETE FROM ${table} WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ?)`, [clientId]);
+  for (const table of ["booking_revisions", "booking_visit_events"]) await connection.pool.execute(`DELETE FROM ${table} WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ?)`, [clientId]);
   await connection.pool.execute("DELETE FROM bookings WHERE client_id = ?", [clientId]);
   for (const id of [employeeId, otherId]) {
     await connection.db.delete(employees).where(eq(employees.accountId, id));

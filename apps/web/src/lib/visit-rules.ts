@@ -24,10 +24,6 @@ export function canEditBooking(booking: BookingTiming, now: Date = new Date()): 
   return !isCorrection(booking, now);
 }
 
-export function canRecordPayment(booking: BookingTiming & { invoice: { paymentStatus: "paid" | "unpaid" } }, isAdmin: boolean): boolean {
-  return isAdmin && (booking.visitStatus === "arrived" || booking.visitStatus === "completed") && booking.invoice.paymentStatus === "unpaid";
-}
-
 /** The "new booking" marker is for the assigned barber only, until they first open the booking. */
 export function isNewForBarber(booking: { seenByBarberAt: string | null }, isAdmin: boolean): boolean {
   return !isAdmin && booking.seenByBarberAt === null;

@@ -21,15 +21,13 @@ import { cn } from "@/lib/utils";
 
 const collectionTotal = (cash: string, link: string, knet: string) => fromFils(toFils(cash) + toFils(link) + toFils(knet));
 
-/** Sums a day's completed visits for a new collection: normal children exclude the special subset, and money follows each invoice. */
+/** Counts a day's completed visits for a new collection: normal children exclude the special subset. */
 function prefillFromVisits(bookings: Booking[]) {
   const completed = bookings.filter(booking => booking.visitStatus === "completed");
   return completed.reduce((totals, booking) => ({
     normalChildren: totals.normalChildren + booking.childCount - booking.specialChildCount,
     specialChildren: totals.specialChildren + booking.specialChildCount,
-    cash: fromFils(toFils(totals.cash) + toFils(booking.invoice.amountCash)),
-    link: fromFils(toFils(totals.link) + toFils(booking.invoice.amountLink)),
-  }), { normalChildren: 0, specialChildren: 0, cash: "0.000", link: "0.000" });
+  }), { normalChildren: 0, specialChildren: 0 });
 }
 
 const collectionFields = [
@@ -94,8 +92,6 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
     setForm(current => ({ ...current,
       normalChildren: editedFields.includes("normalChildren") ? current.normalChildren : String(prefill.normalChildren),
       specialChildren: editedFields.includes("specialChildren") ? current.specialChildren : String(prefill.specialChildren),
-      cash: editedFields.includes("cash") ? current.cash : prefill.cash,
-      link: editedFields.includes("link") ? current.link : prefill.link,
     }));
   }
   const set = <Key extends keyof Form>(key: Key) => (value: string) => {

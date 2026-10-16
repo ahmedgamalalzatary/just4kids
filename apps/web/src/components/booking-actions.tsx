@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Banknote, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { VisitStatus } from "@just4kids/contracts";
 import { Field, FormAlert } from "@/components/field";
 import { Ltr } from "@/components/page";
@@ -11,20 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useRecordPayment, useUndoPayment, useVisitCorrection, useVisitTransition } from "@/lib/api/hooks";
-import type { Booking, Payment, PaymentMethod } from "@/lib/api/types";
+import { useVisitCorrection, useVisitTransition } from "@/lib/api/hooks";
+import type { Booking } from "@/lib/api/types";
 import { cancelReasonText, cancelReasons } from "@/lib/day";
 import { formatTime, formatWindow } from "@/lib/kuwait-time";
 import { cn } from "@/lib/utils";
-import { paymentMethodOptions } from "@/lib/payments";
-import { formatKwd } from "@/lib/money";
 import { visitActions, type VisitAction } from "@/lib/visit-rules";
 
 const actionCopy: Record<VisitAction["status"], { label: string; done: string; confirm: string; waiting: (booking: Booking) => string }> = {
   arrived: { label: "I have arrived", done: "Arrival recorded", confirm: "Confirm arrival at the client's address.", waiting: booking => `Available from ${formatTime(booking.startTime)}` },
-  completed: { label: "Visit completed", done: "Visit completion recorded", confirm: "Confirm all haircuts are complete. This does not change payment status.", waiting: booking => `Available from ${formatTime(booking.startTime)}` },
-  no_show: { label: "Client did not attend", done: "No-show recorded", confirm: "The invoice stays issued. The barber cannot change this status afterward.", waiting: booking => `Available after ${formatTime(booking.endTime)}` },
-  cancelled: { label: "Cancel visit", done: "Visit cancelled", confirm: "The invoice is cancelled and kept in history. Recorded payments are not automatically refunded.", waiting: () => "" },
+  completed: { label: "Visit completed", done: "Visit completion recorded", confirm: "Confirm all haircuts are complete.", waiting: booking => `Available from ${formatTime(booking.startTime)}` },
+  no_show: { label: "Client did not attend", done: "No-show recorded", confirm: "The barber cannot change this status afterward.", waiting: booking => `Available after ${formatTime(booking.endTime)}` },
+  cancelled: { label: "Cancel visit", done: "Visit cancelled", confirm: "The visit is kept in history.", waiting: () => "" },
 };
 
 /** Normal visit steps for the assigned barber or the administrator, each confirmed before sending. */
@@ -127,40 +125,6 @@ export function CancelVisitDialog({ booking, open, onOpenChange }: { booking: Bo
   );
 }
 
-/** Records the full current invoice amount with one payment method. The amount is set by the server, never typed. */
-export function RecordPaymentButton({ booking }: { booking: Booking }) {
-  const record = useRecordPayment();
-  const [open, setOpen] = useState(false);
-  const [method, setMethod] = useState<PaymentMethod>("cash");
-  return (
-    <>
-      <Button size="lg" variant="secondary" onClick={() => setOpen(true)}><Banknote aria-hidden />Record payment</Button>
-      <Dialog open={open} onOpenChange={value => { if (!value) record.reset(); setOpen(value); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record full payment</DialogTitle>
-            <DialogDescription>The invoice is paid in full using one payment method. Partial payments are not supported.</DialogDescription>
-          </DialogHeader>
-          <p className="rounded-md bg-muted px-4 py-3 text-center text-2xl font-semibold"><Ltr>{formatKwd(booking.invoice.total)}</Ltr></p>
-          <Field label="Payment method">
-            <Select value={method} onValueChange={value => setMethod(value as PaymentMethod)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{paymentMethodOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <FormAlert error={record.error} />
-          <DialogFooter>
-            <Button onClick={() => record.mutate({ id: booking.id, expectedVersion: booking.visitVersion, method }, { onSuccess: () => { toast.success("Payment recorded"); setOpen(false); } })} disabled={record.isPending}>
-              {record.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              Confirm receipt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 const allStatuses: VisitStatus[] = ["booked", "arrived", "completed", "cancelled", "no_show"];
 
 /** Administrator-only correction of any visit state, with a required reason. */
@@ -184,7 +148,6 @@ export function CorrectionDialog({ booking, open, onOpenChange }: { booking: Boo
           <DialogTitle>Correct visit status</DialogTitle>
           <DialogDescription>
             Current status: {visitStatusLabels[booking.visitStatus]}. Reopening a visit that reserves the barber&apos;s time requires availability.
-            Reopening a cancelled visit restores its invoice without changing payment history.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -199,33 +162,6 @@ export function CorrectionDialog({ booking, open, onOpenChange }: { booking: Boo
           <FormAlert error={correct.error} />
         </div>
         <DialogFooter><Button onClick={submit} disabled={correct.isPending}>Save correction</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Administrator-only undo of a mistaken cash entry. It voids the receipt; it is not a refund. */
-export function UndoPaymentDialog({ booking, payment, open, onOpenChange }: { booking: Booking; payment: Payment; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const undo = useUndoPayment();
-  const [reason, setReason] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  const close = (value: boolean) => { if (!value) { undo.reset(); setReason(""); setProblem(null); } onOpenChange(value); };
-  const submit = () => {
-    if (!reason.trim()) { setProblem("Enter the cancellation reason"); return; }
-    undo.mutate({ id: booking.id, paymentId: payment.id, reason: reason.trim(), expectedVersion: booking.visitVersion }, { onSuccess: () => { toast.success("Payment voided"); close(false); } });
-  };
-  return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Void an incorrect payment</DialogTitle>
-          <DialogDescription>The incorrect payment is voided and retained in history; the invoice becomes unpaid. This does not refund money.</DialogDescription>
-        </DialogHeader>
-        <p className="text-sm">Current payment: <Ltr className="font-medium">{formatKwd(payment.amount)}</Ltr></p>
-        <Field label="Reason"><Textarea rows={3} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
-        {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
-        <FormAlert error={undo.error} />
-        <DialogFooter><Button variant="destructive" onClick={submit} disabled={undo.isPending}>Void payment</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

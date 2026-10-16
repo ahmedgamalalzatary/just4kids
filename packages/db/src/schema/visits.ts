@@ -11,7 +11,6 @@ export const bookingVisitEvents = mysqlTable("booking_visit_events", {
   actorAccountId: varchar("actor_account_id", { length: 36 }).references(() => accounts.id, { onDelete: "restrict" }),
   actorClientId: varchar("actor_client_id", { length: 36 }).references(() => clients.id, { onDelete: "restrict" }),
   reason: varchar("reason", { length: 1000 }), correction: boolean("correction").notNull().default(false),
-  previousInvoiceStatus: mysqlEnum("previous_invoice_status", ["issued", "cancelled"]), invoiceStatus: mysqlEnum("invoice_status", ["issued", "cancelled"]).notNull(),
   occurredAt: datetime("occurred_at", { mode: "date", fsp: 3 }).notNull(),
 }, table => [uniqueIndex("visit_event_booking_version_unique").on(table.bookingId, table.version),
   check("visit_event_actor_valid", sql`(${table.actorType} = 'client' AND ${table.actorClientId} IS NOT NULL AND ${table.actorAccountId} IS NULL) OR (${table.actorType} IN ('admin', 'employee') AND ${table.actorAccountId} IS NOT NULL AND ${table.actorClientId} IS NULL) OR (${table.actorType} = 'system' AND ${table.actorAccountId} IS NULL AND ${table.actorClientId} IS NULL)`),

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookings, invoices, bookingVisitEvents, bookingMessages } from "@just4kids/db/schema";
+import { accounts, bookings, bookingVisitEvents, bookingMessages } from "@just4kids/db/schema";
 import type { Account, VisitStatus, VisitCorrection, VisitTransition } from "@just4kids/contracts";
 import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema, bookingMessageResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
@@ -19,7 +19,7 @@ export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect
     id: booking.id, bookingId: booking.id, version: 0, fromStatus: null, toStatus: "booked",
     actorType: booking.source === "ai" ? "client" : "admin", actorAccountId: booking.source === "ai" ? null : booking.createdBy,
     actorClientId: booking.source === "ai" ? booking.clientId : null, reason: null, correction: false,
-    previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: booking.createdAt.toISOString(),
+    occurredAt: booking.createdAt.toISOString(),
   }));
   return events;
 }
@@ -52,16 +52,12 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
         const window = { date: booking.date, startTime: booking.startTime, endTime: booking.endTime };
         if (!barber.account.enabled || !isWindowAvailable(window, hours.days, hours.exception, existing.filter(row => row.id !== booking.id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "Cannot restore the visit because the employee is unavailable");
       }
-      const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
-      if (!invoice) throw new Error("Booking invoice missing");
-      const invoiceStatus = input.status === "cancelled" ? "cancelled" as const : "issued" as const;
       const version = booking.visitVersion + 1;
       await transaction.update(bookings).set({ visitStatus: input.status, visitVersion: version }).where(eq(bookings.id, id));
-      await transaction.update(invoices).set({ status: invoiceStatus }).where(eq(invoices.id, invoice.id));
       await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version, fromStatus: booking.visitStatus, toStatus: input.status,
         actorType: actor.kind === "client" ? "client" : actor.account.role, actorAccountId: actor.kind === "account" ? actor.account.id : null, actorClientId: actor.kind === "client" ? actor.clientId : null,
-        reason: input.reason ?? null, correction, previousInvoiceStatus: invoice.status, invoiceStatus, occurredAt: new Date(now) });
-      return serializeBooking({ booking: { ...booking, visitStatus: input.status, visitVersion: version }, invoice: { ...invoice, status: invoiceStatus } });
+        reason: input.reason ?? null, correction, occurredAt: new Date(now) });
+      return serializeBooking({ ...booking, visitStatus: input.status, visitVersion: version });
     });
   }
   return {

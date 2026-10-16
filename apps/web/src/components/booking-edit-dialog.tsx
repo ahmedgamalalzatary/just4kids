@@ -17,7 +17,6 @@ import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 import { isCorrection } from "@/lib/visit-rules";
 import { kuwaitNow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
 
 const KEEP_ADDRESS = "keep";
 
@@ -115,12 +114,6 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
           <Stepper label="Children" value={childCount} onChange={setChildren} />
           <Stepper label="with special needs" value={specialChildCount} onChange={setSpecialChildCount} max={childCount} />
         </div>
-        <div className="rounded-md bg-muted px-4 py-3 text-sm">
-          <p className="flex flex-wrap justify-between gap-2">
-            <span>Agreed total</span>
-            <span><Ltr className="font-semibold">{formatKwd(booking.invoice.total)}</Ltr></span>
-          </p>
-        </div>
         <Field label="Notes" optional><Textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} placeholder="Example: call before arrival" /></Field>
         <Field label={correction ? "Correction reason" : "Edit reason"} optional={!correction}><Textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></Field>
         {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
@@ -138,7 +131,7 @@ export function BookingEditDialog({ booking, open, onOpenChange }: { booking: Bo
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{correction ? "Correct reservation" : "Edit reservation"} <Ltr>{booking.reference}</Ltr></DialogTitle>
-          <DialogDescription>{correction ? "Correcting a started or finished visit requires a reason. Each correction is recorded without changing the agreed price." : "The reservation reference and invoice stay the same. Every edit is recorded without changing the agreed price."}</DialogDescription>
+          <DialogDescription>{correction ? "Correcting a started or finished visit requires a reason. Each correction is recorded." : "The reservation reference stays the same. Every edit is recorded."}</DialogDescription>
         </DialogHeader>
         {open ? <EditForm booking={booking} onDone={() => onOpenChange(false)} /> : null}
       </DialogContent>

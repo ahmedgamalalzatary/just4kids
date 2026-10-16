@@ -14,8 +14,7 @@ function mount(options: { known?: boolean; failFirst?: boolean; createFails?: bo
   const { known = true, failFirst = false, createFails = false, sendFails = 0 } = options;
   let registered = known, posts = 0, sends = 0;
   const client = { id, phone: "+96550000001", enabled: true, createdAt: timestamp, updatedAt: timestamp, lastUsedAddressId: addressId, addresses: [{ ...address, id: addressId, clientId: id, createdAt: timestamp, updatedAt: timestamp }] };
-  const invoice = { id: addressId, bookingId: id, reference: "J4K-TEST", issuedAt: timestamp, currency: "KWD", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, amountCash: "5.000", amountLink: "0.000", total: "5.000", status: "issued", paymentStatus: "unpaid", client: { phone: client.phone }, address, employee: { id, displayName: "سالم" } };
-  const saved = bookingResponseSchema.parse({ id, reference: invoice.reference, clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: invoice.client, address, employee: invoice.employee, invoice });
+  const saved = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone: client.phone }, address, employee: { id, displayName: "سالم" } });
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/employees") return new Response(JSON.stringify({ employees: [{ id, displayName: "سالم", phone: "+96550000002", enabled: true, accessUntil: null, photoUpdatedAt: null, createdAt: timestamp, updatedAt: timestamp }] }));
@@ -52,7 +51,6 @@ const pickWindow = async () => {
 const fillForm = async () => {
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");
   await pickWindow();
-  await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
 };
 const saveButton = () => screen.getByRole("button", { name: "Save reservation" });
 const whatsAppButton = () => screen.getByRole("button", { name: "Save & send via WhatsApp" });
@@ -123,7 +121,6 @@ it.each([true, false])("saves the phone-first booking through the correct atomic
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Area" }), "الفنطاس");
     for (const [label, value] of [["Block", "1"], ["Street", "2"], ["House number", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
   }
-  await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
   await waitFor(() => expect(saveButton()).toBeEnabled());
   await userEvent.click(saveButton());
   await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/bookings"));
@@ -140,7 +137,6 @@ it("retains the failed save message after lookup switches to an existing client 
   await screen.findByRole("option", { name: "الفنطاس" });
   await userEvent.selectOptions(screen.getByRole("combobox", { name: "Area" }), "الفنطاس");
   for (const [label, value] of [["Block", "1"], ["Street", "2"], ["House number", "3"]]) await userEvent.type(screen.getByLabelText(label!), value!);
-  await userEvent.type(screen.getByLabelText("Cash (KWD)"), "5");
   await waitFor(() => expect(saveButton()).toBeEnabled());
   await userEvent.click(saveButton());
   await screen.findByRole("radio", { name: /الفنطاس/ });

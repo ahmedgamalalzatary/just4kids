@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addressCreateSchema, kwdPriceSchema, phoneSchema } from "@just4kids/contracts";
+import { addressCreateSchema, phoneSchema } from "@just4kids/contracts";
 import { normalizePhone } from "@/lib/phone";
 
 // Form schemas mirror the shared API contracts with English messages written for the people using the forms.
@@ -15,9 +15,6 @@ export const optionalText = (max: number) =>
 export const phoneField = z.string().trim().transform(normalizePhone).refine(value => phoneSchema.safeParse(value).success, "Enter an international number, e.g. +96550000000");
 
 export const passwordField = z.string().min(8, "At least 8 characters").max(128, "Maximum 128 characters");
-
-export const priceField = z.string().trim().refine(value => kwdPriceSchema.safeParse(value).success, "Enter a KWD price with up to 3 decimal places, e.g. 7.500")
-  .transform(value => kwdPriceSchema.parse(value));
 
 export const minutesField = z.string().trim().regex(/^[0-9]+$/, "Enter the number of minutes").transform(Number)
   .pipe(z.number().int().min(1, "At least one minute").max(1440, "Maximum 1440 minutes"));

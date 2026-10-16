@@ -1,10 +1,8 @@
-import type { BookingMessage, BookingRevision, PaymentEvent, VisitEvent } from "@/lib/api/types";
+import type { BookingMessage, BookingRevision, VisitEvent } from "@/lib/api/types";
 import type { BookingTrackingResponse } from "@just4kids/contracts";
 import { visitStatusLabels } from "@/components/status";
 import { formatAddress } from "@/lib/address";
 import { formatDate, formatWindow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
-import { paymentMethodLabels } from "@/lib/payments";
 
 // Labels for the "message to the barber" events the booking history shows alongside visit events.
 export const messageKindLabels: Record<BookingMessage["kind"], string> = { sent_to_barber: "Sent to barber" };
@@ -34,10 +32,9 @@ export function trackingGroups(data: BookingTrackingResponse) {
     events: group.events.map(entry => {
       const common = { at: entry.at, actor: entry.actor.name, role: actorRoleLabels[entry.actor.role] };
       switch (entry.type) {
-        case "visit": return { ...common, key: `visit-${entry.event.id}`, title: visitEventTitle(entry.event), reason: entry.event.reason, details: entry.event.previousInvoiceStatus && entry.event.previousInvoiceStatus !== entry.event.invoiceStatus ? [`Invoice: ${entry.event.invoiceStatus === "cancelled" ? "Cancelled" : "Reissued"}`] : [] };
+        case "visit": return { ...common, key: `visit-${entry.event.id}`, title: visitEventTitle(entry.event), reason: entry.event.reason, details: [] };
         case "message": return { ...common, key: `message-${entry.message.id}`, title: messageKindLabels[entry.message.kind], reason: null, details: [] };
         case "revision": return { ...common, key: `revision-${entry.revision.id}`, title: "Edit reservation", reason: entry.revision.reason, details: revisionChanges(entry.revision) };
-        case "payment": return { ...common, key: `payment-${entry.payment.id}`, title: `${paymentKinds[entry.payment.kind]}: ${formatKwd(entry.payment.amount)} (${paymentMethodLabels[entry.payment.method]})`, reason: entry.payment.reason, details: [] };
       }
     }),
   }));
@@ -55,13 +52,5 @@ export function revisionChanges(revision: BookingRevision): string[] {
     changes.push(`Count: from ${before.adultCount} adult${before.adultCount === 1 ? "" : "s"} and ${before.childCount} children (${before.specialChildCount} special needs) to ${after.adultCount} adult${after.adultCount === 1 ? "" : "s"} and ${after.childCount} children (${after.specialChildCount} special needs)`);
   }
   if (before.notes !== after.notes) changes.push(`Notes: from ${before.notes ?? "None"} to ${after.notes ?? "None"}`);
-  if (before.invoice.total !== after.invoice.total) changes.push(`Total: from ${formatKwd(before.invoice.total)} to ${formatKwd(after.invoice.total)}`);
   return changes;
 }
-
-export const paymentKinds: Record<PaymentEvent["kind"], string> = {
-  recorded: "Record full payment",
-  voided: "Void an incorrect payment",
-  extra_cash: "Collect an additional amount after an edit",
-  refund: "Refund after an edit",
-};

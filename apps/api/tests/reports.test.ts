@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, bookingRevisions, bookingVisitEvents, bookings, clientAddresses, clients, employees, invoices, loginAttempts } from "@just4kids/db/schema";
+import { accounts, bookingRevisions, bookingVisitEvents, bookings, clientAddresses, clients, employees, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -20,15 +20,15 @@ const phones = { [barberA]: `+965${randomInt(40000000, 44999999)}`, [barberB]: `
 const range = { from: "2097-03-01", to: "2097-03-03" };
 type Session = { cookie: string; accountId: string };
 let admin: Session, sessionA: Session, sessionB: Session;
-type Fixture = { date: string; employeeId: string; tier: 1 | 2; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; source: "manual" | "ai"; adult: number; child: number; createdAt: string; paid?: boolean };
-// b2 is completed but unpaid; b3 is cancelled after being paid. tier only picks the fixture prices.
+type Fixture = { date: string; employeeId: string; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; source: "manual" | "ai"; adult: number; child: number; createdAt: string };
+// b2 is completed; b3 is cancelled. tier only picked the old fixture prices.
 const fixtures: Fixture[] = [
-  { date: "2097-03-01", employeeId: barberA, tier: 1, clientId: clientOne, status: "completed", source: "manual", adult: 2, child: 1, createdAt: "2097-02-20T22:30:00Z", paid: true },
-  { date: "2097-03-01", employeeId: barberA, tier: 1, clientId: clientTwo, status: "completed", source: "ai", adult: 1, child: 0, createdAt: "2097-02-21T10:00:00Z" },
-  { date: "2097-03-02", employeeId: barberB, tier: 1, clientId: clientOne, status: "cancelled", source: "manual", adult: 0, child: 2, createdAt: "2097-02-21T21:00:00Z", paid: true },
-  { date: "2097-03-02", employeeId: barberC, tier: 2, clientId: clientTwo, status: "no_show", source: "manual", adult: 1, child: 1, createdAt: "2097-02-22T00:00:00Z" },
-  { date: "2097-03-03", employeeId: barberA, tier: 2, clientId: clientOne, status: "booked", source: "manual", adult: 3, child: 0, createdAt: "2097-02-25T08:00:00Z" },
-  { date: "2097-03-03", employeeId: barberC, tier: 2, clientId: clientOne, status: "arrived", source: "ai", adult: 0, child: 1, createdAt: "2097-02-25T09:00:00Z" },
+  { date: "2097-03-01", employeeId: barberA, clientId: clientOne, status: "completed", source: "manual", adult: 2, child: 1, createdAt: "2097-02-20T22:30:00Z" },
+  { date: "2097-03-01", employeeId: barberA, clientId: clientTwo, status: "completed", source: "ai", adult: 1, child: 0, createdAt: "2097-02-21T10:00:00Z" },
+  { date: "2097-03-02", employeeId: barberB, clientId: clientOne, status: "cancelled", source: "manual", adult: 0, child: 2, createdAt: "2097-02-21T21:00:00Z" },
+  { date: "2097-03-02", employeeId: barberC, clientId: clientTwo, status: "no_show", source: "manual", adult: 1, child: 1, createdAt: "2097-02-22T00:00:00Z" },
+  { date: "2097-03-03", employeeId: barberA, clientId: clientOne, status: "booked", source: "manual", adult: 3, child: 0, createdAt: "2097-02-25T08:00:00Z" },
+  { date: "2097-03-03", employeeId: barberC, clientId: clientOne, status: "arrived", source: "ai", adult: 0, child: 1, createdAt: "2097-02-25T09:00:00Z" },
 ];
 const ids: string[] = fixtures.map(() => randomUUID());
 const references = ids.map(id => `J4K-RPT${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`);
@@ -53,7 +53,7 @@ beforeAll(async () => {
   await connection.db.insert(clientAddresses).values([{ id: addressOne, clientId: clientOne }, { id: addressTwo, clientId: clientTwo }].map(row => ({ ...row, area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", createdAt: now, updatedAt: now })));
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   for (const [index, fixture] of fixtures.entries()) {
-    const id = ids[index]!, price = fixture.tier === 1 ? { adult: 5, child: 3 } : { adult: 6, child: 4 };
+    const id = ids[index]!;
     const client = fixture.clientId === clientOne ? { phone: "+96555000001" } : { phone: "+96555000002" };
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
@@ -61,14 +61,12 @@ beforeAll(async () => {
       clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(fixture.createdAt),
     });
-    const adultAmount = fixture.adult * price.adult, childAmount = fixture.child * price.child;
-    await connection.db.insert(invoices).values({ id: randomUUID(), bookingId: id, amountCash: `${adultAmount}.000`, amountLink: `${childAmount}.000`, total: `${adultAmount + childAmount}.000`, status: fixture.status === "cancelled" ? "cancelled" : "issued", paymentStatus: fixture.paid ? "paid" : "unpaid", issuedAt: new Date(fixture.createdAt) });
   }
   const revision = (bookingId: string, version: number) => ({ id: randomUUID(), bookingId, version, actorAccountId: adminAccount!.id, reason: null, occurredAt: now, before: {}, after: {} });
   await connection.db.insert(bookingRevisions).values([revision(ids[0]!, 1), revision(ids[0]!, 2), revision(ids[4]!, 1)]);
   await connection.db.insert(bookingVisitEvents).values([
-    { id: randomUUID(), bookingId: ids[2]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "employee", actorAccountId: barberB, reason: null, correction: false, previousInvoiceStatus: "issued", invoiceStatus: "cancelled", occurredAt: now },
-    { id: randomUUID(), bookingId: ids[2]!, version: 2, fromStatus: "cancelled", toStatus: "cancelled", actorType: "admin", actorAccountId: adminAccount!.id, reason: "تصحيح", correction: true, previousInvoiceStatus: "cancelled", invoiceStatus: "cancelled", occurredAt: now },
+    { id: randomUUID(), bookingId: ids[2]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "employee", actorAccountId: barberB, reason: null, correction: false, occurredAt: now },
+    { id: randomUUID(), bookingId: ids[2]!, version: 2, fromStatus: "cancelled", toStatus: "cancelled", actorType: "admin", actorAccountId: adminAccount!.id, reason: "تصحيح", correction: true, occurredAt: now },
   ]);
   // Barber A has since been renamed; reports name barbers by their current name.
   await connection.db.update(employees).set({ displayName: "حلاق أ الجديد" }).where(eq(employees.accountId, barberA));
@@ -79,7 +77,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await connection.db.delete(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
   await connection.db.delete(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, ids));
-  await connection.db.delete(invoices).where(inArray(invoices.bookingId, ids));
   await connection.db.delete(bookings).where(inArray(bookings.id, ids));
   await connection.db.delete(clientAddresses).where(inArray(clientAddresses.id, [addressOne, addressTwo]));
   await connection.db.delete(clients).where(inArray(clients.id, [clientOne, clientTwo]));
@@ -104,8 +101,8 @@ describe("reservation overview report", () => {
     const descending = (left: string, right: string) => right.localeCompare(left);
     expect(response.body.bookings.map((booking: { id: string }) => booking.id)).toEqual([[ids[4]!, ids[5]!], [ids[2]!, ids[3]!], [ids[0]!, ids[1]!]].flatMap(day => day.sort(descending)));
     const first = response.body.bookings.find((booking: { id: string }) => booking.id === ids[0]);
-    expect(first).toMatchObject({ editCount: 2, correctionCount: 0, visitStatus: "completed", invoice: { paymentStatus: "paid" } });
-    expect(response.body.bookings.find((booking: { id: string }) => booking.id === ids[2])).toMatchObject({ editCount: 0, correctionCount: 1, visitStatus: "cancelled", invoice: { status: "cancelled", paymentStatus: "paid" } });
+    expect(first).toMatchObject({ editCount: 2, correctionCount: 0, visitStatus: "completed" });
+    expect(response.body.bookings.find((booking: { id: string }) => booking.id === ids[2])).toMatchObject({ editCount: 0, correctionCount: 1, visitStatus: "cancelled" });
   });
   it("applies inclusive visit-date and Kuwait booking-date boundaries", async () => {
     const visitDay = await report("reservations", { from: "2097-03-02", to: "2097-03-02" });

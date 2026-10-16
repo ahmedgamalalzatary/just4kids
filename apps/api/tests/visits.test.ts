@@ -1,10 +1,9 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, bookingVisitEvents, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -18,7 +17,7 @@ const employeeId = randomUUID(), otherId = randomUUID(), clientId = randomUUID()
 const phone = `+965${randomInt(10000000, 19999999)}`, otherPhone = `+965${randomInt(20000000, 29999999)}`;
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session, other: Session;
-let day = 1, date: string, booking: { id: string; invoice: { id: string; total: string }; visitVersion: number };
+let day = 1, date: string, booking: { id: string; visitVersion: number };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const login = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -31,7 +30,7 @@ function correction(status: string, version: number, reason = "تصحيح حال
 function at(time: string) { vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T${time}:00+03:00`)); }
 async function detail() { return (await request(app).get(`/bookings/${booking.id}`).set("Cookie", admin.cookie)).body; }
 async function history() { return request(app).get(`/bookings/${booking.id}/history`).set("Cookie", employee.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1, amountCash: "8.126", amountLink: "0.000" });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
@@ -52,7 +51,6 @@ afterAll(async () => {
   if ((tables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   const [messageTables] = await connection.pool.query("SHOW TABLES LIKE 'booking_messages'");
   if ((messageTables as unknown[]).length) await connection.pool.execute("DELETE FROM booking_messages WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
-  await connection.pool.execute("DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE employee_id = ?)", [employeeId]);
   await connection.pool.execute("DELETE FROM bookings WHERE employee_id = ?", [employeeId]);
   await connection.db.delete(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, employeeId));
   await connection.db.delete(employeeWorkIntervals).where(eq(employeeWorkIntervals.employeeId, employeeId));
@@ -94,11 +92,11 @@ describe("employee visit actions and history", () => {
       expect((await request(app).delete(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)).status).toBe(204);
     }
   });
-  it("records arrival and completion with ordered actor/time history and preserves one unpaid invoice", async () => {
+  it("records arrival and completion with ordered actor/time history", async () => {
     at("09:00"); expect((await transition("arrived")).status).toBe(200);
     expect((await transition("completed", 1)).status).toBe(200);
     const current = await detail();
-    expect(current).toMatchObject({ visitStatus: "completed", visitVersion: 2, startTime: "09:00", endTime: "09:20", invoice: { id: booking.invoice.id, total: "8.126", status: "issued", paymentStatus: "unpaid" } });
+    expect(current).toMatchObject({ visitStatus: "completed", visitVersion: 2, startTime: "09:00", endTime: "09:20" });
     const events = await history(); expect(events.status).toBe(200);
     expect(events.body.events.map((event: { toStatus: string }) => event.toStatus)).toEqual(["booked", "arrived", "completed"]);
     expect(events.body.events[1]).toMatchObject({ fromStatus: "booked", toStatus: "arrived", actorType: "employee", actorAccountId: employeeId, occurredAt: `${date}T06:00:00.000Z` });
@@ -119,10 +117,8 @@ describe("employee visit actions and history", () => {
     at("09:20"); expect((await transition("no_show")).status).toBe(200);
     expect((await transition("arrived", 1)).status).toBe(409);
   });
-  it("cancels the existing invoice while preserving recorded paid status and releases availability", async () => {
-    await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);
+  it("cancels the visit and releases availability", async () => {
     expect((await transition("cancelled")).status).toBe(200);
-    expect((await detail()).invoice).toMatchObject({ id: booking.invoice.id, status: "cancelled", paymentStatus: "paid", total: "8.126" });
     const eligible = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=09:20`).set("Cookie", admin.cookie);
     expect(eligible.body.barbers.some((barber: { id: string }) => barber.id === employeeId)).toBe(true);
     expect((await detail()).visitStatus).toBe("cancelled");
@@ -132,24 +128,22 @@ describe("employee visit actions and history", () => {
     expect(results.map(result => result.status).sort()).toEqual([200, 409]);
     expect((await history()).body.events).toHaveLength(2);
   });
-  it.each([["cancelled", "cancelled"], ["no_show", "issued"]])("allows %s after arrival with invoice status %s", async (status, invoiceStatus) => {
+  it.each(["cancelled", "no_show"])("allows %s after arrival", async status => {
     at("09:00"); expect((await transition("arrived")).status).toBe(200);
     at("09:20"); expect((await transition(status!, 1)).status).toBe(200);
-    expect((await detail()).invoice.status).toBe(invoiceStatus);
   });
-  it("requires a correction reason and records administrator reopening without changing cash or invoice identity", async () => {
-    await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);
+  it("requires a correction reason and records administrator reopening", async () => {
     expect((await transition("cancelled")).status).toBe(200);
     expect((await correction("booked", 1, " ")).status).toBe(400);
     expect((await correction("booked", 1)).status).toBe(200);
-    expect((await detail())).toMatchObject({ visitStatus: "booked", invoice: { id: booking.invoice.id, status: "issued", total: "8.126", paymentStatus: "paid" } });
-    expect((await history()).body.events[2]).toMatchObject({ correction: true, reason: "تصحيح حالة الزيارة", actorType: "admin", actorAccountId: admin.id, fromStatus: "cancelled", toStatus: "booked", previousInvoiceStatus: "cancelled", invoiceStatus: "issued" });
+    expect((await detail())).toMatchObject({ visitStatus: "booked" });
+    expect((await history()).body.events[2]).toMatchObject({ correction: true, reason: "تصحيح حالة الزيارة", actorType: "admin", actorAccountId: admin.id, fromStatus: "cancelled", toStatus: "booked" });
   });
-  it("rejects restoring a blocking visit when another booking now occupies its window and rolls back history/invoice", async () => {
+  it("rejects restoring a blocking visit when another booking now occupies its window and rolls back history", async () => {
     expect((await transition("cancelled")).status).toBe(200);
     expect((await write("/bookings", body(), admin)).status).toBe(201);
     expect((await correction("booked", 1)).status).toBe(409);
-    expect((await detail())).toMatchObject({ visitStatus: "cancelled", visitVersion: 1, invoice: { status: "cancelled" } });
+    expect((await detail())).toMatchObject({ visitStatus: "cancelled", visitVersion: 1 });
     expect((await history()).body.events).toHaveLength(2);
   });
   it("rejects restoring a cancelled visit after its working hours are closed", async () => {
@@ -157,16 +151,16 @@ describe("employee visit actions and history", () => {
     const closed = await request(app).put(`/schedules/${employeeId}/exceptions/${date}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ intervals: [] });
     expect(closed.status).toBe(200); expect((await correction("booked", 1)).status).toBe(409);
   });
-  it("rolls back visit and invoice changes if history persistence fails", async () => {
+  it("rolls back visit changes if history persistence fails", async () => {
     const trigger = `verification_${randomUUID().replaceAll("-", "")}`;
     await connection.pool.query(`CREATE TRIGGER ${trigger} BEFORE INSERT ON booking_visit_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'history failure'`);
-    try { expect((await transition("cancelled")).status).toBe(500); expect((await detail())).toMatchObject({ visitStatus: "booked", visitVersion: 0, invoice: { status: "issued" } }); }
+    try { expect((await transition("cancelled")).status).toBe(500); expect((await detail())).toMatchObject({ visitStatus: "booked", visitVersion: 0 }); }
     finally { await connection.pool.query(`DROP TRIGGER ${trigger}`); }
   });
   it("allows administrator terminal corrections and rejects stale competing corrections", async () => {
     const completed = await correction("completed", 0);
     expect(completed.status).toBe(200);
-    expect(completed.body.invoice).toMatchObject({ id: booking.invoice.id, total: "8.126", paymentStatus: "unpaid" });
+    expect(completed.body).toMatchObject({ visitStatus: "completed" });
     const results = await Promise.all([correction("booked", 1), correction("cancelled", 1)]);
     expect(results.map(result => result.status).sort()).toEqual([200, 409]);
     expect((await history()).body.events).toHaveLength(3);
@@ -175,7 +169,7 @@ describe("employee visit actions and history", () => {
     const visits = createVisitService(connection);
     await expect(visits.cancelForClient(booking.id, 0, randomUUID())).rejects.toMatchObject({ status: 403 });
     const cancelled = await visits.cancelForClient(booking.id, 0, clientId);
-    expect(cancelled).toMatchObject({ visitStatus: "cancelled", invoice: { status: "cancelled" } });
+    expect(cancelled).toMatchObject({ visitStatus: "cancelled" });
     expect((await history()).body.events[1]).toMatchObject({ actorType: "client", actorAccountId: null, actorClientId: clientId });
     await expect(visits.cancelForClient(booking.id, 1, clientId)).rejects.toMatchObject({ code: "CLIENT_CANCELLATION_NOT_ALLOWED" });
   });
@@ -191,17 +185,14 @@ describe("employee visit actions and history", () => {
     const [reopened, created] = await Promise.all([correction("booked", 1), write("/bookings", body(), admin)]);
     expect([[200, 409], [409, 201]]).toContainEqual([reopened.status, created.status]);
   });
-  it("preserves a legacy visit/invoice and records a system baseline without inventing its earlier actor history", async () => {
+  it("preserves a legacy visit and records a system baseline without inventing its earlier actor history", async () => {
     await connection.pool.execute("DELETE FROM booking_visit_events WHERE booking_id = ?", [booking.id]);
     await connection.pool.execute("UPDATE bookings SET visit_status = 'completed' WHERE id = ?", [booking.id]);
-    await connection.pool.execute("UPDATE invoices SET payment_status = 'paid' WHERE booking_id = ?", [booking.id]);
-    const migration = await readFile(new URL("../../../packages/db/drizzle/0005_old_dragon_man.sql", import.meta.url), "utf8");
-    const baseline = migration.slice(migration.indexOf("INSERT INTO `booking_visit_events`"));
-    await connection.pool.query(baseline);
-    expect((await detail())).toMatchObject({ visitStatus: "completed", visitVersion: 0, invoice: { id: booking.invoice.id, total: "8.126", paymentStatus: "paid" } });
+    await connection.db.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: booking.id, version: 0, fromStatus: null, toStatus: "completed", actorType: "system", reason: "الحالة المسجلة عند ترقية النظام؛ تفاصيل التغييرات السابقة غير متوفرة", correction: false, occurredAt: new Date() });
+    expect((await detail())).toMatchObject({ visitStatus: "completed", visitVersion: 0 });
     const recorded = await history();
     expect(recorded.body.events).toHaveLength(1);
-    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, actorClientId: null, fromStatus: null, toStatus: "completed", invoiceStatus: "issued" });
+    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, actorClientId: null, fromStatus: null, toStatus: "completed" });
   });
 });
 

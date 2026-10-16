@@ -6,7 +6,6 @@ export * from "./clients.js";
 export * from "./areas.js";
 export * from "./bookings.js";
 export * from "./cash.js";
-export * from "./payments.js";
 export * from "./reports.js";
 export * from "./salon.js";
 export * from "./collections.js";

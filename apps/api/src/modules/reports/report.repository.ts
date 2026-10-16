@@ -1,14 +1,16 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, cashPaymentEvents, cashPayments, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, invoices, salonEntries } from "@just4kids/db/schema";
-import type { BookingTrackingQuery, ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, InvoiceReportQuery, ReservationReportQuery } from "@just4kids/contracts";
+import { accounts, barberCollections, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, salonEntries } from "@just4kids/db/schema";
+import type { BookingTrackingQuery, ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
 const createdDay = sql`DATE(${bookings.createdAt} + INTERVAL 3 HOUR)`;
 const reportDay = (query: HaircutReportQuery) => query.dateBasis === "visit_date" ? sql`${bookings.date}` : createdDay;
-const editCount = sql<number>`(SELECT COUNT(*) FROM ${bookingRevisions} WHERE ${bookingRevisions.bookingId} = ${bookings.id})`.mapWith(Number);
-const correctionCount = sql<number>`(SELECT COUNT(*) FROM ${bookingVisitEvents} WHERE ${bookingVisitEvents.bookingId} = ${bookings.id} AND ${bookingVisitEvents.correction} = TRUE)`.mapWith(Number);
+// The correlated subqueries must qualify the outer booking column: inside a single-table select Drizzle leaves booking columns unqualified, and a bare `id` would bind to the subquery's own table.
+const bookingId = sql.raw("`bookings`.`id`");
+const editCount = sql<number>`(SELECT COUNT(*) FROM ${bookingRevisions} WHERE ${bookingRevisions.bookingId} = ${bookingId})`.mapWith(Number);
+const correctionCount = sql<number>`(SELECT COUNT(*) FROM ${bookingVisitEvents} WHERE ${bookingVisitEvents.bookingId} = ${bookingId} AND ${bookingVisitEvents.correction} = TRUE)`.mapWith(Number);
 const total = (expression: SQL) => sql<number>`COALESCE(SUM(${expression}), 0)`.mapWith(Number);
 const quantity = (statuses: string[] | undefined, column: AnyColumn) => statuses
   ? total(sql`CASE WHEN ${bookings.visitStatus} IN (${sql.join(statuses.map(status => sql.raw(`'${status}'`)), sql`, `)}) THEN ${column} ELSE 0 END`)
@@ -29,19 +31,9 @@ function shapeMeasures(row: MeasureRow) {
   };
 }
 
-// Performance measures read one invoice per reservation and at most one active receipt per invoice, so joins never duplicate rows.
+// Performance measures read the reservation's assigned work for the period.
 const reservedMinutes = sql`(TIME_TO_SEC(CONCAT(${bookings.endTime}, ':00')) - TIME_TO_SEC(CONCAT(${bookings.startTime}, ':00'))) DIV 60`;
 const exact = (expression: SQL) => sql<string>`CAST(COALESCE(SUM(${expression}), 0) AS DECIMAL(65, 3))`.mapWith(String);
-const invoiceTotal = (condition: SQL) => exact(sql`CASE WHEN ${condition} THEN ${invoices.total} ELSE 0 END`);
-const issued = sql`${invoices.status} = 'issued'`, cancelled = sql`${invoices.status} = 'cancelled'`, outstanding = sql`${invoices.status} = 'issued' AND ${invoices.paymentStatus} = 'unpaid'`;
-// Active receipts joined at most once per booking, split by the recorded payment method.
-const cashMethodCount = (method: string) => total(sql`${cashPayments.id} IS NOT NULL AND ${cashPayments.method} = ${method}`);
-const cashMethodTotal = (method: string) => exact(sql`CASE WHEN ${cashPayments.method} = ${method} THEN ${cashPayments.amount} ELSE 0 END`);
-const cashMethodMeasures = {
-  byMethodCashCount: cashMethodCount("cash"), byMethodCashTotal: cashMethodTotal("cash"),
-  byMethodLinkCount: cashMethodCount("link"), byMethodLinkTotal: cashMethodTotal("link"),
-  byMethodKnetCount: cashMethodCount("knet"), byMethodKnetTotal: cashMethodTotal("knet"),
-};
 // The barber and comprehensive reports read the administrator's daily collections, not per-booking receipts.
 const collectionWhere = (query: { from?: string | undefined; to?: string | undefined; employeeId?: string | undefined }) => and(
   query.from ? gte(barberCollections.date, query.from) : undefined,
@@ -58,29 +50,15 @@ const performanceMeasures = {
   ...measures,
   completedVisits: total(sql`${bookings.visitStatus} = 'completed'`),
   reservedMinutes: total(sql`CASE WHEN ${bookings.visitStatus} IN ('booked', 'arrived', 'completed') THEN ${reservedMinutes} ELSE 0 END`),
-  issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
-  outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
-  cashCount: total(sql`${cashPayments.id} IS NOT NULL`), cashTotal: exact(sql`${cashPayments.amount}`),
-  ...cashMethodMeasures,
 };
-type PerformanceRow = { [Key in keyof typeof performanceMeasures]: Key extends "issuedTotal" | "cancelledTotal" | "outstandingTotal" | "cashTotal" | "byMethodCashTotal" | "byMethodLinkTotal" | "byMethodKnetTotal" ? string : number };
+type PerformanceRow = MeasureRow & { completedVisits: number; reservedMinutes: number };
 const emptyPerformance: PerformanceRow = {
   ...Object.fromEntries(Object.keys(measures).map(key => [key, 0])) as MeasureRow,
-  completedVisits: 0, reservedMinutes: 0, issuedCount: 0, issuedTotal: "0.000", cancelledCount: 0, cancelledTotal: "0.000", outstandingCount: 0, outstandingTotal: "0.000", cashCount: 0, cashTotal: "0.000",
-  byMethodCashCount: 0, byMethodCashTotal: "0.000", byMethodLinkCount: 0, byMethodLinkTotal: "0.000", byMethodKnetCount: 0, byMethodKnetTotal: "0.000",
+  completedVisits: 0, reservedMinutes: 0,
 };
 export function shapePerformance(row: PerformanceRow = emptyPerformance) {
   return {
     work: { ...shapeMeasures(row), completedVisits: row.completedVisits, reservedMinutes: row.reservedMinutes },
-    invoices: { issued: { count: row.issuedCount, total: row.issuedTotal }, cancelled: { count: row.cancelledCount, total: row.cancelledTotal }, outstanding: { count: row.outstandingCount, total: row.outstandingTotal } },
-    cash: {
-      count: row.cashCount, total: row.cashTotal,
-      byMethod: {
-        cash: { count: row.byMethodCashCount, total: row.byMethodCashTotal },
-        link: { count: row.byMethodLinkCount, total: row.byMethodLinkTotal },
-        knet: { count: row.byMethodKnetCount, total: row.byMethodKnetTotal },
-      },
-    },
   };
 }
 
@@ -116,20 +94,18 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
   return {
     async tracking(query: BookingTrackingQuery) {
       return db.transaction(async transaction => {
-        const rows = await transaction.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+        const rows = await transaction.select({ booking: bookings }).from(bookings)
           .where(filter({ ...query, dateBasis: "visit_date", q: "" })).orderBy(desc(bookings.date), desc(bookings.startTime), desc(bookings.id));
         const ids = rows.map(row => row.booking.id);
-        if (!ids.length) return { rows, visits: [], revisions: [], payments: [], receipts: [], messages: [], actors: [], clients: [] };
+        if (!ids.length) return { rows, visits: [], revisions: [], messages: [], actors: [], clients: [] };
         const visits = await transaction.select().from(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, ids)).orderBy(asc(bookingVisitEvents.version));
         const revisions = await transaction.select().from(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
-        const payments = await transaction.select().from(cashPaymentEvents).where(inArray(cashPaymentEvents.bookingId, ids));
-        const receipts = await transaction.select().from(cashPayments).where(inArray(cashPayments.bookingId, ids));
         const messages = await transaction.select().from(bookingMessages).where(inArray(bookingMessages.bookingId, ids));
-        const actorIds = [...new Set([...rows.map(row => row.booking.createdBy), ...visits.flatMap(event => event.actorAccountId ? [event.actorAccountId] : []), ...revisions.map(event => event.actorAccountId), ...payments.map(event => event.actorAccountId), ...receipts.map(receipt => receipt.recordedBy), ...messages.map(event => event.actorAccountId)])];
+        const actorIds = [...new Set([...rows.map(row => row.booking.createdBy), ...visits.flatMap(event => event.actorAccountId ? [event.actorAccountId] : []), ...revisions.map(event => event.actorAccountId), ...messages.map(event => event.actorAccountId)])];
         const actors = await transaction.select({ id: accounts.id, role: accounts.role, name: employees.displayName }).from(accounts).leftJoin(employees, eq(employees.accountId, accounts.id)).where(inArray(accounts.id, actorIds));
         const clientIds = [...new Set([...rows.map(row => row.booking.clientId), ...visits.flatMap(event => event.actorClientId ? [event.actorClientId] : [])])];
         const people = await transaction.select({ id: clients.id, phone: clients.phone }).from(clients).where(inArray(clients.id, clientIds));
-        return { rows, visits, revisions, payments, receipts, messages, actors, clients: people };
+        return { rows, visits, revisions, messages, actors, clients: people };
       });
     },
     async reservations(query: ReservationReportQuery) {
@@ -141,7 +117,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
       }).from(bookings).where(where);
       const order = query.dateBasis === "visit_date" ? [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)] : [desc(bookings.createdAt), desc(bookings.id)];
-      const rows = await db.select({ booking: bookings, invoice: invoices, editCount, correctionCount }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
+      const rows = await db.select({ booking: bookings, editCount, correctionCount }).from(bookings)
         .where(where).orderBy(...order).limit(query.limit).offset(query.offset);
       return { summary: summary!, rows };
     },
@@ -163,18 +139,12 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
     /** Work grouped by the barber assigned to each reservation. */
     async performance(query: HaircutReportQuery) {
       return db.select({ employeeId: bookings.employeeId, ...performanceMeasures }).from(bookings)
-        .innerJoin(invoices, eq(invoices.bookingId, bookings.id)).leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
         .where(filter(query)).groupBy(bookings.employeeId) as unknown as Promise<({ employeeId: string } & PerformanceRow)[]>;
     },
     /** The administrator's daily collections for the period, totalled per barber. */
     async collectionSums(query: HaircutReportQuery) {
       return db.select({ employeeId: barberCollections.employeeId, ...collectionMeasures }).from(barberCollections)
         .where(collectionWhere(query)).groupBy(barberCollections.employeeId);
-    },
-    /** The period's total daily collections, without the per-barber split. */
-    async collectionTotals(query: { from?: string | undefined; to?: string | undefined; employeeId?: string | undefined }) {
-      const [row] = await db.select(collectionMeasures).from(barberCollections).where(collectionWhere(query));
-      return row!;
     },
     async employees(employeeId: string | undefined) {
       return db.select({ employeeId: employees.accountId, displayName: employees.displayName, enabled: accounts.enabled }).from(employees)
@@ -191,8 +161,7 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
     },
     async clients(query: ClientReportQuery) {
       return db.select({ clientId: clients.id, phone: clients.phone, ...performanceMeasures }).from(bookings)
-        .innerJoin(clients, eq(clients.id, bookings.clientId)).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
-        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
+        .innerJoin(clients, eq(clients.id, bookings.clientId))
         .where(filter(query)).groupBy(clients.id, clients.phone)
         .orderBy(asc(clients.phone), asc(clients.id)) as unknown as Promise<({ clientId: string; phone: string } & PerformanceRow)[]>;
     },
@@ -212,23 +181,6 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         query.to ? lte(salonEntries.date, query.to) : undefined,
       ));
       return { barbers, salon: salon! };
-    },
-    async invoiceList(query: InvoiceReportQuery) {
-      const where = filter(query);
-      const conditions = query.paymentStatus ? and(where, eq(invoices.paymentStatus, query.paymentStatus)) : where;
-      const [summary] = await db.select({
-        issuedCount: total(issued), issuedTotal: invoiceTotal(issued), cancelledCount: total(cancelled), cancelledTotal: invoiceTotal(cancelled),
-        outstandingCount: total(outstanding), outstandingTotal: invoiceTotal(outstanding),
-        editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
-        bookings: count(),
-      }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id))
-        .where(conditions);
-      const order = query.dateBasis === "visit_date" ? [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)] : [desc(bookings.createdAt), desc(bookings.id)];
-      const rows = await db.select({ booking: bookings, invoice: invoices, cash: cashPayments, editCount, correctionCount }).from(bookings)
-        .innerJoin(invoices, eq(invoices.bookingId, bookings.id))
-        .leftJoin(cashPayments, and(eq(cashPayments.bookingId, bookings.id), eq(cashPayments.status, "active")))
-        .where(conditions).orderBy(...order).limit(query.limit).offset(query.offset);
-      return { summary: summary!, rows };
     },
   };
 }

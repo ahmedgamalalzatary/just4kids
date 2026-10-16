@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookings, invoices, clientAddresses, bookingRevisions, cashPayments } from "@just4kids/db/schema";
+import { accounts, bookings, clientAddresses, bookingRevisions } from "@just4kids/db/schema";
 import type { Account } from "@just4kids/contracts";
 import { bookingEditSchema, bookingCreateSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
@@ -35,17 +35,9 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         // A started or finished visit is a correction: it must state a reason, and it may be moved into the past.
         const correction = booking.visitStatus !== "booked" || Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= Date.now();
         if (correction && input.reason === undefined) throw new HttpError(400, "CORRECTION_REASON_REQUIRED", "A correction reason is required");
-        const [invoice] = await transaction.select().from(invoices).where(eq(invoices.bookingId, id)).for("update");
-        if (!invoice) throw new Error("Booking invoice missing");
-        const [activePayment] = invoice.paymentStatus === "paid" ? await transaction.select().from(cashPayments).where(eq(cashPayments.activeInvoiceId, invoice.id)).for("update") : [];
-        if (invoice.paymentStatus === "paid" && !activePayment) throw new HttpError(409, "PAYMENT_RECORD_MISSING", "Paid receipt not found");
-        if (activePayment && activePayment.amount !== invoice.total) throw new HttpError(409, "PAYMENT_CONFLICT", "The payment record does not match the invoice");
-        if (invoice.paymentStatus !== "paid" && input.reconciliation) throw new HttpError(409, "RECONCILIATION_NOT_ALLOWED", "Payment reconciliation requires a paid invoice");
         const parsed = bookingCreateSchema.parse({ clientId: booking.clientId, addressId: input.addressId ?? booking.addressId, employeeId: targetId,
           date: input.date ?? booking.date, startTime: input.startTime ?? booking.startTime, endTime: input.endTime ?? booking.endTime,
-          adultCount: input.adultCount ?? booking.adultCount, childCount: input.childCount ?? booking.childCount, specialChildCount: input.specialChildCount ?? booking.specialChildCount,
-          amountCash: invoice.amountCash, amountLink: invoice.amountLink });
-        // The invoice amounts are inputs to validation only; the reservation edit never changes them.
+          adultCount: input.adultCount ?? booking.adultCount, childCount: input.childCount ?? booking.childCount, specialChildCount: input.specialChildCount ?? booking.specialChildCount });
         const merged = { clientId: parsed.clientId, addressId: parsed.addressId, employeeId: parsed.employeeId, date: parsed.date, startTime: parsed.startTime, endTime: parsed.endTime, adultCount: parsed.adultCount, childCount: parsed.childCount, specialChildCount: parsed.specialChildCount };
         if (!correction) assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
@@ -64,18 +56,15 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
           if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "Address not found for this client");
           addressSnapshot = bookingAddressSnapshotSchema.parse({ area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl });
         }
-        // The price is typed at booking time and is not changed by a reservation edit.
-        if (input.reconciliation) throw new HttpError(409, "RECONCILIATION_NOT_ALLOWED", "The invoice amount cannot be changed");
         const nextNotes = input.notes === undefined ? booking.notes : input.notes;
         // A moved or reassigned visit is new again for the barber who must (re)check it.
         const seenByBarberAt = reassigned || windowChanged ? null : booking.seenByBarberAt;
         const nextBooking = { ...booking, ...merged, notes: nextNotes, seenByBarberAt, addressSnapshot, employeeSnapshot };
-        const nextInvoice = invoice;
-        const before = serializeBooking({ booking, invoice });
-        if (JSON.stringify(before) === JSON.stringify(serializeBooking({ booking: nextBooking, invoice: nextInvoice }))) throw new HttpError(409, "BOOKING_UNCHANGED", "No reservation changes");
+        const before = serializeBooking(booking);
+        if (JSON.stringify(before) === JSON.stringify(serializeBooking(nextBooking))) throw new HttpError(409, "BOOKING_UNCHANGED", "No reservation changes");
         // The existing version now covers reservation edits as well as visit actions, preventing stale actions across reassignment.
         nextBooking.visitVersion++;
-        const after = serializeBooking({ booking: nextBooking, invoice: nextInvoice });
+        const after = serializeBooking(nextBooking);
         const now = Date.now();
         if (!correction && Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= now) throw new HttpError(409, "BOOKING_EDIT_NOT_ALLOWED", "Only a future visit that has not started can be edited");
         if (!correction) assertFutureStart(merged);

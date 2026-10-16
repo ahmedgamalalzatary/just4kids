@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookings, branches, cashPayments, clientAddresses, clients, employees, invoices, loginAttempts, salonEntries, salonEntryEvents } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookings, branches, clientAddresses, clients, employees, loginAttempts, salonEntries, salonEntryEvents } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -14,7 +14,7 @@ const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DAT
 const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const app = createApp({ auth, connection, env });
-const branchId = randomUUID(), employeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID(), bookingId = randomUUID(), invoiceId = randomUUID(), paymentId = randomUUID();
+const branchId = randomUUID(), employeeId = randomUUID(), clientId = randomUUID(), addressId = randomUUID(), bookingId = randomUUID();
 // Fixed report fixtures (June) stay untouched; the CRUD tests use their own July dates.
 const reportRange = { from: "2099-06-01", to: "2099-06-02" };
 const crudRange = { from: "2099-07-01", to: "2099-07-02" };
@@ -50,15 +50,13 @@ beforeAll(async () => {
     clientSnapshot: { phone: "+96555000006" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
     employeeSnapshot: { id: employeeId, displayName: "حلاق الصالون" }, createdAt: now,
   });
-  await connection.db.insert(invoices).values({ id: invoiceId, bookingId, amountCash: "5.000", amountLink: "3.000", total: "8.000", status: "issued", paymentStatus: "paid", issuedAt: now });
-  await connection.db.insert(cashPayments).values({ id: paymentId, bookingId, invoiceId, originalAmount: "8.000", amount: "8.000", method: "link", status: "active", recordedBy: employeeId, recordedAt: now, bookingAtReceipt: {} });
   const reportEntry1 = randomUUID(), reportEntry2 = randomUUID();
   await connection.db.insert(salonEntries).values([
     { id: reportEntry1, branchId, date: "2099-06-01", childCount: 5, cash: "5.000", link: "1.000", knet: "2.000", total: "8.000", enteredBy: employeeId, createdAt: now, updatedAt: now },
     { id: reportEntry2, branchId, date: "2099-06-02", childCount: 0, cash: "0.000", link: "0.000", knet: "3.000", total: "3.000", enteredBy: employeeId, createdAt: now, updatedAt: now },
   ]);
   entryIds.push(reportEntry1, reportEntry2);
-  // The comprehensive report reads this barber's daily collection for June, not the per-booking receipt above.
+  // The comprehensive report reads this barber's daily collection for June.
   await connection.db.insert(barberCollections).values({ id: randomUUID(), employeeId, date: "2099-06-01", normalChildren: 2, specialChildren: 1, cash: "7.000", link: "4.000", knet: "0.000", total: "11.000", version: 0, enteredBy: adminAccount!.id, createdAt: now, updatedAt: now });
   admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
   employee = await signIn((await connection.db.select({ phone: accounts.phone }).from(accounts).where(eq(accounts.id, employeeId)))[0]!.phone, "employee-password-123");
@@ -67,8 +65,6 @@ afterAll(async () => {
   await connection.db.delete(barberCollections).where(eq(barberCollections.employeeId, employeeId));
   await connection.db.delete(salonEntryEvents).where(inArray(salonEntryEvents.entryId, entryIds));
   await connection.db.delete(salonEntries).where(inArray(salonEntries.id, entryIds));
-  await connection.db.delete(cashPayments).where(eq(cashPayments.id, paymentId));
-  await connection.db.delete(invoices).where(eq(invoices.id, invoiceId));
   await connection.db.delete(bookings).where(eq(bookings.id, bookingId));
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.id, addressId));
   await connection.db.delete(clients).where(eq(clients.id, clientId));

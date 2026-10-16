@@ -8,14 +8,13 @@ const clientId = "9f8e7d6c-5b4a-4321-8765-432109876543";
 describe("report filters", () => {
   it("reads valid filters from the address", () => {
     const params = new URLSearchParams({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, status: "no_show", source: "ai", q: "  J4K-1 " });
-    expect(readReportFilters(params, true)).toEqual({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, clientId: "", status: "no_show", source: "ai", paymentStatus: "", q: "J4K-1" });
+    expect(readReportFilters(params, true)).toEqual({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, clientId: "", status: "no_show", source: "ai", q: "J4K-1" });
   });
 
-  it("reads the invoice payment filter and the client drill-down", () => {
-    const params = new URLSearchParams({ paymentStatus: "paid", clientId });
-    expect(readReportFilters(params, true)).toEqual({ ...emptyReportFilters, paymentStatus: "paid", clientId });
-    expect(readReportFilters(params, false)).toEqual({ ...emptyReportFilters, paymentStatus: "paid" });
-    expect(readReportFilters(new URLSearchParams({ paymentStatus: "maybe" }), true)).toEqual(emptyReportFilters);
+  it("reads the client drill-down", () => {
+    const params = new URLSearchParams({ clientId });
+    expect(readReportFilters(params, true)).toEqual({ ...emptyReportFilters, clientId });
+    expect(readReportFilters(params, false)).toEqual(emptyReportFilters);
   });
 
   it("drops malformed values instead of failing the report", () => {
@@ -36,8 +35,8 @@ describe("report filters", () => {
   it("round-trips through the address", () => {
     const filters = { ...emptyReportFilters, dateBasis: "created_date" as const, from: "2026-10-01", to: "2026-10-02", branchId, source: "manual" as const };
     expect(readReportFilters(new URLSearchParams(reportSearch(filters)), true)).toEqual(filters);
-    const phase11 = { ...emptyReportFilters, paymentStatus: "unpaid" as const, clientId };
-    expect(readReportFilters(new URLSearchParams(reportSearch(phase11)), true)).toEqual(phase11);
+    const driven = { ...emptyReportFilters, clientId };
+    expect(readReportFilters(new URLSearchParams(reportSearch(driven)), true)).toEqual(driven);
   });
 
   it("rejects a range that ends before it starts", () => {

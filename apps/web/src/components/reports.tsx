@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PAGE_SIZE, useBranches, useClient, useClients, useEmployees } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
-import type { ClientReport } from "@/lib/api/types";
+import type { ClientReport, EmployeeReport } from "@/lib/api/types";
 import { formatDate, formatDuration } from "@/lib/kuwait-time";
 import { formatKwd } from "@/lib/money";
 import { paymentMethodOptions } from "@/lib/payments";
@@ -22,7 +22,6 @@ import { emptyReportFilters, rangeError, readReportFilters, reportSearch, tracki
 
 export const dateBasisLabels = { visit_date: "Visit date", created_date: "Reservation creation date" } as const;
 export const sourceLabels = { manual: "Manual reservation", ai: "Via WhatsApp" } as const;
-export const paymentStatusLabels = { paid: "Paid", unpaid: "Unpaid" } as const;
 
 /** The current report filters from the address; the barber filter applies to the administrator only. */
 export function useReportFilters() {
@@ -47,7 +46,6 @@ const tabs = [
   { href: "/reports/barbers", label: "Barbers", employeeLabel: "My performance" },
   { href: "/reports/clients", label: "Clients" },
   { href: "/reports/tracking", label: "Reservation tracking", adminOnly: true },
-  { href: "/reports/invoices", label: "Invoices and payments" },
   { href: "/reports/salon", label: "Salon work", adminOnly: true },
   { href: "/reports/comprehensive", label: "Combined collections", adminOnly: true },
 ];
@@ -147,12 +145,6 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
               <OptionSelect value={draft.source} onChange={value => set("source")(value as ReportFilters["source"])} all="All sources"
                 options={Object.entries(sourceLabels).map(([value, label]) => ({ value, label }))} />
             </Field>
-            {pathname === "/reports/invoices" ? (
-              <Field label="Payment status">
-                <OptionSelect value={draft.paymentStatus} onChange={value => set("paymentStatus")(value as ReportFilters["paymentStatus"])} all="Paid and unpaid"
-                  options={[{ value: "paid", label: "Paid" }, { value: "unpaid", label: "Unpaid" }]} />
-              </Field>
-            ) : null}
           </div>
           {isAdmin && filters.clientId ? (
             <p className="text-sm text-muted-foreground">
@@ -292,7 +284,6 @@ export function ReportScope() {
     filters.clientId ? `Client: ${client.data?.phone ?? "…"}` : null,
     filters.status ? `Status: ${visitStatusLabels[filters.status]}` : null,
     filters.source ? `Source: ${sourceLabels[filters.source]}` : null,
-    filters.paymentStatus && pathname === "/reports/invoices" ? `Payment status: ${paymentStatusLabels[filters.paymentStatus]}` : null,
     filters.q ? `Search: ${filters.q}` : null,
   ].filter(Boolean);
   return (
@@ -329,10 +320,10 @@ export function Money({ value, unit }: { value: { count: number; total: string }
 
 export const reservedHoursLabel = "Reserved hours (including travel)";
 
-type Collected = ClientReport["clients"][number]["cash"];
+type Cash = NonNullable<EmployeeReport["employees"][number]["cash"]>;
 
 /** Collected money with the overall total and its split across the used payment methods. */
-export function CashMoney({ value, unit = "Receipt" }: { value: Collected; unit?: string | undefined }) {
+export function CashMoney({ value, unit = "Receipt" }: { value: Cash; unit?: string | undefined }) {
   const parts = paymentMethodOptions.filter(option => value.byMethod[option.value].count > 0).map(option => `${option.label} ${formatKwd(value.byMethod[option.value].total)}`);
   return (
     <span className="inline-flex flex-col">
@@ -344,15 +335,15 @@ export function CashMoney({ value, unit = "Receipt" }: { value: Collected; unit?
 }
 
 /** The barbers' daily collections, or a note when a filter they cannot follow hides them. */
-export function CollectedCash({ value, unit }: { value: Collected | null; unit?: string | undefined }) {
+export function CollectedCash({ value, unit }: { value: Cash | null; unit?: string | undefined }) {
   return value ? <CashMoney value={value} unit={unit} /> : <span className="text-xs text-muted-foreground">Collections are filtered by period and barber only</span>;
 }
 
-type Performance = Pick<ClientReport["clients"][number], "work" | "invoices"> & { cash: Collected | null };
+type Performance = Pick<ClientReport["clients"][number], "work"> & { cash?: Cash | null };
 
-/** Work, time, and money measures shared by the barber and client reports. Invoices and cash stay separate. */
+/** Work and time shared by the barber and client reports, with the barber's daily collections underneath. */
 export function PerformanceDetails({ value, cashUnit, children }: { value: Performance; cashUnit?: string | undefined; children?: ReactNode }) {
-  const { work, invoices, cash } = value;
+  const { work, cash = null } = value;
   const group = "grid grid-cols-2 gap-4 sm:grid-cols-4";
   return (
     <div className="flex flex-col gap-4">
@@ -366,10 +357,7 @@ export function PerformanceDetails({ value, cashUnit, children }: { value: Perfo
         <Detail label={reservedHoursLabel}>{formatDuration(work.reservedMinutes)}</Detail>
         {children}
       </dl>
-      <dl className={`${group} border-t border-border pt-4`} aria-label="Invoices and payments">
-        <Detail label="Issued invoices"><Money value={invoices.issued} unit="invoice" /></Detail>
-        <Detail label="Unpaid invoices"><Money value={invoices.outstanding} unit="invoice" /></Detail>
-        <Detail label="Cancelled invoices"><Money value={invoices.cancelled} unit="invoice" /></Detail>
+      <dl className={`${group} border-t border-border pt-4`} aria-label="Collections">
         <Detail label="Collected amount"><CollectedCash value={cash} unit={cashUnit} /></Detail>
       </dl>
     </div>

@@ -9,14 +9,12 @@ import { createBookingRepository } from "./booking.repository.js";
 import { createBookingService } from "./booking.service.js";
 import { createVisitService } from "./visit.service.js";
 import { createBookingEditService } from "./booking-edit.service.js";
-import { createPaymentService } from "./payment.service.js";
 import { createMessageService } from "./message.service.js";
 
 export function createBookings(connection: ReturnType<typeof createDatabase>, auth: AuthModule) {
   const service = createBookingService(createBookingRepository(connection));
   const visits = createVisitService(connection);
   const edits = createBookingEditService(connection);
-  const payments = createPaymentService(connection);
   const messages = createMessageService(connection);
   const router = Router();
   const handle = (action: RequestHandler): RequestHandler => async (request, response, next) => {
@@ -35,20 +33,15 @@ export function createBookings(connection: ReturnType<typeof createDatabase>, au
   router.post("/:id/visit", auth.requireCsrf, handle(async (request, response) => { response.json(await visits.transition(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
   router.patch("/:id", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => { response.json(await edits.edit(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
   router.get("/:id/revisions", handle(async (request, response) => { response.json(await edits.revisions(String(request.params.id), (response.locals.auth as Authenticated).account)); }));
-  router.post("/:id/payment", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => { response.json(await payments.record(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
-  router.post("/:id/payment/undo", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => { response.json(await payments.undo(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
-  router.get("/:id/payments", handle(async (request, response) => { response.json(await payments.details(String(request.params.id), (response.locals.auth as Authenticated).account)); }));
   router.post("/:id/visit/correction", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => { response.json(await visits.correct(String(request.params.id), request.body, (response.locals.auth as Authenticated).account)); }));
   router.get("/:id/history", handle(async (request, response) => { response.json(await visits.history(String(request.params.id), (response.locals.auth as Authenticated).account)); }));
   router.post("/:id/sent-to-barber", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => {
     response.status(201).json(await messages.record(String(request.params.id), (response.locals.auth as Authenticated).account));
   }));
-  const detail = (invoiceOnly: boolean): RequestHandler => handle(async (request, response) => {
+  router.get("/:id", handle(async (request, response) => {
     const booking = await service.get(String(request.params.id), (response.locals.auth as Authenticated).account);
     if (!booking) { deny(response, 404, "NOT_FOUND", "Reservation not found"); return; }
-    response.json(invoiceOnly ? booking.invoice : booking);
-  });
-  router.get("/:id/invoice", detail(true));
-  router.get("/:id", detail(false));
+    response.json(booking);
+  }));
   return router;
 }

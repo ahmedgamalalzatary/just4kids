@@ -15,8 +15,7 @@ import { ApiError, apiRequest, apiUpload } from "./client";
 import { useApiMutation, useSession } from "./session";
 import type {
   Area,
-  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, Invoice, InvoiceReport, Page, Payment,
-  PaymentDetails, PaymentMethod, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, TimeBlock, VisitEvent,
+  Address, BarberCollection, BarberCollectionEvent, BarberCollectionReport, Booking, BookingMessage, BookingRevision, Branch, Client, ClientReport, ClientStatusEvent, ClientSummary, ComprehensiveReport, Eligibility, Employee, EmployeeReport, HaircutReport, Page, ReservationReport, SalonEntry, SalonEntryEvent, SalonReport, Schedule, TimeBlock, VisitEvent,
 } from "./types";
 
 export const keys = {
@@ -288,15 +287,6 @@ export function useBooking(id: string) {
   return query;
 }
 
-/** The booking's printable invoice; opening it also marks the booking seen, so refresh the barber's lists. */
-export function useInvoice(id: string) {
-  const isEmployee = useSession().data?.account.role === "employee";
-  const query = useQuery({ queryKey: [...keys.booking(id), "invoice"], queryFn: ({ signal }) => apiRequest<Invoice>(`/bookings/${id}/invoice`, { signal }), refetchOnMount: isEmployee ? "always" : true });
-  // The invoice response omits the marker, so any barber open refreshes the lists.
-  useSeenListsRefresh(id, isEmployee && query.isSuccess && !query.isFetching, query.dataUpdatedAt);
-  return query;
-}
-
 export function useBookingHistory(id: string) {
   return useQuery({ queryKey: [...keys.booking(id), "history"], queryFn: ({ signal }) => apiRequest<{ events: VisitEvent[]; messages: BookingMessage[] }>(`/bookings/${id}/history`, { signal }) });
 }
@@ -305,11 +295,7 @@ export function useBookingRevisions(id: string) {
   return useQuery({ queryKey: [...keys.booking(id), "revisions"], queryFn: ({ signal }) => apiRequest<{ revisions: BookingRevision[] }>(`/bookings/${id}/revisions`, { signal }).then(result => result.revisions) });
 }
 
-export function useBookingPayments(id: string) {
-  return useQuery({ queryKey: [...keys.booking(id), "payments"], queryFn: ({ signal }) => apiRequest<PaymentDetails>(`/bookings/${id}/payments`, { signal }) });
-}
-
-// Every booking write refreshes the whole booking (detail, history, revisions, payments), the lists, and the reports.
+// Every booking write refreshes the whole booking (detail, history, revisions), the lists, and the reports.
 const bookingWrites = (id: string) => [keys.booking(id), [...keys.bookings, "list"], ["availability"], keys.reports] as const;
 
 export function useCreateBooking() {
@@ -338,20 +324,6 @@ export function useVisitCorrection() {
 
 export function useEditBooking() {
   return useApiMutation(({ id, ...input }: BookingEdit & { id: string }, csrfToken) => apiRequest<Booking>(`/bookings/${id}`, { method: "PATCH", body: input, csrfToken }), {
-    invalidate: (_output, input) => bookingWrites(input.id),
-  });
-}
-
-export function useRecordPayment() {
-  return useApiMutation(({ id, ...input }: { id: string; expectedVersion: number; method: PaymentMethod }, csrfToken) =>
-    apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment`, { method: "POST", body: input, csrfToken }), {
-    invalidate: (_output, input) => bookingWrites(input.id),
-  });
-}
-
-export function useUndoPayment() {
-  return useApiMutation(({ id, ...input }: { id: string; expectedVersion: number; paymentId: string; reason: string }, csrfToken) =>
-    apiRequest<{ booking: Booking; payment: Payment }>(`/bookings/${id}/payment/undo`, { method: "POST", body: input, csrfToken }), {
     invalidate: (_output, input) => bookingWrites(input.id),
   });
 }
@@ -442,9 +414,9 @@ export function useCollectionHistory(id: string | null) {
 
 // Reports --------------------------------------------------------------------
 
-// Only the invoice report accepts the payment filter; the branch filter belongs to the salon reports, since bookings have no branch.
+// The branch filter belongs to the salon reports, since bookings have no branch.
 function useReport<T>(path: string, filters: ReportFilters, page?: { offset: number }) {
-  const query = { ...filters, branchId: undefined, ...(path === "invoices" ? {} : { paymentStatus: undefined }) };
+  const query = { ...filters, branchId: undefined };
   return useQuery({
     queryKey: [...keys.reports, path, filters, page?.offset ?? null],
     queryFn: ({ signal }) => apiRequest<T>(`/reports/${path}`, { query: { ...query, ...(page ? { limit: PAGE_SIZE, offset: page.offset } : {}) }, signal }),
@@ -464,4 +436,3 @@ export function useBookingTrackingReport(filters: ReportFilters, enabled: boolea
     enabled, placeholderData: keepPreviousData,
   });
 }
-export const useInvoiceReport = (filters: ReportFilters, offset: number) => useReport<InvoiceReport>("invoices", filters, { offset });

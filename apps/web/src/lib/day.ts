@@ -1,7 +1,6 @@
 import type { VisitStatus } from "@just4kids/contracts";
 import { formatAddress, mapLink } from "./address";
 import { formatDate, formatWindow, kuwaitInstant, minuteOfDay } from "./kuwait-time";
-import { fromFils, toFils } from "./money";
 
 // Helpers for the day views: barber time pills, the WhatsApp hand-off, cancel reasons, and today's totals.
 
@@ -179,14 +178,11 @@ export function cancelReasonText(reason: string, other: string): string | null {
   return written ? `${option.label}: ${written}` : null;
 }
 
-type DayBooking = Visit & { invoice: { paymentStatus: "paid" | "unpaid"; total: string } };
-
-/** Open visits (not yet done), visits that were not cancelled or missed, and the exact total collected. */
-export function daySummary(bookings: DayBooking[]): { open: number; active: number; collected: string } {
+/** Open visits (not yet done) and visits that still hold the barber's time. */
+export function daySummary(bookings: Visit[]): { open: number; active: number } {
   return {
     open: bookings.filter(booking => open.has(booking.visitStatus)).length,
     active: bookings.filter(booking => blocking.has(booking.visitStatus)).length,
-    collected: fromFils(bookings.filter(booking => booking.invoice.paymentStatus === "paid").reduce((sum, booking) => sum + toFils(booking.invoice.total), 0n)),
   };
 }
 

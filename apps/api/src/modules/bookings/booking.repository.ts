@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, clients, clientAddresses, bookings, invoices, bookingVisitEvents } from "@just4kids/db/schema";
+import { accounts, clients, clientAddresses, bookings, bookingVisitEvents } from "@just4kids/db/schema";
 import type { Account, BookingCreate, BookingListQuery, BookingWithClientCreate } from "@just4kids/contracts";
 import { bookingAddressSnapshotSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
@@ -21,7 +21,7 @@ export function assertFutureStart(input: Pick<BookingCreate, "date" | "startTime
 export function createBookingRepository(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
   async function get(id: string) {
-    const [row] = await db.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id)).where(eq(bookings.id, id));
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, id));
     return row;
   }
   async function save(input: BookingCreate, actor: BookingActor, transaction: Transaction, newClient?: BookingWithClientCreate["client"]) {
@@ -49,17 +49,14 @@ export function createBookingRepository(connection: ReturnType<typeof createData
     const now = new Date(), id = randomUUID();
     const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
     const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl };
-    const { amountCash, amountLink, ...details } = input;
     const booking = {
-      id, reference, ...details, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+      id, reference, ...input, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
       clientSnapshot: { phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
       employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
     };
-    const invoice = { id: randomUUID(), bookingId: id, amountCash, amountLink, total: money(fils(amountCash) + fils(amountLink)), status: "issued" as const, paymentStatus: "unpaid" as const, issuedAt: now };
     await transaction.insert(bookings).values(booking);
-    await transaction.insert(invoices).values(invoice);
-    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, previousInvoiceStatus: null, invoiceStatus: "issued", occurredAt: now });
-    return { booking, invoice };
+    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, occurredAt: now });
+    return booking;
   }
   return {
     get,
@@ -73,7 +70,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
       const filter = and(employeeId ? eq(bookings.employeeId, employeeId) : undefined, query.date ? eq(bookings.date, query.date) : undefined);
       // One day reads as an agenda (earliest first); the full list shows the latest dates first.
       const order = query.date ? [asc(bookings.startTime), asc(bookings.id)] : [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)];
-      const rows = await db.select({ booking: bookings, invoice: invoices }).from(bookings).innerJoin(invoices, eq(invoices.bookingId, bookings.id)).where(filter).orderBy(...order).limit(query.limit).offset(query.offset);
+      const rows = await db.select().from(bookings).where(filter).orderBy(...order).limit(query.limit).offset(query.offset);
       const [total] = await db.select({ n: count() }).from(bookings).where(filter);
       return { rows, total: total?.n ?? 0 };
     },

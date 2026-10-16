@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarDays, CalendarPlus, ChartPie, Coins, Route, Scissors, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, CalendarPlus, ChartPie, Coins, Route, Scissors, type LucideIcon } from "lucide-react";
 import { EmployeeAvatar } from "@/components/avatar";
 import { VisitCard } from "@/components/day-bookings";
-import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
+import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,6 @@ import { useDayBookings, useEmployees, useMyEmployee } from "@/lib/api/hooks";
 import type { Booking, Employee } from "@/lib/api/types";
 import { currentOrNext, daySummary } from "@/lib/day";
 import { formatDate, formatWindow, kuwaitNow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 /** Kuwait date and time, refreshed every minute so "now" and "next" stay current while the page is open. */
@@ -143,9 +142,9 @@ export function BarberHome() {
         <BigCard icon={CalendarDays} title="Today's reservations" value={day.data ? <span data-numeric>{summary.open}</span> : <Skeleton className="h-9 w-12" />}
           note={day.data ? <>open visits out of <span data-numeric>{summary.active}</span> Today</> : "…"}
           action={<Button asChild variant="sun" size="lg"><a href="#today">View today&apos;s visits</a></Button>} />
-        <BigCard icon={Wallet} title="Today's revenue" value={day.data ? <Ltr>{formatKwd(summary.collected)}</Ltr> : <Skeleton className="h-9 w-28" />}
-          note="Payments for today's visits"
-          action={<Button asChild variant="sun" size="lg"><Link href="/reports">My reports</Link></Button>} />
+        <BigCard icon={ChartPie} title="My reports" value={<span>Work and collections</span>}
+          note="Reservations, completed work, and daily collections"
+          action={<Button asChild variant="sun" size="lg"><Link href="/reports">Open reports</Link></Button>} />
       </div>
       <section id="today" aria-labelledby="today-heading" className="mt-8 scroll-mt-20">
         <div className="mb-3 flex items-center justify-between gap-2">

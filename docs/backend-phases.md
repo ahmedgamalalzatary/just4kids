@@ -1,13 +1,13 @@
 # Just4Kids backend phases
 
-Current UI and client model (2026-10-15): the dashboard, validation/errors, dates, reports, invoices and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details` (including payment receipts and events). The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). Saving still creates the invoice atomically. This supersedes older UI/name/location descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+Current UI and client model (2026-10-16): the dashboard, validation/errors, dates, reports and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details`. Confirmed 2026-10-16 (feature batch P8): a reservation carries **no price, invoice or payment**; the `invoices`, `cash_payments` and `cash_payment_events` tables and the invoice/cash-payment endpoints and reports are removed, and saving creates the reservation and initial history atomically. Money remains only in barber daily collections and salon entries and their report measures. The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). This supersedes older UI/name/location/invoice descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
 
 
 Created: 2026-09-29. Product authority: [project-contract.md](project-contract.md). Frontend tracker: [frontend-phases.md](frontend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md). Setup commands: [README.md](../README.md).
 
 ## Scope and checklist rules
 
-The initial task covered documentation and setup verification. Backend phases 1–10 are now implemented, including phase 7 paid-edit reconciliation through phase 8. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8 and then the phase 9–10 reports; its foundation, screens, and report pages are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
+The initial task covered documentation and setup verification. Backend phases 1–10 are now implemented, including phase 7 paid-edit reconciliation through phase 8. Feature batch P8 (2026-10-16) removes reservation price, invoice and payment entirely (`invoices`, `cash_payments` and `cash_payment_events` tables, the invoice/payment endpoints, and the invoice/cash report); barber collections and salon entries remain. The employee phone-change/login race found during the 2026-10-02 review is fixed with a real-MySQL regression test. Phase 5 completes phase 3's booking-aware eligibility and schedule-edit protection; phase 6 adds visit actions, corrections, and history. On 2026-10-08 the user requested the web frontend for the completed backend phases 1–8 and then the phase 9–10 reports; its foundation, screens, and report pages are implemented and tracked in [frontend-phases.md](frontend-phases.md). Per-slice frontend and whole-slice acceptance items stay unchecked until verified with real records end to end.
 
 Backend work covers `apps/api`, backend contracts in `packages/contracts`, `packages/db`, and necessary backend configuration/dependencies/documentation. Frontend work in `apps/web` is done only when the user explicitly requests it, as on 2026-10-08. Do not change `apps/web` or frontend dependencies as part of backend-only work.
 
@@ -28,9 +28,9 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Area | Existing state |
 | --- | --- |
 | Workspace | pnpm/Turborepo monorepo; pinned versions, lint/typecheck/build/test commands |
-| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations/invoices, visit actions/corrections/history, reservation edits/revisions, cash receipts/corrections/reconciliation, and reservation/haircut/barber/branch reports implemented |
-| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking/invoice, visit mutation/history, reservation edit/revision, cash receipt/undo/reconciliation, and report filter/response contracts |
-| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking/invoice (0004), visit history/version (0005), and reservation/invoice revisions (0006), and cash receipts/events (0007) |
+| API | Express infrastructure; authentication, branches, employees, schedules, clients/addresses, reservations, visit actions/corrections/history, reservation edits/revisions, barber collections, salon entries, and reservation/haircut/barber/collection reports implemented |
+| Contracts | Zod health, auth, branch, employee, schedule, eligibility, client/address, booking, visit mutation/history, reservation edit/revision, barber collection, salon entry, and report filter/response contracts |
+| Database | Drizzle/mysql2; auth (0000), branch/employee (0001), schedule (0002), client/address (0003), booking (0004), visit history/version (0005), reservation revisions (0006), barber collections/events, salon entries/events, branch address, work-day switches; reservation money removed in feature batch P8 |
 | Tests | Auth/organization/schedule/client/booking behavior, shared contracts, and real isolated MySQL checks, including concurrency and rollback |
 | Frontend | English LTR dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
@@ -183,6 +183,8 @@ Original backend evidence: migration `0003_easy_lucky_pierre.sql` applied to dev
 
 ## Phase 5 — Manual reservation and its initial invoice
 
+> Superseded 2026-10-16 by feature batch P8: a reservation has no invoice or payment. The notes below record the original phase-5 implementation and are kept for history.
+
 Depends on: phases 2–4. Decisions confirmed on 2026-10-02: initial invoices contain booking reference, issue date, saved client/address/barber/branch details, adult/child quantities and unit prices, line amounts, and KWD total, with no tax or extra business/tax fields. New bookings must start strictly in the future in Kuwait, with no extra lead-time cutoff.
 
 Outcome: administrator books one client with one barber/window/address and receives one combined invoice immediately.
@@ -273,7 +275,9 @@ Final verification (2026-10-02):
 
 ## Phase 7 — Reservation edits, rescheduling, and reassignment
 
-Depends on: phases 5–6. Confirmed on 2026-10-02: administrator edits only booked visits before their original start; new windows must also start strictly in the future, with no extra cutoff. Count edits and same-recorded-branch reassignment keep agreed unit prices; different-branch reassignment uses the destination branch's current prices. Phase 8 now permits paid edits with exact extra-cash/refund reconciliation when the total changes; edits preserving the paid total need no cash adjustment. Client rescheduling remains a phase 13 decision.
+> Amended 2026-10-16 by feature batch P8: edits no longer carry any price/invoice or paid-edit reconciliation. The pricing and reconciliation notes below are historical.
+
+Depends on: phases 5–6. Confirmed on 2026-10-02: administrator edits only booked visits before their original start; new windows must also start strictly in the future, with no extra cutoff. Count edits and same-recorded-branch reassignment keep agreed unit prices; different-branch reassignment uses the destination branch's current prices. Phase 8 now permits paid edits with exact extra-cash/refund reconciliation when the total changes; edits preserving the paid total need no cash adjustment. Client rescheduling remains a phase 13 decision. Confirmed on 2026-10-02: administrator edits only booked visits before their original start; new windows must also start strictly in the future, with no extra cutoff. Count edits and same-recorded-branch reassignment keep agreed unit prices; different-branch reassignment uses the destination branch's current prices. Phase 8 now permits paid edits with exact extra-cash/refund reconciliation when the total changes; edits preserving the paid total need no cash adjustment. Client rescheduling remains a phase 13 decision.
 
 Outcome: administrator updates a reservation safely, retaining its identity and invoice revision history.
 
@@ -308,6 +312,8 @@ Migration `0006_nice_romulus.sql` adds immutable reservation/invoice revision sn
 Backend verification (2026-10-02): the initial edit test failed with 404 and its contract test failed before the schema existed; all 12 initial API edit cases failed before the endpoint was implemented. Targeted booking/visit/schedule/edit/contract checks passed, including 15 edit API tests and 21 booking contract tests. The start-crossing regression failed with an incorrectly accepted edit, then passed after the final start recheck. Real MySQL tests verify exact same/different-branch pricing, time/address price preservation, retained invoice identity, immutable ordered revisions, current ownership after reassignment, cross-client address denial, employee/CSRF denial, paid/state/time safeguards, conflict rollback, competing edits, opposite-barber swaps, reschedule versus new-booking races, and injected revision failure rollback. Forced backend lint/typecheck/build passed (11 tasks). Full `pnpm check` passed: repository lint, typecheck, 23 test files/161 tests, and build. Test/development migrations succeeded; `pnpm db:generate` reported no schema drift. Phase 7 unpaid edits are included in the accompanying implementation commit; frontend and whole-slice acceptance remain unchecked.
 
 ## Phase 8 — Full cash payment, corrections, and reconciliation
+
+> Superseded 2026-10-16 by feature batch P8: reservation price, invoice and payment were removed entirely. The `invoices`, `cash_payments` and `cash_payment_events` tables, the `/api/bookings/:id/payment*` and invoice endpoints, and the invoice/cash report no longer exist. Money now lives only in barber daily collections and salon entries. The notes below record the original phase-8 implementation and are kept for history.
 
 Depends on: phases 5–6 and phase 7 edit services. Confirmed on 2026-10-02: full cash recording only for arrived/completed visits; administrator-only mistaken-entry undo with a required reason and preserved history; paid total changes require the exact extra cash/refund and reason recorded atomically with the edit. Cancellation never automatically refunds cash. Amended 2026-10-12: only the administrator records payments; employees see them read-only.
 
@@ -399,7 +405,9 @@ Backend handoff (2026-10-08): `GET /api/reports/employees` and `GET /api/reports
 
 Backend verification (2026-10-08): baseline was the green phase 9 commit `024a353` (full `pnpm check`). New contract tests failed before the schemas existed (2 cases) and all eight API tests failed with 404 before the routes existed. Real-MySQL fixtures cover three barbers (one disabled, one transferred), weekly hours, a closed and a special-hours exception, all five visit states, completed unpaid, cancelled with retained cash, a reconciled receipt (7.000 → 8.000), a voided receipt, and a revised invoice. Tests now pass for barber and branch measures, reserved versus scheduled minutes, exact invoice/cash separation, transfer attribution, branch-filter membership, `null` availability for the booking-date basis or an open range, administrator zero rows, employee scoping, and cross-barber 403. Forced backend lint/typecheck/build passed (11 tasks). Full `pnpm check` passed: lint, typecheck, 36 test files/249 tests, and build. Frontend and acceptance items remain unchecked.
 
-## Phase 11 — Client history and invoice/cash reports
+## Phase 11 — Client history and collection reports
+
+> Amended 2026-10-16 by feature batch P8: the invoice report and its `paymentStatus` filter are removed, and the Clients report no longer carries invoiced/cash measures. The client report (contact details, bookings, repeat visits, haircut counts) and the collection-based report measures remain. The notes below are historical.
 
 Depends on: phases 4–8; reuse phase 9 report filters/authorization.
 

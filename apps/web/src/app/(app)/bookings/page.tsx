@@ -9,7 +9,7 @@ import { DayBookingRow, NewBookingDot, TimeChip, VisitCard } from "@/components/
 import { Field } from "@/components/field";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Pagination } from "@/components/pagination";
-import { PaymentBadge, VisitStatusBadge } from "@/components/status";
+import { VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,6 @@ import { useSession } from "@/lib/api/session";
 import type { Booking, Employee } from "@/lib/api/types";
 import { daySummary, haircutSummary, shiftDate } from "@/lib/day";
 import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
 import { isNewForBarber } from "@/lib/visit-rules";
 import { cn } from "@/lib/utils";
 
@@ -54,8 +53,6 @@ function BookingRow({ booking, showBarber, unseen, photoVersion }: { booking: Bo
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <VisitStatusBadge status={booking.visitStatus} />
-          <PaymentBadge paymentStatus={booking.invoice.paymentStatus} invoiceStatus={booking.invoice.status} />
-          <Ltr className="ms-auto text-sm font-semibold lg:ms-0 lg:min-w-[6.5rem] lg:text-end">{formatKwd(booking.invoice.total)}</Ltr>
         </div>
       </Link>
     </li>
