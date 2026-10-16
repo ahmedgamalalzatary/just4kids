@@ -83,6 +83,7 @@ function NewBookingScreen() {
   const [childCount, setChildCount] = useState(1);
   const [specialChildCount, setSpecialChildCount] = useState(0);
   const [notes, setNotes] = useState("");
+  const [sendError, setSendError] = useState<Error | null>(null);
 
   const employees = useEmployees();
   const create = useCreateBooking();
@@ -123,13 +124,19 @@ function NewBookingScreen() {
   };
   const saveAndSend = async () => {
     let created: Booking | null = null;
+    let attempted = false;
+    setSendError(null);
     try {
       await sendLoggedWhatsApp(() => whatsAppLink(barber!.phone, created!), async () => {
+        attempted = true;
         created = await createBooking();
         await send.mutateAsync({ id: created.id });
       });
-    } catch {
-      if (created) { toast.error("Reservation saved, but the send to the barber was not recorded. Send it again from the reservation page."); router.push("/bookings"); }
+    } catch (error) {
+      // A save failure leaves the form alert; a blocked popup never reaches the save, so it needs its own message.
+      if (!created && !attempted) setSendError(new ApiError(0, "POPUP_BLOCKED", error instanceof Error ? error.message : "Could not open WhatsApp. Allow pop-ups and try again."));
+      else if (created) toast.error("Reservation saved, but the send to the barber was not recorded. Send it again from the reservation page.");
+      if (created) router.push("/bookings");
       return;
     }
     router.push("/bookings");
@@ -202,7 +209,7 @@ function NewBookingScreen() {
               <div><dt className="text-xs text-muted-foreground">Client</dt><dd>{clientSelection ? clientSelection.client.phone : "—"}</dd></div>
             </dl>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
-              <FormAlert error={create.error ?? createNew.error} />
+              <FormAlert error={create.error ?? createNew.error ?? sendError} />
               <Button size="lg" variant="sun" onClick={saveOnly} disabled={!ready || busy}>
                 {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
                 Save reservation

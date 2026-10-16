@@ -42,7 +42,7 @@ function mount(options: { known?: boolean; failFirst?: boolean; createFails?: bo
   render(<QueryClientProvider client={queries}><NewBookingPage /></QueryClientProvider>);
   return { fetch, posts: () => posts, sends: () => sends };
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); navigation.push.mockClear(); navigation.replace.mockClear(); });
 const popupWindow = () => ({ opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() });
 const pickWindow = async () => {
   await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
@@ -88,6 +88,16 @@ it("closes the WhatsApp tab and keeps the form when the reservation fails", asyn
   expect(popup.location.replace).not.toHaveBeenCalled();
   expect(navigation.push).not.toHaveBeenCalled();
   expect(await screen.findByRole("alert")).toBeInTheDocument();
+});
+it("shows an error and saves nothing when the WhatsApp popup is blocked", async () => {
+  vi.spyOn(window, "open").mockReturnValue(null);
+  const { fetch } = mount();
+  await fillForm();
+  await waitFor(() => expect(whatsAppButton()).toBeEnabled());
+  await userEvent.click(whatsAppButton());
+  expect(await screen.findByRole("alert")).toHaveTextContent("Allow pop-ups");
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  expect(navigation.push).not.toHaveBeenCalled();
 });
 it("keeps the reservation and returns to the list when only the send record fails", async () => {
   const popup = popupWindow();

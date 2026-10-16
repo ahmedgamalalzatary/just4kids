@@ -110,6 +110,13 @@ describe("manual half-hour locks", () => {
     const own = await request(app).get(`/schedules/${employeeId}`).set("Cookie", admin.cookie);
     expect(own.body.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id, startTime: "13:00", endTime: "15:00" })]));
   });
+  it("allows a lock longer than the four-hour booking limit", async () => {
+    const visitDate = "2099-01-10";
+    const created = await write("post", base, { date: visitDate, startTime: "08:00", endTime: "13:00", reason: "طويل" });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ startTime: "08:00", endTime: "13:00" });
+    expect((await write("delete", `${base}/${created.body.id}`)).status).toBe(204);
+  });
   it("blocks full-window creation and eligibility, preserves touching endpoints, and restores availability on unlock", async () => {
     const block = await lock();
     const query = { date, startTime: "12:30", endTime: "13:30" };

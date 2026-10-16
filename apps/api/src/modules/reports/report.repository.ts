@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, salonEntries } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingMessages, bookingRevisions, bookingVisitEvents, bookings, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkDays, employeeWorkIntervals, employees, salonEntries } from "@just4kids/db/schema";
 import type { BookingTrackingQuery, ClientReportQuery, ComprehensiveReportQuery, HaircutReportQuery, ReservationReportQuery } from "@just4kids/contracts";
 
 // Kuwait is UTC+3 without daylight saving; created_at is stored in UTC. Grouped expressions stay parameter-free for ONLY_FULL_GROUP_BY.
@@ -62,12 +62,13 @@ export function shapePerformance(row: PerformanceRow = emptyPerformance) {
   };
 }
 
-/** Scheduled minutes for each Kuwait date in the inclusive range: a dated exception replaces that day's weekly hours, and an empty exception closes it. */
-export function scheduledMinutes(from: string, to: string, weekly: { dayOfWeek: number; startTime: string; endTime: string }[], exceptions: Map<string, { startTime: string; endTime: string }[]>) {
+/** Scheduled minutes for each Kuwait date in the inclusive range: a dated exception replaces that day's weekly hours (an empty exception closes it), and an inactive weekday contributes nothing unless a dated exception opens it. */
+export function scheduledMinutes(from: string, to: string, weekly: { dayOfWeek: number; startTime: string; endTime: string }[], exceptions: Map<string, { startTime: string; endTime: string }[]>, inactiveWeekdays: Set<number> = new Set()) {
   const length = (interval: { startTime: string; endTime: string }) => minute(interval.endTime) - minute(interval.startTime);
   let minutes = 0;
   for (let day = new Date(`${from}T00:00:00Z`); day.toISOString().slice(0, 10) <= to; day.setUTCDate(day.getUTCDate() + 1)) {
-    const intervals = exceptions.get(day.toISOString().slice(0, 10)) ?? weekly.filter(interval => interval.dayOfWeek === day.getUTCDay());
+    const key = day.toISOString().slice(0, 10);
+    const intervals = exceptions.has(key) ? exceptions.get(key)! : inactiveWeekdays.has(day.getUTCDay()) ? [] : weekly.filter(interval => interval.dayOfWeek === day.getUTCDay());
     minutes += intervals.reduce((sum, interval) => sum + length(interval), 0);
   }
   return minutes;
@@ -152,12 +153,14 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         .where(employeeId ? eq(employees.accountId, employeeId) : undefined).orderBy(asc(employees.displayName), asc(employees.accountId));
     },
     async schedules(employeeIds: string[], from: string, to: string) {
-      if (!employeeIds.length) return { weekly: [], exceptions: [] };
+      if (!employeeIds.length) return { weekly: [], exceptions: [], inactiveWorkDays: [] };
       const weekly = await db.select().from(employeeWorkIntervals).where(inArray(employeeWorkIntervals.employeeId, employeeIds));
+      const inactiveWorkDays = await db.select({ employeeId: employeeWorkDays.employeeId, dayOfWeek: employeeWorkDays.dayOfWeek }).from(employeeWorkDays)
+        .where(and(inArray(employeeWorkDays.employeeId, employeeIds), eq(employeeWorkDays.active, false)));
       const exceptions = await db.select({ employeeId: employeeScheduleExceptions.employeeId, date: employeeScheduleExceptions.date, startTime: employeeExceptionIntervals.startTime, endTime: employeeExceptionIntervals.endTime })
         .from(employeeScheduleExceptions).leftJoin(employeeExceptionIntervals, eq(employeeExceptionIntervals.exceptionId, employeeScheduleExceptions.id))
         .where(and(inArray(employeeScheduleExceptions.employeeId, employeeIds), gte(employeeScheduleExceptions.date, from), lte(employeeScheduleExceptions.date, to)));
-      return { weekly, exceptions };
+      return { weekly, exceptions, inactiveWorkDays };
     },
     async clients(query: ClientReportQuery) {
       return db.select({ clientId: clients.id, phone: clients.phone, ...performanceMeasures }).from(bookings)

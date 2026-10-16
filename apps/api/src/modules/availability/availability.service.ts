@@ -1,12 +1,14 @@
-import { eligibilityQuerySchema } from "@just4kids/contracts";
 import type { EligibilityQuery, WorkInterval } from "@just4kids/contracts";
 
 export type VisitWindow = EligibilityQuery & { status: "booked" | "arrived" | "completed" | "cancelled" | "no_show" };
 export type WorkingDay = { dayOfWeek: number; intervals: WorkInterval[] };
+export type WindowQuery = { date: string; startTime: string; endTime: string };
 const blockingStatuses = new Set<VisitWindow["status"]>(["booked", "arrived", "completed"]);
 
-export function isWindowAvailable(query: EligibilityQuery, days: WorkingDay[], exception: WorkInterval[] | undefined, visits: VisitWindow[], blocks: (WorkInterval & { date: string })[] = []): boolean {
-  const requested = eligibilityQuerySchema.parse(query);
+// Pure availability check: callers validate the window shape and, for bookings, the 20-minute–4-hour
+// duration limit before calling this. Manual locks are not bound by the booking duration cap.
+export function isWindowAvailable(query: WindowQuery, days: WorkingDay[], exception: WorkInterval[] | undefined, visits: VisitWindow[], blocks: (WorkInterval & { date: string })[] = []): boolean {
+  const requested = query;
   const weekday = new Date(`${requested.date}T00:00:00.000Z`).getUTCDay();
   const intervals = exception ?? days.find(day => day.dayOfWeek === weekday)?.intervals ?? [];
   const sorted = [...intervals].sort((a, b) => a.startTime.localeCompare(b.startTime));

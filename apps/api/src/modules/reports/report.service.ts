@@ -109,7 +109,8 @@ export function createReportService(repository: ReportRepository) {
               if (row.startTime && row.endTime) intervals.push({ startTime: row.startTime, endTime: row.endTime });
               exceptions.set(row.date, intervals);
             }
-            availableMinutes = scheduledMinutes(range.from, range.to, schedules.weekly.filter(interval => interval.employeeId === person.employeeId), exceptions);
+            const inactive = new Set(schedules.inactiveWorkDays.filter(row => row.employeeId === person.employeeId).map(row => row.dayOfWeek));
+            availableMinutes = scheduledMinutes(range.from, range.to, schedules.weekly.filter(interval => interval.employeeId === person.employeeId), exceptions, inactive);
           }
           return { ...person, availableMinutes, ...shapePerformance(work.get(person.employeeId)), cash: collected ? collectionCash(collected.get(person.employeeId)) : null };
         }),

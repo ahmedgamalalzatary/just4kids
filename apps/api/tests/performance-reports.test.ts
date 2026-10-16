@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { accounts, barberCollections, bookingRevisions, bookings, clientAddresses, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employees, loginAttempts } from "@just4kids/db/schema";
+import { accounts, barberCollections, bookingRevisions, bookings, clientAddresses, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkDays, employeeWorkIntervals, employees, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -57,6 +57,8 @@ beforeAll(async () => {
     ...Array.from({ length: 7 }, (_, dayOfWeek) => [{ employeeId: barberA, dayOfWeek, startTime: "08:00", endTime: "12:00" }, { employeeId: barberA, dayOfWeek, startTime: "13:00", endTime: "17:00" }]).flat(),
     { employeeId: barberB, dayOfWeek: firstWeekday, startTime: "09:00", endTime: "17:00" },
   ]);
+  // The third day is switched off for A even though it keeps stored hours, so it contributes no scheduled minutes.
+  await connection.db.insert(employeeWorkDays).values({ employeeId: barberA, dayOfWeek: new Date("2096-04-08T00:00:00Z").getUTCDay(), active: false });
   const closed = randomUUID(), special = randomUUID();
   await connection.db.insert(employeeScheduleExceptions).values([{ id: closed, employeeId: barberA, date: "2096-04-07" }, { id: special, employeeId: barberB, date: "2096-04-08" }]);
   await connection.db.insert(employeeExceptionIntervals).values({ exceptionId: special, startTime: "10:00", endTime: "12:00" });
@@ -89,6 +91,7 @@ afterAll(async () => {
   await connection.db.delete(clientAddresses).where(eq(clientAddresses.id, addressId));
   await connection.db.delete(clients).where(eq(clients.id, clientId));
   await connection.db.delete(employeeScheduleExceptions).where(inArray(employeeScheduleExceptions.employeeId, barbers));
+  await connection.db.delete(employeeWorkDays).where(inArray(employeeWorkDays.employeeId, barbers));
   await connection.db.delete(employeeWorkIntervals).where(inArray(employeeWorkIntervals.employeeId, barbers));
   await connection.db.delete(employees).where(inArray(employees.accountId, barbers));
   await connection.db.delete(accounts).where(inArray(accounts.id, barbers));
@@ -107,7 +110,7 @@ describe("barber performance report", () => {
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait" });
     const rows = response.body.employees.filter((row: Row) => barbers.includes(row.employeeId));
     expect(rows).toEqual([
-      { employeeId: barberA, displayName: "أداء أ", enabled: true, availableMinutes: 960, work: barberAWork, cash: collected(1, "18.000") },
+      { employeeId: barberA, displayName: "أداء أ", enabled: true, availableMinutes: 480, work: barberAWork, cash: collected(1, "18.000") },
       { employeeId: barberB, displayName: "أداء ب", enabled: true, availableMinutes: 600,
         work: { bookings: 2, reserved: quantities(2, 1), completed: quantities(0, 0), open: quantities(1, 1), cancelled: quantities(0, 0), noShow: quantities(1, 0), completedVisits: 0, reservedMinutes: 120 }, cash: collected(1, "8.000") },
       { employeeId: barberC, displayName: "أداء ج", enabled: false, availableMinutes: 0,

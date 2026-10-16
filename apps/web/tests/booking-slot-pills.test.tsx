@@ -15,10 +15,11 @@ const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: 
 const initial: Schedule = { employeeId: id, days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] };
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
 const booked = bookingResponseSchema.parse({ id: blockId, reference: "J4K-9", clientId: id, addressId: id, employeeId: id, date, startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 1, childCount: 2, specialChildCount: 1, notes: "Ring the bell", source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: "2026-10-13T00:00:00.000Z", client: { phone: "+96550000001" }, address, employee: { id, displayName: "أحمد" } });
-async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "admin" | "employee"; booked?: boolean } = {}) {
+const longBooked = bookingResponseSchema.parse({ ...booked, endTime: "14:00" });
+async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "admin" | "employee"; booked?: boolean; longBooked?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } } });
   let blocks = options.blocked ? [block] : [];
-  const bookings = options.booked ? [booked] : [];
+  const bookings = options.booked ? [booked] : options.longBooked ? [longBooked] : [];
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/blocks") && init?.method === "POST") {
@@ -55,6 +56,13 @@ describe("booked hour bubble", () => {
     expect(screen.queryByRole("link", { name: "Open reservation" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "2:00 PM" }));
     await waitFor(() => expect(screen.queryByText("+96550000001")).not.toBeInTheDocument());
+  });
+
+  it("shows one bubble per half-hour of a longer reservation", async () => {
+    await mount({ longBooked: true });
+    expect(screen.getByRole("radio", { name: "1:00 PM, booked" })).toBeInTheDocument();
+    await userEvent.hover(screen.getByRole("radio", { name: "1:30 PM, booked" }));
+    expect(await screen.findAllByText("+96550000001")).toHaveLength(1);
   });
 
   it("toggles the bubble on click", async () => {
