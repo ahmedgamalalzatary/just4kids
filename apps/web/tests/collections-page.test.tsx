@@ -67,10 +67,11 @@ const history = [
 ];
 
 function mount({ entries = [], events = [], emptyDate = "", loadVisits }: { entries?: object[]; events?: object[]; emptyDate?: string; loadVisits?: (url: string) => Promise<Response> } = {}) {
-  const fetch = vi.fn(async (input: RequestInfo | URL) => {
+  const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/employees") return new Response(JSON.stringify({ employees: [{ id, displayName: "سالم", phone: "+96550000002", enabled: true, accessUntil: null, photoUpdatedAt: null, createdAt: timestamp, updatedAt: timestamp }] }));
     if (url === `/api/collections/${entryId}/history`) return new Response(JSON.stringify({ events }));
+    if (url === "/api/collections" && init?.method === "POST") return new Response(JSON.stringify(entry), { status: 201 });
     if (url.startsWith("/api/collections?")) return new Response(JSON.stringify({ timeZone: "Asia/Kuwait", from: null, to: null, entries, totals: { normalChildren: 0, specialChildren: 0, cash: "0.000", link: "0.000", knet: "0.000", total: "0.000" } }));
     if (url.startsWith("/api/bookings?") && loadVisits) return loadVisits(url);
     if (url.startsWith("/api/bookings?")) {
@@ -123,4 +124,31 @@ it("clears prior totals when changing to an empty day", async () => {
   await waitFor(() => expect(screen.getByRole("button", { name: "Save collection" })).toBeEnabled());
   expect(screen.getByLabelText("Other children")).toHaveValue(0);
   expect(screen.getByLabelText("Children with special needs")).toHaveValue(0);
+});
+
+it("starts a new entry with empty inputs and a zero total", async () => {
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.getByLabelText("Other children")).toHaveValue(null);
+  expect(dialog.getByLabelText("Children with special needs")).toHaveValue(null);
+  expect(dialog.getByLabelText("Cash (KWD)")).toHaveValue("");
+  expect(dialog.getByLabelText("Payment link (KWD)")).toHaveValue("");
+  expect(dialog.getByLabelText("KNET (KWD)")).toHaveValue("");
+  expect(dialog.getByText("0.000 KWD")).toBeInTheDocument();
+});
+
+it("sends zero values when empty fields are saved", async () => {
+  const fetch = mount();
+  await userEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: "سالم" }));
+  await waitFor(() => expect(screen.getByLabelText("Other children")).toHaveValue(2));
+  for (const label of ["Other children", "Children with special needs", "Cash (KWD)", "Payment link (KWD)", "KNET (KWD)"]) {
+    await userEvent.clear(screen.getByLabelText(label));
+  }
+  await userEvent.click(screen.getByRole("button", { name: "Save collection" }));
+  await waitFor(() => expect(fetch.mock.calls.some(([url, init]) => String(url) === "/api/collections" && init?.method === "POST")).toBe(true));
+  const [, request] = fetch.mock.calls.find(([url, init]) => String(url) === "/api/collections" && init?.method === "POST")!;
+  expect(JSON.parse(String(request?.body))).toMatchObject({ normalChildren: 0, specialChildren: 0, cash: "0.000", link: "0.000", knet: "0.000" });
 });

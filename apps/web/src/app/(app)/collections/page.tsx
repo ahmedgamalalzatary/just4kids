@@ -16,10 +16,9 @@ import { useCollectionDayBookings, useCollectionHistory, useCollectionReport, us
 import { useSession } from "@/lib/api/session";
 import type { BarberCollection, BarberCollectionEvent, Booking } from "@/lib/api/types";
 import { formatDate, formatDateTime, kuwaitNow } from "@/lib/kuwait-time";
-import { fromFils, formatKwd, toFils } from "@/lib/money";
+import { amountOrZero, amountPattern, fromFils, formatKwd, toFils } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
-const amountPattern = /^(0|[1-9][0-9]*)\.\d{3}$/;
 const collectionTotal = (cash: string, link: string, knet: string) => fromFils(toFils(cash) + toFils(link) + toFils(knet));
 
 /** Sums a day's completed visits for a new collection: normal children exclude the special subset, and money follows each invoice. */
@@ -73,7 +72,7 @@ function CollectionHistory({ id }: { id: string }) {
 }
 
 type Form = { employeeId: string; date: string; normalChildren: string; specialChildren: string; cash: string; link: string; knet: string };
-const blank = (): Form => ({ employeeId: "", date: kuwaitNow().date, normalChildren: "0", specialChildren: "0", cash: "0.000", link: "0.000", knet: "0.000" });
+const blank = (): Form => ({ employeeId: "", date: kuwaitNow().date, normalChildren: "", specialChildren: "", cash: "", link: "", knet: "" });
 
 /** Creates or edits one barber's daily collection. The total is computed from the three methods. */
 function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; onOpenChange: (open: boolean) => void }) {
@@ -103,7 +102,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
     if (!entry && (key === "employeeId" || key === "date") && form[key] !== value) {
       setAppliedPrefill(null);
       setEditedFields([]);
-      setForm(current => ({ ...current, normalChildren: "0", specialChildren: "0", cash: "0.000", link: "0.000", knet: "0.000", [key]: value }));
+      setForm(current => ({ ...current, normalChildren: "", specialChildren: "", cash: "", link: "", knet: "", [key]: value }));
     } else {
       setEditedFields(current => current.includes(key) ? current : [...current, key]);
       setForm(current => ({ ...current, [key]: value }));
@@ -115,20 +114,21 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
     if (prefillBlocked) return;
     if (!entry && !form.employeeId) { setProblem("Select barber"); return; }
     if (!form.date) { setProblem("Select date"); return; }
-    const normalChildren = Number(form.normalChildren), specialChildren = Number(form.specialChildren);
+    const normalChildren = form.normalChildren.trim() === "" ? 0 : Number(form.normalChildren), specialChildren = form.specialChildren.trim() === "" ? 0 : Number(form.specialChildren);
     if (!Number.isInteger(normalChildren) || normalChildren < 0 || !Number.isInteger(specialChildren) || specialChildren < 0) { setProblem("Enter valid child counts"); return; }
-    if (![form.cash, form.link, form.knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
+    const cash = amountOrZero(form.cash), link = amountOrZero(form.link), knet = amountOrZero(form.knet);
+    if (![cash, link, knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
     setProblem(null);
     const done = { onSuccess: () => { toast.success(entry ? "Entry saved" : "Entry added"); close(false); } };
-    if (!entry) { create.mutate({ employeeId: form.employeeId, date: form.date, normalChildren, specialChildren, cash: form.cash, link: form.link, knet: form.knet }, done); return; }
+    if (!entry) { create.mutate({ employeeId: form.employeeId, date: form.date, normalChildren, specialChildren, cash, link, knet }, done); return; }
     // Send only changed fields with the loaded version so a concurrent edit is rejected rather than overwritten.
     const patch: { date?: string; normalChildren?: number; specialChildren?: number; cash?: string; link?: string; knet?: string } = {};
     if (form.date !== entry.date) patch.date = form.date;
     if (normalChildren !== entry.normalChildren) patch.normalChildren = normalChildren;
     if (specialChildren !== entry.specialChildren) patch.specialChildren = specialChildren;
-    if (form.cash !== entry.cash) patch.cash = form.cash;
-    if (form.link !== entry.link) patch.link = form.link;
-    if (form.knet !== entry.knet) patch.knet = form.knet;
+    if (cash !== entry.cash) patch.cash = cash;
+    if (link !== entry.link) patch.link = link;
+    if (knet !== entry.knet) patch.knet = knet;
     if (Object.keys(patch).length === 0) { close(false); return; }
     update.mutate({ id: entry.id, expectedVersion: entry.version, ...patch }, done);
   };
@@ -161,7 +161,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
           {canPrefill && visits.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading today&apos;s completed visits...</p> : null}
           {canPrefill && visits.isError ? <ErrorState error={visits.error} onRetry={() => visits.refetch()} /> : null}
           {appliedPrefill === prefillKey ? <p className="text-xs text-muted-foreground">Filled from today&apos;s completed visits while keeping your edits. You can adjust the counts.</p> : null}
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(form.cash, form.link, form.knet))}</Ltr> : "—"}</div>
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amount.trim() === "" || amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(amountOrZero(form.cash), amountOrZero(form.link), amountOrZero(form.knet)))}</Ltr> : "—"}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>

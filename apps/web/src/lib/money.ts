@@ -17,6 +17,12 @@ export function formatKwd(amount: string): string {
   return `${fromFils(toFils(amount))} KWD`;
 }
 
+/** A three-decimal KWD amount with no leading zeros. */
+export const amountPattern = /^(0|[1-9][0-9]*)\.\d{3}$/;
+
+/** A blank form amount counts as zero; any other value is returned unchanged. */
+export const amountOrZero = (value: string): string => (value.trim() === "" ? "0.000" : value);
+
 const priceFormat = /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,3})?$/;
 
 /** The administrator's typed visit price: a blank amount counts as zero, but at least one must be typed. Null while invalid. */
