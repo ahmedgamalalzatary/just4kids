@@ -5,7 +5,7 @@ import { Suspense, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ChevronLeft, Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, Loader2, Minus, Plus, X } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { PhoneBookingClient, type BookingClientSelection } from "@/components/phone-booking-client";
@@ -14,7 +14,6 @@ import { ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { SlotPills } from "@/components/booking-slot-pills";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
@@ -87,8 +86,6 @@ function NewBookingScreen() {
   const [notes, setNotes] = useState("");
   const [amountCash, setAmountCash] = useState("");
   const [amountLink, setAmountLink] = useState("");
-  const [created, setCreated] = useState<Booking | null>(null);
-  const [sendProblem, setSendProblem] = useState<Error | null>(null);
 
   const employees = useEmployees();
   const create = useCreateBooking();
@@ -103,18 +100,20 @@ function NewBookingScreen() {
   const total = price ? invoiceTotal(price) : null;
   const ready = Boolean(barber?.enabled && slot && clientSelection && haircuts > 0 && !specialProblem && price);
 
+  const busy = create.isPending || createNew.isPending || send.isPending;
   const pickBarber = (id: string | null) => { setBarberId(id); setSlot(null); };
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
-  const submit = () => {
-    if (!ready || !barber || !slot || !clientSelection || !price) return;
+  const onSaveError = (error: Error) => {
+    if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setSlot(null); void queryClient.invalidateQueries({ queryKey: ["bookings", "list"] }); void queryClient.invalidateQueries({ queryKey: ["schedules", barber?.id] }); }
+    if (error instanceof ApiError && ["PHONE_ALREADY_USED", "CLIENT_DISABLED"].includes(error.code)) void queryClient.invalidateQueries({ queryKey: keys.clients });
+    if (error instanceof ApiError && error.code === "AREA_UNAVAILABLE") void queryClient.invalidateQueries({ queryKey: keys.areas });
+  };
+  const createBooking = () => new Promise<Booking>((resolve, reject) => {
+    if (!ready || !barber || !slot || !clientSelection || !price) return reject(new Error("The reservation is not ready."));
     const details = { employeeId: barber.id, date, startTime: slot.startTime, endTime: slot.endTime, adultCount, childCount, specialChildCount, ...price, ...(notes.trim() ? { notes: notes.trim() } : {}) };
     const options = {
-      onSuccess: (booking: Booking) => { toast.success(`Reservation saved: ${booking.reference}`); setCreated(booking); },
-      onError: (error: Error) => {
-        if (error instanceof ApiError && error.code === "BARBER_UNAVAILABLE") { setSlot(null); void queryClient.invalidateQueries({ queryKey: ["bookings", "list"] }); void queryClient.invalidateQueries({ queryKey: ["schedules", barber.id] }); }
-        if (error instanceof ApiError && ["PHONE_ALREADY_USED", "CLIENT_DISABLED"].includes(error.code)) void queryClient.invalidateQueries({ queryKey: keys.clients });
-        if (error instanceof ApiError && error.code === "AREA_UNAVAILABLE") void queryClient.invalidateQueries({ queryKey: keys.areas });
-      },
+      onSuccess: (booking: Booking) => { toast.success(`Reservation saved: ${booking.reference}`); resolve(booking); },
+      onError: (error: Error) => { onSaveError(error); reject(error); },
     };
     if (clientSelection.kind === "new") {
       create.reset();
@@ -123,17 +122,24 @@ function NewBookingScreen() {
       createNew.reset();
       create.mutate({ ...details, clientId: clientSelection.client.id, addressId: clientSelection.address.id }, options);
     }
+  });
+  // Save-only and save-and-send share the same create; only the send-and-send path reserves a WhatsApp tab on the click.
+  const saveOnly = async () => {
+    try { await createBooking(); router.push("/bookings"); } catch { /* the form shows the error */ }
   };
-  // G15: after saving, offer to send the details to the barber on WhatsApp or return to today's list.
-  const sendCreated = async () => {
-    if (!created || !barber) return;
-    setSendProblem(null);
+  const saveAndSend = async () => {
+    let created: Booking | null = null;
     try {
-      await sendLoggedWhatsApp(whatsAppLink(barber.phone, created), () => send.mutateAsync({ id: created.id }));
-      router.push(`/bookings/${created.id}`);
-    } catch (error) { setSendProblem(error instanceof Error ? error : new Error("Could not record the send. Try again")); }
+      await sendLoggedWhatsApp(() => whatsAppLink(barber!.phone, created!), async () => {
+        created = await createBooking();
+        await send.mutateAsync({ id: created.id });
+      });
+    } catch {
+      if (created) { toast.error("Reservation saved, but the send to the barber was not recorded. Send it again from the reservation page."); router.push("/bookings"); }
+      return;
+    }
+    router.push("/bookings");
   };
-  const backToToday = () => router.push("/bookings");
 
   return (
     <>
@@ -217,27 +223,18 @@ function NewBookingScreen() {
             </div>
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
               <FormAlert error={create.error ?? createNew.error} />
-              <Button size="lg" variant="sun" onClick={submit} disabled={!ready || create.isPending || createNew.isPending || created !== null}>
-                {create.isPending || createNew.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                Save reservation and send WhatsApp
+              <Button size="lg" variant="sun" onClick={saveOnly} disabled={!ready || busy}>
+                {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                Save reservation
+              </Button>
+              <Button size="lg" variant="outline" onClick={saveAndSend} disabled={!ready || busy}>
+                {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                Save &amp; send via WhatsApp
               </Button>
             </div>
           </Card>
         </aside>
       </div>
-      <Dialog open={created !== null} onOpenChange={open => { if (!open && !send.isPending) router.push(created ? `/bookings/${created.id}` : "/bookings"); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reservation saved</DialogTitle>
-            <DialogDescription>Send reservation details <Ltr className="text-xs">{created?.reference}</Ltr> to the barber on WhatsApp?</DialogDescription>
-          </DialogHeader>
-          <FormAlert error={sendProblem} />
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button variant="sun" onClick={sendCreated} disabled={send.isPending}><MessageCircle aria-hidden />Yes, open WhatsApp</Button>
-            <Button variant="outline" onClick={backToToday} disabled={send.isPending}>No, return to today&apos;s reservations</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

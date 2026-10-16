@@ -114,7 +114,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/web/tests/phone-booking-page.test.tsx`: save-only goes to `/bookings` without opening a tab; WhatsApp save opens the tab, records the send and goes to `/bookings`; a failed create closes the tab.
 
-- [ ] P4 done
+- [x] P4 done
 
 ---
 
