@@ -38,7 +38,7 @@ beforeAll(async () => {
   await connection.db.delete(loginAttempts);
   await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
-  await connection.db.insert(branches).values({ id: branchId, name: "فرع الصالون", location: "حولي", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20, createdAt: now, updatedAt: now });
+  await connection.db.insert(branches).values({ id: branchId, name: "فرع الصالون", address: "حولي", createdAt: now, updatedAt: now });
   await connection.db.insert(accounts).values({ id: employeeId, phone: `+965${randomInt(10000000, 19999999)}`, role: "employee", passwordHash, createdAt: now, updatedAt: now });
   await connection.db.insert(employees).values({ accountId: employeeId, displayName: "حلاق الصالون", createdAt: now, updatedAt: now });
   await connection.db.insert(clients).values({ id: clientId, phone: `+965${randomInt(30000000, 39999999)}`, createdAt: now, updatedAt: now });

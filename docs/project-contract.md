@@ -32,8 +32,8 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 ## Branches and employees
 
 - A branch is a business location used to group money and reports. Confirmed 2026-10-12 (S10) and 2026-10-13 (migration 0021): barbers and bookings have no branch; branches remain only for daily salon entries.
-- Each branch keeps its adult/child prices and descriptive haircut durations for reporting, but bookings are no longer priced from them.
-- For the first branch-management slice, branch details are name and location/address, with adult/child prices and descriptive haircut durations. No additional branch settings are required in this slice.
+- Confirmed 2026-10-16 (feature batch P5): a branch has only a name and an address. The per-branch adult/child prices and descriptive haircut durations are removed from the database, contracts, API and screens; salon entries, collections and reports group money by branch name only.
+- Branch details are a name and an address. No additional branch settings are required.
 - Administrator controls employee working days, working hours, and available times.
 - Clients choose a barber, not a branch.
 - Administrator can create manual bookings and hand a booking to another available barber.
@@ -98,10 +98,10 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 
 ## Prices, invoices, and cash
 
-- Adult/child prices and descriptive durations remain editable per branch for reporting, but do not price bookings (S10).
+- Branches no longer carry adult/child prices or descriptive durations (removed 2026-10-16, feature batch P5); they had not priced bookings since S10.
 - Initial KWD prices are exact to three decimal places (1 dinar = 1,000 fils), following the [Central Bank of Kuwait's currency description](https://www.cbk.gov.kw/en/banknotes-and-coins/banknotes/introduction).
 - Confirmed booking price (2026-10-12, S10): the administrator types each booking's price as cash + link; the initial invoice total is their exact sum in KWD. There is no branch-derived price, and an edit never changes the amount.
-- Confirmed barber collections (2026-10-12, S11): the administrator records one daily collection per barber — normal/special children and cash/link/KNET with a server-computed total — retained with history; a barber reads only their own. The barber, comprehensive, and invoice/cash reports read these daily rows. Daily collections follow only the period and barber filters: the barber and invoice/cash reports hide their collected money (with a note) under any other filter, and the comprehensive report is filtered by period only, as in the old app.
+- Confirmed barber collections (2026-10-12, S11): the administrator records one daily collection per barber ï¿½ normal/special children and cash/link/KNET with a server-computed total ï¿½ retained with history; a barber reads only their own. The barber, comprehensive, and invoice/cash reports read these daily rows. Daily collections follow only the period and barber filters: the barber and invoice/cash reports hide their collected money (with a note) under any other filter, and the comprehensive report is filtered by period only, as in the old app.
 - Confirmed finished-visit corrections (2026-10-12, S15): a started or finished visit stays editable by the administrator, but only as a correction that must state a reason; a change is kept in the reservation revisions with the before/after values, may move the visit into the past, and still satisfies the barber's working hours and slot availability.
 - Generate one combined invoice when booked, including manual bookings.
 - Confirmed initial invoice fields (2026-10-02; amended 2026-10-12, S10): booking reference, issue date, client and address, barber, adult/child quantities, the typed cash and link amounts, and total in KWD. No tax or additional business/tax fields are required for this slice.
@@ -111,7 +111,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Changing only the time/address preserves agreed prices.
 - Marking paid or completed does not create another invoice or independently change its amount.
 - Cancelled invoices remain visible as cancelled; retain any payment history.
-- Client pays the full amount at the home visit by one method — cash, payment link, or KNET; the administrator records the single full payment together with its method.
+- Client pays the full amount at the home visit by one method ï¿½ cash, payment link, or KNET; the administrator records the single full payment together with its method.
 - Confirmed payment-method workflow (2026-10-11, extending the 2026-10-02 cash rule; amended 2026-10-12: only the administrator records payments): one full payment is allowed only for arrived or completed visits, and only the administrator records it. The server uses the complete current invoice amount; callers cannot supply partial amounts. The caller must choose exactly one method (`cash`, `link`, `knet`); the server stores it on the receipt and on every related history event (record, adjustment, and undo). Recording does not complete the visit or change invoice prices. One active payment is allowed per invoice, with historical receipt details retained. Receipts recorded before this change are treated as `cash`.
 - Administrator may undo a mistaken payment entry with a required reason, retaining its original values including the method, actor/time history, and any adjustment history. This marks the receipt voided and the invoice unpaid; it does not record a refund or change the visit/invoice amount. A replacement full receipt is permitted under the same payment-recording state rules. Employees cannot undo receipts or record reconciliation adjustments.
 - No partial/split payments, deposits, or multiple methods on one payment. A payment link is one of the accepted single methods, not a separate online-payment or deposit flow.
@@ -166,7 +166,7 @@ docs/project-contract.md
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
 - Use separate databases: `just4kids` for development and `just4kids_test` for tests. Test commands load root `.env.test` and must not connect to the development database.
 - Secrets stay outside Git. Deployment must eventually include HTTPS, managed processes, database migrations, and restore-tested backups.
-- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, branch, client, and invoice/cash reports (phases 9–11) are implemented. The English web dashboard for phases 1–11 is implemented, including those reports and barber photos; its end-to-end journey verification, WhatsApp integration, and production acceptance remain pending.
+- Backend authentication, branches/employees, schedules, clients/addresses, reservations/invoices, visit actions/history, reservation edits/revisions, full cash receipts/corrections, and paid-edit reconciliation have implemented slices. Backend reservation, haircut, barber, branch, client, and invoice/cash reports (phases 9ï¿½11) are implemented. The English web dashboard for phases 1ï¿½11 is implemented, including those reports and barber photos; its end-to-end journey verification, WhatsApp integration, and production acceptance remain pending.
 
 ## Proposed defaults and pending decisions
 

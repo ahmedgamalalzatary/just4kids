@@ -34,38 +34,37 @@ describe("branch management", () => {
   it("requires administrator authentication and a session-bound CSRF token for changes", async () => {
     expect((await request(app).get("/branches")).status).toBe(401);
     const session = await adminSession();
-    const body = { name: "حولي", location: "شارع 1", adultPrice: "5.125", childPrice: "3", adultDurationMinutes: 20, childDurationMinutes: 20 };
+    const body = { name: "حولي", address: "شارع 1" };
     const missingCsrf = await request(app).post("/branches").set("Origin", origin).set("Cookie", session.cookie).send(body);
     expect(missingCsrf.status).toBe(403);
     const wrongOrigin = await request(app).post("/branches").set("Origin", "https://attacker.example").set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf).send(body);
     expect(wrongOrigin.status).toBe(403);
   });
 
-  it("creates, lists, and updates a branch with exact KWD prices", async () => {
+  it("creates, lists, and updates a branch with a name and address", async () => {
     const session = await adminSession();
     const created = await request(app).post("/branches").set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf)
-      .send({ name: " حولي ", location: "شارع 1", adultPrice: "5.125", childPrice: "3", adultDurationMinutes: 20, childDurationMinutes: 25 });
+      .send({ name: " حولي ", address: " شارع 1 " });
     expect(created.status).toBe(201);
     createdBranchIds.push(created.body.id);
-    expect(created.body).toMatchObject({ name: "حولي", location: "شارع 1", adultPrice: "5.125", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 25 });
+    expect(created.body).toMatchObject({ name: "حولي", address: "شارع 1" });
     expect(created.body.passwordHash).toBeUndefined();
     const [stored] = await connection.db.select().from(branches).where(eq(branches.id, created.body.id));
-    expect(stored?.adultPrice).toBe("5.125");
-    expect(stored?.childPrice).toBe("3.000");
+    expect(stored?.address).toBe("شارع 1");
     const listed = await request(app).get("/branches").set("Cookie", session.cookie);
     expect(listed.status).toBe(200);
     expect(listed.body.branches).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id })]));
     const updated = await request(app).patch(`/branches/${created.body.id}`).set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf)
-      .send({ childPrice: "3.25", location: "شارع 2" });
+      .send({ address: "شارع 2" });
     expect(updated.status).toBe(200);
-    expect(updated.body).toMatchObject({ childPrice: "3.250", location: "شارع 2", adultPrice: "5.125" });
-    expect((await request(app).get(`/branches/${created.body.id}`).set("Cookie", session.cookie)).body.childPrice).toBe("3.250");
+    expect(updated.body).toMatchObject({ name: "حولي", address: "شارع 2" });
+    expect((await request(app).get(`/branches/${created.body.id}`).set("Cookie", session.cookie)).body.address).toBe("شارع 2");
   });
 
-  it("rejects malformed prices and unsupported branch fields", async () => {
+  it("rejects the removed branch fields", async () => {
     const session = await adminSession();
-    const base = { name: "حولي", location: "شارع 1", adultPrice: "5.000", childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20 };
-    for (const body of [{ ...base, adultPrice: "5.0001" }, { ...base, role: "admin" }, { ...base, adultDurationMinutes: 0 }]) {
+    const base = { name: "حولي", address: "شارع 1" };
+    for (const body of [{ ...base, adultPrice: "5.000" }, { ...base, role: "admin" }, { ...base, location: "شارع 1" }]) {
       const response = await request(app).post("/branches").set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf).send(body);
       expect(response.status).toBe(400);
     }

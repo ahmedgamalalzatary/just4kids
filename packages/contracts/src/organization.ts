@@ -2,8 +2,7 @@ import { z } from "zod";
 import { passwordSchema, phoneSchema } from "./auth.js";
 
 const label = z.string().trim().min(1).max(120);
-const location = z.string().trim().min(1).max(500);
-const minutes = z.number().int().min(1).max(1440);
+const address = z.string().trim().min(1).max(500);
 
 export const kwdPriceSchema = z.string().regex(/^(0|[1-9][0-9]{0,8})(?:\.[0-9]{1,3})?$/).transform(value => {
   const [dinars, fils = ""] = value.split(".");
@@ -12,11 +11,7 @@ export const kwdPriceSchema = z.string().regex(/^(0|[1-9][0-9]{0,8})(?:\.[0-9]{1
 
 export const branchCreateSchema = z.strictObject({
   name: label,
-  location,
-  adultPrice: kwdPriceSchema,
-  childPrice: kwdPriceSchema,
-  adultDurationMinutes: minutes,
-  childDurationMinutes: minutes,
+  address,
 });
 export const branchUpdateSchema = branchCreateSchema.partial().refine(value => Object.keys(value).length > 0);
 export const branchResponseSchema = branchCreateSchema.extend({ id: z.uuid(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });

@@ -132,7 +132,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/api/tests/branches.test.ts`, `apps/api/tests/salon.test.ts`, `packages/contracts/tests/organization.test.ts`, plus web tests for the branches form: create/update with name and address; extra fields are rejected (strict schema).
 
-- [ ] P5 done
+- [x] P5 done
 
 ---
 

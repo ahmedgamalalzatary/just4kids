@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { branchCreateSchema, employeeAdminUpdateSchema, employeeCreateSchema, employeeSelfUpdateSchema } from "../src/index.js";
 
 describe("branch and employee contracts", () => {
-  it("normalizes KWD prices exactly to three decimal places without floating-point conversion", () => {
-    expect(branchCreateSchema.parse({ name: " حولي ", location: "شارع 1", adultPrice: "5.125", childPrice: "0.5", adultDurationMinutes: 20, childDurationMinutes: 20 })).toEqual({
-      name: "حولي", location: "شارع 1", adultPrice: "5.125", childPrice: "0.500", adultDurationMinutes: 20, childDurationMinutes: 20,
-    });
+  it("accepts a branch name and address only", () => {
+    expect(branchCreateSchema.parse({ name: " حولي ", address: " شارع 1 " })).toEqual({ name: "حولي", address: "شارع 1" });
   });
 
-  it.each(["-1", "1.2345", "1e3", "1,000", 1.25])("rejects an inexact or nondecimal price %j", adultPrice => {
-    const input = { name: "حولي", location: "شارع 1", adultPrice, childPrice: "3.000", adultDurationMinutes: 20, childDurationMinutes: 20 };
-    expect(branchCreateSchema.safeParse(input).success).toBe(false);
+  it("rejects the removed price, duration and location fields", () => {
+    const base = { name: "حولي", address: "شارع 1" };
+    for (const extra of [{ location: "شارع 1" }, { adultPrice: "5.000" }, { childPrice: "3.000" }, { adultDurationMinutes: 20 }, { childDurationMinutes: 20 }]) {
+      expect(branchCreateSchema.safeParse({ ...base, ...extra }).success).toBe(false);
+    }
   });
 
   it("requires a named employee without a branch or an injected role", () => {

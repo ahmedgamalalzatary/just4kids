@@ -95,7 +95,7 @@ Verification follow-up (2026-10-02): the review found a session-creation race wi
 
 ## Phase 2 — Branches, prices, and employee accounts
 
-Depends on: phase 1. Decisions confirmed: employee self-edits display name only; administrator changes phone/branch/active status and resets passwords; branches use name, location/address, adult/child KWD prices, and descriptive haircut durations. No other branch settings are required in this phase.
+Depends on: phase 1. Decisions confirmed: employee self-edits display name only; administrator changes phone/branch/active status and resets passwords; branches use name, location/address, adult/child KWD prices, and descriptive haircut durations (amended 2026-10-16: the prices and durations were removed; a branch is now name and address). No other branch settings are required in this phase.
 
 Outcome: administrator creates branches and barbers; each barber signs in and can edit only permitted profile details.
 

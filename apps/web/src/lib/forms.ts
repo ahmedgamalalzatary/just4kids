@@ -26,11 +26,7 @@ export const countField = z.string().trim().regex(/^[0-9]+$/, "Enter a whole num
 
 export const branchFormSchema = z.object({
   name: requiredText(120),
-  location: requiredText(500),
-  adultPrice: priceField,
-  childPrice: priceField,
-  adultDurationMinutes: minutesField,
-  childDurationMinutes: minutesField,
+  address: requiredText(500),
 });
 
 export const employeeCreateFormSchema = z.object({

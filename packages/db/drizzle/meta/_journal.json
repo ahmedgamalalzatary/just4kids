@@ -183,6 +183,27 @@
       "when": 1792042740028,
       "tag": "0025_remove_client_receipt_details",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1792144831128,
+      "tag": "0026_drop_branch_prices",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1792144851955,
+      "tag": "0027_add_branch_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1792144869485,
+      "tag": "0028_drop_branch_location",
+      "breakpoints": true
     }
   ]
 }

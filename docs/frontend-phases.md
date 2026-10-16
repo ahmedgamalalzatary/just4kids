@@ -54,7 +54,7 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 
 ## Phase 2 — Branches and barbers
 
-- [x] Branch list, create, and edit with adult/child prices and descriptive durations.
+- [x] Branch list, create, and edit with a name and an address (adult/child prices and descriptive durations removed 2026-10-16).
 - [x] Barber list, create, and edit (name, phone, branch, enabled) and password reset.
 - [x] Barber's own profile: display name only.
 - [ ] Verified with real records.

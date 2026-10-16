@@ -4,12 +4,12 @@ import { createDatabase } from "../src/index.js";
 import * as schema from "../src/schema/index.js";
 
 describe("branch and employee persistence", () => {
-  it("keeps branch prices in exact three-decimal MySQL columns", () => {
+  it("stores a branch name and address only", () => {
     expect(schema).toHaveProperty("branches");
     if (!("branches" in schema)) return;
     const columns = getTableConfig(schema.branches as import("drizzle-orm/mysql-core").MySqlTable).columns;
-    expect(columns.find(column => column.name === "adult_price")?.getSQLType()).toBe("decimal(12,3)");
-    expect(columns.find(column => column.name === "child_price")?.getSQLType()).toBe("decimal(12,3)");
+    expect(columns.map(column => column.name).sort()).toEqual(["address", "created_at", "id", "name", "updated_at"]);
+    expect(columns.find(column => column.name === "address")?.getSQLType()).toBe("varchar(500)");
   });
 
   it("links every employee to an account only; barbers and bookings have no branch", () => {

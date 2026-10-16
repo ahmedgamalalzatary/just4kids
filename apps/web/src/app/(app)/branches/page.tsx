@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Pencil, Plus, Store } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { Field, FormAlert } from "@/components/field";
-import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
+import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useBranches, useCreateBranch, useUpdateBranch } from "@/lib/api/hooks";
 import type { Branch } from "@/lib/api/types";
 import { branchFormSchema, type BranchForm } from "@/lib/forms";
-import { formatDuration } from "@/lib/kuwait-time";
-import { formatKwd } from "@/lib/money";
 
 function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   const create = useCreateBranch();
@@ -26,9 +24,7 @@ function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; o
   const mutation = branch ? update : create;
   const form = useForm<BranchForm, unknown, ReturnType<typeof branchFormSchema.parse>>({
     resolver: zodResolver(branchFormSchema),
-    values: branch
-      ? { name: branch.name, location: branch.location, adultPrice: branch.adultPrice, childPrice: branch.childPrice, adultDurationMinutes: String(branch.adultDurationMinutes), childDurationMinutes: String(branch.childDurationMinutes) }
-      : { name: "", location: "", adultPrice: "", childPrice: "", adultDurationMinutes: "30", childDurationMinutes: "20" },
+    values: branch ? { name: branch.name, address: branch.address } : { name: "", address: "" },
   });
   const errors = form.formState.errors;
 
@@ -43,15 +39,11 @@ function BranchDialog({ branch, open, onOpenChange }: { branch: Branch | null; o
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{branch ? "Edit branch" : "Add branch"}</DialogTitle>
-          <DialogDescription>Branches support salon entries and reports. These prices and durations do not determine reservation prices or windows.</DialogDescription>
+          <DialogDescription>Branches support salon entries and reports. Each branch has a name and an address.</DialogDescription>
         </DialogHeader>
-        <form id="branch-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="Branch name" error={errors.name?.message} className="sm:col-span-2"><Input {...form.register("name")} /></Field>
-          <Field label="Location or address" error={errors.location?.message} className="sm:col-span-2"><Textarea rows={2} {...form.register("location")} /></Field>
-          <Field label="Adult haircut price (KWD)" error={errors.adultPrice?.message}><Input {...form.register("adultPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
-          <Field label="Child haircut price (KWD)" error={errors.childPrice?.message}><Input {...form.register("childPrice")} dir="ltr" inputMode="decimal" placeholder="0.000" className="text-start" /></Field>
-          <Field label="Adult haircut duration (minutes)" error={errors.adultDurationMinutes?.message} hint="For reference; does not change the reservation window."><Input {...form.register("adultDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
-          <Field label="Child haircut duration (minutes)" error={errors.childDurationMinutes?.message}><Input {...form.register("childDurationMinutes")} dir="ltr" inputMode="numeric" className="text-start" /></Field>
+        <form id="branch-form" onSubmit={submit} noValidate className="grid gap-4">
+          <Field label="Branch name" error={errors.name?.message}><Input {...form.register("name")} /></Field>
+          <Field label="Address" error={errors.address?.message}><Textarea rows={2} {...form.register("address")} /></Field>
         </form>
         <FormAlert error={mutation.error} />
         <DialogFooter>
@@ -70,7 +62,7 @@ function BranchesScreen() {
 
   return (
     <>
-      <PageHeader title="Branches" description="Salon branches, service prices and durations for reference." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />Add branch</Button>} />
+      <PageHeader title="Branches" description="Salon branches and their addresses." actions={<Button onClick={() => openDialog(null)}><Plus aria-hidden />Add branch</Button>} />
       <Card>
         {branches.isPending ? <LoadingRows rows={3} /> : branches.isError ? <ErrorState error={branches.error} onRetry={() => branches.refetch()} /> : branches.data.length === 0 ? (
           <EmptyState icon={Store} title="No branches yet" description="Add the first branch to record salon collections and view reports." action={<Button onClick={() => openDialog(null)}><Plus aria-hidden />Add branch</Button>} />
@@ -80,19 +72,15 @@ function BranchesScreen() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Branch</TableHead>
-                  <TableHead>Adult price</TableHead>
-                  <TableHead>Child price</TableHead>
-                  <TableHead>Duration (adult / child)</TableHead>
+                  <TableHead>Address</TableHead>
                   <TableHead><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {branches.data.map(branch => (
                   <TableRow key={branch.id}>
-                    <TableCell><p className="font-medium">{branch.name}</p><p className="max-w-xs truncate text-xs text-muted-foreground">{branch.location}</p></TableCell>
-                    <TableCell><Ltr>{formatKwd(branch.adultPrice)}</Ltr></TableCell>
-                    <TableCell><Ltr>{formatKwd(branch.childPrice)}</Ltr></TableCell>
-                    <TableCell className="text-muted-foreground">{formatDuration(branch.adultDurationMinutes)} / {formatDuration(branch.childDurationMinutes)}</TableCell>
+                    <TableCell><p className="font-medium">{branch.name}</p></TableCell>
+                    <TableCell className="max-w-xs truncate text-muted-foreground">{branch.address}</TableCell>
                     <TableCell className="text-end"><Button variant="ghost" size="sm" onClick={() => openDialog(branch)}><Pencil aria-hidden />Edit</Button></TableCell>
                   </TableRow>
                 ))}
@@ -103,8 +91,7 @@ function BranchesScreen() {
                 <li key={branch.id} className="flex items-start justify-between gap-3 p-4">
                   <div className="min-w-0">
                     <p className="font-medium">{branch.name}</p>
-                    <p className="text-xs text-muted-foreground">{branch.location}</p>
-                    <p className="mt-2 text-sm">adult <Ltr>{formatKwd(branch.adultPrice)}</Ltr>, child <Ltr>{formatKwd(branch.childPrice)}</Ltr></p>
+                    <p className="text-xs text-muted-foreground">{branch.address}</p>
                   </div>
                   <Button variant="outline" size="icon-sm" aria-label={`Edit ${branch.name}`} onClick={() => openDialog(branch)}><Pencil /></Button>
                 </li>
