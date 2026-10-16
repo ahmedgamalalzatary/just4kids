@@ -108,7 +108,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
           if (!booking) return <Fragment key={slot.startTime}>{pill}</Fragment>;
           return (
             <Popover key={slot.startTime} open={shown === slot.startTime} onOpenChange={open => setShown(open ? slot.startTime : null)}>
-              <PopoverTrigger asChild onMouseEnter={() => setShown(slot.startTime)}>{pill}</PopoverTrigger>
+              <PopoverTrigger asChild onPointerEnter={event => { if (event.pointerType === "mouse") setShown(slot.startTime); }}>{pill}</PopoverTrigger>
               <PopoverContent side="top" sideOffset={6} className="w-64 rounded-lg border-transparent bg-foreground p-3 text-xs text-background shadow-lg">
                 <div className="flex flex-col gap-1">
                   <p className="font-medium"><span data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span></p>

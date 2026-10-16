@@ -65,6 +65,15 @@ describe("booked hour bubble", () => {
     expect(await screen.findAllByText("+96550000001")).toHaveLength(1);
   });
 
+  it("keeps the bubble open after a single touch tap", async () => {
+    await mount({ booked: true });
+    const pill = screen.getByRole("radio", { name: "1:00 PM, booked" });
+    fireEvent.pointerEnter(pill, { pointerType: "touch" });
+    fireEvent.mouseEnter(pill);
+    fireEvent.click(pill);
+    expect(await screen.findByText("+96550000001")).toBeInTheDocument();
+  });
+
   it("toggles the bubble on click", async () => {
     await mount({ booked: true });
     const pill = screen.getByRole("radio", { name: "1:00 PM, booked" });
