@@ -76,7 +76,7 @@ describe("booking time lock controls", () => {
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     await userEvent.click(screen.getByRole("button", { name: "Lock half-hour" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Time محجوز، أعد تحميل الأوقات");
-    expect(screen.queryByRole("radio", { name: /^1:00 م، Closed/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /^1:00 PM, closed/ })).not.toBeInTheDocument();
   });
   it("hides all lock writes from employees", async () => {
     await mount({ blocked: true, role: "employee" });

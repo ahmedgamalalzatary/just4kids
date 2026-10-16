@@ -48,7 +48,7 @@ function BarberCard({ employee, bookings, time }: { employee: Employee; bookings
             </>
           ) : <span className="text-muted-foreground">No upcoming appointment today.</span>}
         </div>
-        <p className="text-xs text-muted-foreground">Today&apos;s reservations: <span className="font-semibold text-foreground" data-numeric>{summary.active}</span> ? Open: <span className="font-semibold text-foreground" data-numeric>{summary.open}</span></p>
+        <p className="text-xs text-muted-foreground">Today&apos;s reservations: <span className="font-semibold text-foreground" data-numeric>{summary.active}</span> · Open: <span className="font-semibold text-foreground" data-numeric>{summary.open}</span></p>
         <div className="mt-auto flex flex-col gap-2">
           {employee.enabled ? <Button asChild variant="sun"><Link href={`/bookings/new?barber=${employee.id}`}><CalendarPlus aria-hidden />Book this barber</Link></Button> : null}
           <Button asChild variant="outline"><Link href={`/bookings?barber=${employee.id}`}>Today&apos;s appointments</Link></Button>

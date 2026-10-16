@@ -91,7 +91,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
             : `${formatTime(slot.startTime)}, unavailable`;
           const tooltip = slot.state === "booked" && slot.booking
             ? `${timeWords(slot.startTime)} · ${slot.booking.client.phone} · ${slot.booking.address.area} · ${haircutSummary(slot.booking)} · ${visitStatusLabels[slot.booking.visitStatus]}`
-            : slot.state === "locked" ? `${timeWords(slot.startTime)} ? Closed: ${lockReason(slot)}` : timeWords(slot.startTime);
+            : slot.state === "locked" ? `${timeWords(slot.startTime)} · Closed: ${lockReason(slot)}` : timeWords(slot.startTime);
           return (
             <button key={slot.startTime} type="button" role="radio" aria-checked={isSelected} aria-label={label} title={tooltip}
               disabled={busy || slot.state === "past"}

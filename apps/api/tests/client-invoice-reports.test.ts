@@ -110,7 +110,7 @@ describe("client history report", () => {
     const response = await report("clients", range);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait" });
-    const rows = response.body.clients.filter((row: { clientId: string }) => ([clientOne, clientTwo] as string[]).includes(row.clientId)).sort((a: { clientId: string }) => a.clientId === clientTwo ? -1 : 1);
+    const rows = response.body.clients.filter((row: { clientId: string }) => ([clientOne, clientTwo] as string[]).includes(row.clientId)).sort((a: { clientId: string }, b: { clientId: string }) => Number(b.clientId === clientTwo) - Number(a.clientId === clientTwo));
     expect(rows).toEqual([
       {
         clientId: clientTwo, phone: rows[0].phone,

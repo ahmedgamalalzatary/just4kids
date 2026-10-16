@@ -170,7 +170,7 @@ function BookingsScreen() {
       />
       <Tabs value={view} onValueChange={value => update({ view: value === "all" ? "all" : "" })} className="mb-4">
         <TabsList>
-          <TabsTrigger value="day">Appointments for</TabsTrigger>
+          <TabsTrigger value="day">Day appointments</TabsTrigger>
           <TabsTrigger value="all">All reservations</TabsTrigger>
         </TabsList>
       </Tabs>
