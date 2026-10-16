@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { bookingResponseSchema } from "@just4kids/contracts";
 import { keys } from "@/lib/api/hooks";
 import { sessionKey } from "@/lib/api/session";
 import type { Employee, Schedule } from "@/lib/api/types";
@@ -12,9 +13,13 @@ const date = "2099-01-05";
 const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
 const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: "13:30", reason: "موعد Special", createdBy: id, createdAt: "2026-10-13T00:00:00.000Z" };
 const initial: Schedule = { employeeId: id, days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] };
-async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "admin" | "employee" } = {}) {
+const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
+const invoice = { id: blockId, bookingId: blockId, reference: "J4K-9", issuedAt: "2026-10-13T00:00:00.000Z", currency: "KWD", adultCount: 1, childCount: 2, specialChildCount: 1, notes: null, amountCash: "5.000", amountLink: "1.000", total: "6.000", status: "issued", paymentStatus: "unpaid", client: { phone: "+96550000001" }, address, employee: { id, displayName: "أحمد" } };
+const booked = bookingResponseSchema.parse({ id: blockId, reference: "J4K-9", clientId: id, addressId: id, employeeId: id, date, startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 1, childCount: 2, specialChildCount: 1, notes: "Ring the bell", source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: "2026-10-13T00:00:00.000Z", client: invoice.client, address, employee: invoice.employee, invoice });
+async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "admin" | "employee"; booked?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } } });
   let blocks = options.blocked ? [block] : [];
+  const bookings = options.booked ? [booked] : [];
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/blocks") && init?.method === "POST") {
@@ -24,18 +29,56 @@ async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "a
     }
     if (url.endsWith(`/blocks/${blockId}`) && init?.method === "DELETE") { blocks = []; return new Response(null, { status: 204 }); }
     if (url === `/api/schedules/${id}`) return new Response(JSON.stringify({ ...initial, blocks }));
-    if (url.startsWith("/api/bookings?")) return new Response(JSON.stringify({ bookings: [], total: 0, limit: 100, offset: 0, date, employeeId: id }));
+    if (url.startsWith("/api/bookings?")) return new Response(JSON.stringify({ bookings, total: bookings.length, limit: 100, offset: 0, date, employeeId: id }));
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal("fetch", fetch);
   client.setQueryData(sessionKey, { account: { id, phone: "+96550000000", role: options.role ?? "admin" }, csrfToken: "csrf", expiresAt: "2099-01-05T00:00:00.000Z" });
   client.setQueryData(keys.schedule(id), { ...initial, blocks });
-  client.setQueryData([...keys.bookings, "list", "day", date, id], { bookings: [], total: 0, limit: 100, offset: 0 });
+  client.setQueryData([...keys.bookings, "list", "day", date, id], { bookings, total: bookings.length, limit: 100, offset: 0 });
   const select = vi.fn(), changed = vi.fn();
   render(<QueryClientProvider client={client}><SlotPills barber={barber} date={date} selected={null} selectedEnd={null} onSelect={select} onAvailabilityChange={changed} /></QueryClientProvider>);
   return { fetch, select, changed };
 }
 afterEach(() => { vi.unstubAllGlobals(); });
+
+describe("booked hour bubble", () => {
+  it("opens the reservation summary on hover without a link, and toggles on click", async () => {
+    await mount({ booked: true });
+    const pill = screen.getByRole("radio", { name: "1:00 PM, booked" });
+    expect(pill).not.toHaveAttribute("title");
+    await userEvent.hover(pill);
+    expect(await screen.findByText("+96550000001")).toBeInTheDocument();
+    expect(screen.getByText("2 children (1 with special needs), 1 adult")).toBeInTheDocument();
+    expect(screen.getByText("الفنطاس")).toBeInTheDocument();
+    expect(screen.getByText("Ring the bell")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open reservation" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "2:00 PM" }));
+    await waitFor(() => expect(screen.queryByText("+96550000001")).not.toBeInTheDocument());
+  });
+
+  it("toggles the bubble on click", async () => {
+    await mount({ booked: true });
+    const pill = screen.getByRole("radio", { name: "1:00 PM, booked" });
+    fireEvent.click(pill);
+    expect(await screen.findByText("+96550000001")).toBeInTheDocument();
+    fireEvent.click(pill);
+    await waitFor(() => expect(screen.queryByText("+96550000001")).not.toBeInTheDocument());
+  });
+
+  it("closes the bubble on an outside click and on Escape", async () => {
+    await mount({ booked: true });
+    const pill = screen.getByRole("radio", { name: "1:00 PM, booked" });
+    fireEvent.click(pill);
+    expect(await screen.findByText("+96550000001")).toBeInTheDocument();
+    await userEvent.click(document.body);
+    await waitFor(() => expect(screen.queryByText("+96550000001")).not.toBeInTheDocument());
+    fireEvent.click(pill);
+    expect(await screen.findByText("+96550000001")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText("+96550000001")).not.toBeInTheDocument());
+  });
+});
 
 describe("booking time lock controls", () => {
   it("asks for the end time after tapping a start and reports the chosen window, and locks only half an hour", async () => {

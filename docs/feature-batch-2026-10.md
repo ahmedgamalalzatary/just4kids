@@ -48,7 +48,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/web/tests/collections-page.test.tsx` and `apps/web/tests/salon.test.ts`: a new form renders empty inputs, and saving with empty fields sends zeros.
 
-- [ ] P1 done
+- [x] P1 done
 
 ---
 
@@ -70,7 +70,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Verify:** `next build` lists `/manifest.webmanifest`. In the browser, DevTools → Application → Manifest shows no errors and the icons render. On a phone, Chrome shows "Install app" and iOS Safari's "Add to Home Screen" shows the logo.
 
-- [ ] P2 done
+- [x] P2 done
 
 ---
 
@@ -91,7 +91,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/web/tests/booking-slot-pills.test.tsx`: hover opens the bubble with the summary; click/tap toggles it; outside click closes it; the old details box is gone; the locked tooltip uses `·`.
 
-- [ ] P3 done
+- [x] P3 done
 
 ---
 

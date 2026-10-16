@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Lock, Unlock, X } from "lucide-react";
+import { Loader2, Lock, Unlock } from "lucide-react";
 import { Field, FormAlert } from "@/components/field";
 import { ErrorState, LoadingRows, Ltr } from "@/components/page";
-import { VisitStatusBadge, visitStatusLabels } from "@/components/status";
+import { VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { keys, useCreateTimeBlock, useDayBookings, useDeleteTimeBlock, useSchedule } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { Booking, Employee } from "@/lib/api/types";
@@ -50,7 +50,6 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
   if (day.isError) return <ErrorState error={day.error} onRetry={() => day.refetch()} />;
   const slots = buildSlots({ date, schedule: schedule.data, bookings: day.data.bookings });
   const action = slots.find(slot => slot.startTime === actionTime);
-  const details = day.data.bookings.find(booking => booking.id === shown);
   const activeStart = pendingStart ?? selected;
   const endOptions = activeStart ? buildEndOptions({ date, schedule: schedule.data, bookings: day.data.bookings, startTime: activeStart }) : [];
   // A freshly tapped start invalidates the previously chosen end; only keep it when revisiting the same start.
@@ -89,21 +88,36 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
             : slot.state === "free" ? formatTime(slot.startTime)
             : slot.state === "locked" ? `${formatTime(slot.startTime)}, closed: ${lockReason(slot)}`
             : `${formatTime(slot.startTime)}, unavailable`;
-          const tooltip = slot.state === "booked" && slot.booking
-            ? `${timeWords(slot.startTime)} · ${slot.booking.client.phone} · ${slot.booking.address.area} · ${haircutSummary(slot.booking)} · ${visitStatusLabels[slot.booking.visitStatus]}`
-            : slot.state === "locked" ? `${timeWords(slot.startTime)} · Closed: ${lockReason(slot)}` : timeWords(slot.startTime);
-          return (
-            <button key={slot.startTime} type="button" role="radio" aria-checked={isSelected} aria-label={label} title={tooltip}
+          const tooltip = slot.state === "locked" ? `${timeWords(slot.startTime)} · Closed: ${lockReason(slot)}` : timeWords(slot.startTime);
+          const booking = slot.state === "booked" ? slot.booking : undefined;
+          const pill = (
+            <button type="button" role="radio" aria-checked={isSelected} aria-label={label} title={booking ? undefined : tooltip}
               disabled={busy || slot.state === "past"}
               onClick={() => {
                 resetAction();
-                if (slot.state === "booked") setShown(slot.booking?.id ?? null);
-                else { setShown(null); if (slot.state === "locked" || managing) setActionTime(slot.startTime); else pickStart(slot.startTime); }
+                if (slot.state !== "booked") { setShown(null); if (slot.state === "locked" || managing) setActionTime(slot.startTime); else pickStart(slot.startTime); }
               }}
               className={cn("min-w-[5.5rem] rounded-full border px-3 py-1.5 text-sm transition-colors", slotStyles[slot.state], isSelected && (managing ? "border-primary ring-2 ring-primary/30" : "border-primary bg-primary text-primary-foreground hover:bg-primary"))}
               data-numeric>
               {formatTime(slot.startTime)}
             </button>
+          );
+          if (!booking) return <Fragment key={slot.startTime}>{pill}</Fragment>;
+          return (
+            <Popover key={slot.startTime} open={shown === booking.id} onOpenChange={open => setShown(open ? booking.id : null)}>
+              <PopoverTrigger asChild onMouseEnter={() => setShown(booking.id)}>{pill}</PopoverTrigger>
+              <PopoverContent side="top" sideOffset={6} className="w-64 rounded-lg border-transparent bg-foreground p-3 text-xs text-background shadow-lg">
+                <div className="flex flex-col gap-1">
+                  <p className="font-medium"><span data-numeric>{formatWindow(booking.startTime, booking.endTime)}</span></p>
+                  <Ltr className="text-xs">{booking.client.phone}</Ltr>
+                  <p>{booking.address.area}</p>
+                  <p>{haircutSummary(booking)}</p>
+                  <VisitStatusBadge status={booking.visitStatus} className="mt-0.5 w-fit" />
+                  {booking.notes ? <p className="border-t border-background/20 pt-1">{booking.notes}</p> : null}
+                </div>
+                <PopoverArrow className="bg-foreground fill-foreground" />
+              </PopoverContent>
+            </Popover>
           );
         })}
       </div>
@@ -143,19 +157,6 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
         </Button> : null}
       </div> : null}
       <FormAlert error={create.error ?? remove.error} />
-      {details ? (
-        <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-status-no-show/30 bg-status-no-show-soft/50 px-3 py-2.5 text-sm" role="status">
-          <div className="min-w-0">
-            <p className="font-medium"><span data-numeric>{formatWindow(details.startTime, details.endTime)}</span> · <Ltr className="text-sm">{details.client.phone}</Ltr></p>
-            <p>{details.address.area}, {haircutSummary(details)}</p>
-            <VisitStatusBadge status={details.visitStatus} className="mt-1" />
-          </div>
-          <div className="flex items-center gap-1">
-            <Button asChild variant="outline" size="sm"><Link href={`/bookings/${details.id}`}>Open reservation</Link></Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={() => setShown(null)}><X /></Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
