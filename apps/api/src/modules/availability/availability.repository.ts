@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray } from "drizzle-orm";
 import type { Database } from "@just4kids/db";
-import { accounts, employees, bookings, employeeWorkIntervals, employeeScheduleExceptions, employeeExceptionIntervals, employeeTimeBlocks } from "@just4kids/db/schema";
+import { accounts, employees, bookings, employeeWorkDays, employeeWorkIntervals, employeeScheduleExceptions, employeeExceptionIntervals, employeeTimeBlocks } from "@just4kids/db/schema";
 import { HttpError } from "../../lib/http-error.js";
 import { isWindowAvailable } from "./availability.service.js";
 
@@ -13,7 +13,8 @@ export async function lockEmployee(transaction: Transaction, employeeId: string)
 }
 export async function readWorkingHours(transaction: Transaction, employeeId: string, date: string) {
   const dayOfWeek = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-  const work = await transaction.select().from(employeeWorkIntervals).where(and(eq(employeeWorkIntervals.employeeId, employeeId), eq(employeeWorkIntervals.dayOfWeek, dayOfWeek))).for("update");
+  const [workDay] = await transaction.select().from(employeeWorkDays).where(and(eq(employeeWorkDays.employeeId, employeeId), eq(employeeWorkDays.dayOfWeek, dayOfWeek))).for("update");
+  const work = workDay && !workDay.active ? [] : await transaction.select().from(employeeWorkIntervals).where(and(eq(employeeWorkIntervals.employeeId, employeeId), eq(employeeWorkIntervals.dayOfWeek, dayOfWeek))).for("update");
   const [exception] = await transaction.select().from(employeeScheduleExceptions).where(and(eq(employeeScheduleExceptions.employeeId, employeeId), eq(employeeScheduleExceptions.date, date))).for("update");
   const intervals = exception ? await transaction.select().from(employeeExceptionIntervals).where(eq(employeeExceptionIntervals.exceptionId, exception.id)).for("update") : undefined;
   return { days: [{ dayOfWeek, intervals: work.map(row => ({ startTime: row.startTime, endTime: row.endTime })) }], exception: intervals?.map(row => ({ startTime: row.startTime, endTime: row.endTime })) };

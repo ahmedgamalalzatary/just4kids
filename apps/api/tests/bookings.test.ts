@@ -150,6 +150,15 @@ describe("manual bookings and initial invoices", () => {
     expect(stored.body.days).toHaveLength(7);
     expect(stored.body.exceptions).toEqual([]);
   });
+  it("refuses turning off a weekday that holds a future booking and accepts it when the day stays on", async () => {
+    const allDays = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, active: dayOfWeek !== 1, intervals: [{ startTime: "08:00", endTime: "23:00" }] }));
+    const off = await schedule("put", `/schedules/${employeeId}/weekly`, { days: allDays });
+    expect(off.status).toBe(409);
+    expect(off.body.error.code).toBe("SCHEDULE_BOOKING_CONFLICT");
+    const on = await schedule("put", `/schedules/${employeeId}/weekly`, { days: allDays.map(day => ({ ...day, active: true })) });
+    expect(on.status).toBe(200);
+    expect(on.body.days.find((day: { dayOfWeek: number }) => day.dayOfWeek === 1)).toMatchObject({ active: true });
+  });
   it("refuses restoring weekly hours when a special-hours booking would no longer fit", async () => {
     const exceptionDate = "2099-01-06";
     expect((await schedule("put", `/schedules/${employeeId}/exceptions/${exceptionDate}`, { intervals: [{ startTime: "06:00", endTime: "23:00" }] })).status).toBe(200);

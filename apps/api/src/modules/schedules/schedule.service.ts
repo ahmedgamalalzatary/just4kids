@@ -5,8 +5,9 @@ import { isWindowAvailable } from "../availability/availability.service.js";
 import type { ScheduleRepository } from "./schedule.repository.js";
 
 function serialize(row: NonNullable<Awaited<ReturnType<ScheduleRepository["get"]>>>) {
-  const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, intervals: row.work.filter(interval => interval.dayOfWeek === dayOfWeek)
-    .map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) })).filter(day => day.intervals.length > 0);
+  const inactive = new Set(row.workDays.filter(day => !day.active).map(day => day.dayOfWeek));
+  const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, active: !inactive.has(dayOfWeek), intervals: row.work.filter(interval => interval.dayOfWeek === dayOfWeek)
+    .map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) }));
   const exceptions = row.exceptions.map(exception => ({ date: exception.date, intervals: row.intervals
     .filter(interval => interval.exceptionId === exception.id).map(interval => ({ startTime: interval.startTime, endTime: interval.endTime })) }));
   return scheduleResponseSchema.parse({ employeeId: row.employeeId, days, exceptions, blocks: row.blocks.map(block => ({ ...block, createdAt: block.createdAt.toISOString() })) });
@@ -40,6 +41,7 @@ export function createScheduleService(repository: ScheduleRepository) {
     async eligible(queryInput: unknown) {
       const query = eligibilityQuerySchema.parse(queryInput);
       const rows = await repository.eligibilityRows(query.date);
+      const inactive = new Set(rows.workDays.filter(day => !day.active).map(day => `${day.employeeId}:${day.dayOfWeek}`));
       const workByEmployee = new Map<string, Map<number, WorkInterval[]>>();
       for (const interval of rows.work) {
         const byDay = workByEmployee.get(interval.employeeId) ?? new Map<number, WorkInterval[]>();
@@ -57,7 +59,7 @@ export function createScheduleService(repository: ScheduleRepository) {
       const barbers = rows.barbers.filter(barber => {
         const days = [...(workByEmployee.get(barber.id) ?? new Map<number, WorkInterval[]>())]
           .sort(([firstDay], [secondDay]) => firstDay - secondDay)
-          .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals }));
+          .map(([dayOfWeek, intervals]) => ({ dayOfWeek, intervals: inactive.has(`${barber.id}:${dayOfWeek}`) ? [] : intervals }));
         return isWindowAvailable(query, days, exceptionsByEmployee.get(barber.id), rows.visits.filter(visit => visit.employeeId === barber.id).map(visit => ({ ...visit, status: visit.visitStatus })), rows.blocks.filter(block => block.employeeId === barber.id));
       }).map(barber => ({ id: barber.id, displayName: barber.displayName }));
       return eligibilityResponseSchema.parse({ date: query.date, startTime: query.startTime, endTime: query.endTime, timeZone: "Asia/Kuwait", barbers });

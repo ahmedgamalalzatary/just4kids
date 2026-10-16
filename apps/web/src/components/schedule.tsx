@@ -17,6 +17,7 @@ import { formatDate, formatWindow, kuwaitNow, minuteOfDay, WEEKDAYS } from "@/li
 import { cn } from "@/lib/utils";
 
 type Interval = { startTime: string; endTime: string };
+type DaySchedule = { active: boolean; intervals: Interval[] };
 
 /** Returns an English problem description, or null when the shifts are valid for the API. */
 export function intervalsProblem(intervals: Interval[]): string | null {
@@ -46,24 +47,27 @@ function IntervalsEditor({ intervals, onChange, label }: { intervals: Interval[]
   );
 }
 
-function toDays(schedule: Schedule): Interval[][] {
-  return WEEKDAYS.map((_, day) => (schedule.days.find(entry => entry.dayOfWeek === day)?.intervals ?? []).map(interval => ({ ...interval })));
+function toDays(schedule: Schedule): DaySchedule[] {
+  return WEEKDAYS.map((_, day) => {
+    const entry = schedule.days.find(item => item.dayOfWeek === day);
+    return { active: entry?.active ?? true, intervals: (entry?.intervals ?? []).map(interval => ({ ...interval })) };
+  });
 }
 
 export function WeeklyScheduleEditor({ employeeId, schedule }: { employeeId: string; schedule: Schedule }) {
   const replace = useReplaceWeekly();
-  const [days, setDays] = useState(() => toDays(schedule));
+  const [days, setDays] = useState<DaySchedule[]>(() => toDays(schedule));
   const [problem, setProblem] = useState<string | null>(null);
   const dirty = JSON.stringify(days) !== JSON.stringify(toDays(schedule));
 
   const save = () => {
-    for (const [day, intervals] of days.entries()) {
-      const issue = intervalsProblem(intervals);
+    for (const [day, entry] of days.entries()) {
+      const issue = intervalsProblem(entry.intervals);
       if (issue) { setProblem(`${WEEKDAYS[day]}: ${issue}`); return; }
     }
     setProblem(null);
     replace.mutate(
-      { id: employeeId, days: days.map((intervals, dayOfWeek) => ({ dayOfWeek, intervals })).filter(day => day.intervals.length > 0) },
+      { id: employeeId, days: days.map((entry, dayOfWeek) => ({ dayOfWeek, active: entry.active, intervals: entry.intervals })) },
       { onSuccess: updated => { setDays(toDays(updated)); toast.success("Weekly schedule saved"); } },
     );
   };
@@ -73,15 +77,21 @@ export function WeeklyScheduleEditor({ employeeId, schedule }: { employeeId: str
       <CardHeader>
         <div>
           <CardTitle>Weekly working hours</CardTitle>
-          <CardDescription>Repeats weekly in Kuwait time. A day can contain multiple shifts.</CardDescription>
+          <CardDescription>Repeats weekly in Kuwait time. A day can contain multiple shifts. An inactive day keeps its shifts but accepts no bookings.</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-0 p-0">
         <ul className="divide-y divide-border">
-          {days.map((intervals, day) => (
-            <li key={day} className="grid gap-3 px-5 py-4 sm:grid-cols-[7rem_1fr] sm:items-start">
-              <p className={cn("pt-2 text-sm font-medium", intervals.length === 0 && "text-muted-foreground")}>{WEEKDAYS[day]}</p>
-              <IntervalsEditor label={WEEKDAYS[day]!} intervals={intervals} onChange={next => setDays(days.map((current, index) => (index === day ? next : current)))} />
+          {days.map((entry, day) => (
+            <li key={day} className="grid gap-3 px-5 py-4 sm:grid-cols-[11rem_1fr] sm:items-start">
+              <div className="flex items-center gap-2 pt-2">
+                <Switch id={`day-active-${day}`} checked={entry.active} aria-label={`${WEEKDAYS[day]} active`}
+                  onCheckedChange={checked => setDays(days.map((current, index) => (index === day ? { ...current, active: checked } : current)))} />
+                <Label htmlFor={`day-active-${day}`} className={cn("text-sm font-medium", !entry.active && "text-muted-foreground")}>{WEEKDAYS[day]}</Label>
+              </div>
+              <div className={cn(!entry.active && "opacity-60")}>
+                <IntervalsEditor label={WEEKDAYS[day]!} intervals={entry.intervals} onChange={next => setDays(days.map((current, index) => (index === day ? { ...current, intervals: next } : current)))} />
+              </div>
             </li>
           ))}
         </ul>
@@ -188,11 +198,11 @@ export function WeeklyScheduleView({ schedule }: { schedule: Schedule }) {
     <Card>
       <CardHeader><CardTitle>Weekly working hours</CardTitle></CardHeader>
       <ul className="divide-y divide-border">
-        {days.map((intervals, day) => (
+        {days.map((entry, day) => (
           <li key={day} className={cn("flex items-center justify-between gap-3 px-5 py-3", day === today && "bg-accent/60")}>
             <span className="text-sm font-medium">{WEEKDAYS[day]}{day === today ? <span className="ms-2 text-xs font-normal text-primary">Today</span> : null}</span>
-            <span className={cn("text-sm", intervals.length === 0 && "text-muted-foreground")}>
-              {intervals.length === 0 ? "Day off" : intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join(", ")}
+            <span className={cn("text-sm", (!entry.active || entry.intervals.length === 0) && "text-muted-foreground")}>
+              {!entry.active ? "Inactive" : entry.intervals.length === 0 ? "Day off" : entry.intervals.map(interval => formatWindow(interval.startTime, interval.endTime)).join(", ")}
             </span>
           </li>
         ))}

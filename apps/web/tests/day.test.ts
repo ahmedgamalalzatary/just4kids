@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEndOptions, buildLockEndOptions, buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink } from "../src/lib/day";
+import { buildEndOptions, buildLockEndOptions, buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink, workingIntervals } from "../src/lib/day";
 
 // 2099-01-05 is a Monday (dayOfWeek 1).
 const date = "2099-01-05";
@@ -125,6 +125,19 @@ describe("buildLockEndOptions", () => {
     expect(buildLockEndOptions({ date, schedule: { ...wide, blocks }, bookings: [visit("11:00", "11:30")], startTime: "09:00", now: early })).toEqual(["09:30", "10:00"]);
     expect(buildLockEndOptions({ date, schedule, bookings: [], startTime: "11:00", now: early })).toEqual([]);
     expect(buildLockEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: new Date(`${date}T12:00:00+03:00`) })).toEqual([]);
+  });
+});
+
+describe("workingIntervals", () => {
+  it("gives no weekly intervals for an inactive day unless a date exception opens it", () => {
+    const inactive = { ...schedule, days: [{ dayOfWeek: 1, active: false, intervals: [{ startTime: "09:00", endTime: "11:00" }] }] };
+    expect(workingIntervals(inactive, date)).toEqual([]);
+    expect(workingIntervals({ ...inactive, exceptions: [{ date, intervals: [{ startTime: "14:00", endTime: "15:00" }] }] }, date)).toEqual([{ startTime: "14:00", endTime: "15:00" }]);
+  });
+  it("marks an inactive weekday as a full day of day-off locks", () => {
+    const inactive = { ...schedule, days: [{ dayOfWeek: 1, active: false, intervals: [{ startTime: "09:00", endTime: "11:00" }] }] };
+    const slots = buildSlots({ date, schedule: inactive, bookings: [], now: early });
+    expect(slots.every(slot => slot.state === "locked" && slot.reason === "day-off")).toBe(true);
   });
 });
 

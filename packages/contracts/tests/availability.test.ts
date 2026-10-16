@@ -19,15 +19,16 @@ describe("availability contracts", () => {
     ]) expect(schema.safeParse(input).success).toBe(false);
   });
   it("accepts disjoint weekly shifts and a one-day closure", () => {
-    expect(weeklyScheduleSchema.parse({ days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }] })).toEqual({
-      days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }],
+    expect(weeklyScheduleSchema.parse({ days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }] })).toEqual({
+      days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }],
     });
+    expect(weeklyScheduleSchema.safeParse({ days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }] }] }).success).toBe(false);
     expect(scheduleExceptionSchema.parse({ intervals: [] })).toEqual({ intervals: [] });
   });
 
   it("rejects overlapping shifts and duplicate weekdays", () => {
-    expect(weeklyScheduleSchema.safeParse({ days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "12:59", endTime: "17:00" }] }] }).success).toBe(false);
-    expect(weeklyScheduleSchema.safeParse({ days: [{ dayOfWeek: 1, intervals: [] }, { dayOfWeek: 1, intervals: [] }] }).success).toBe(false);
+    expect(weeklyScheduleSchema.safeParse({ days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "12:59", endTime: "17:00" }] }] }).success).toBe(false);
+    expect(weeklyScheduleSchema.safeParse({ days: [{ dayOfWeek: 1, active: false, intervals: [] }, { dayOfWeek: 1, active: true, intervals: [] }] }).success).toBe(false);
   });
 
   it("enforces inclusive 20-minute and 4-hour booking windows", () => {

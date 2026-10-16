@@ -16,7 +16,7 @@ const open = new Set<VisitStatus>(["booked", "arrived"]);
 
 type Interval = { startTime: string; endTime: string };
 type TimeBlock = Interval & { id: string; date: string; reason: string | null };
-type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[] }[]; exceptions: { date: string; intervals: Interval[] }[]; blocks?: TimeBlock[] };
+type ScheduleLike = { days: { dayOfWeek: number; intervals: Interval[]; active?: boolean }[]; exceptions: { date: string; intervals: Interval[] }[]; blocks?: TimeBlock[] };
 type Visit = Interval & { visitStatus: VisitStatus };
 
 export type SlotState = "free" | "booked" | "past" | "locked";
@@ -32,11 +32,12 @@ function timeOf(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
-/** The working intervals for one date: the dated exception when present (empty = closed), otherwise the weekday hours. */
+/** The working intervals for one date: the dated exception when present (empty = closed), otherwise the active weekday hours. */
 export function workingIntervals(schedule: ScheduleLike, date: string): Interval[] {
   const exception = schedule.exceptions.find(item => item.date === date);
   const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-  const intervals = exception?.intervals ?? schedule.days.find(day => day.dayOfWeek === weekday)?.intervals ?? [];
+  const day = schedule.days.find(entry => entry.dayOfWeek === weekday);
+  const intervals = exception ? exception.intervals : day?.active === false ? [] : day?.intervals ?? [];
   return [...intervals].sort((a, b) => a.startTime.localeCompare(b.startTime));
 }
 

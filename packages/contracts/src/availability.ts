@@ -21,7 +21,7 @@ const intervalsSchema = z.array(workIntervalSchema).max(16).superRefine((interva
 });
 
 export const weeklyScheduleSchema = z.strictObject({
-  days: z.array(z.strictObject({ dayOfWeek: z.number().int().min(0).max(6), intervals: intervalsSchema })).max(7),
+  days: z.array(z.strictObject({ dayOfWeek: z.number().int().min(0).max(6), active: z.boolean(), intervals: intervalsSchema })).max(7),
 }).superRefine((value, context) => {
   if (new Set(value.days.map(day => day.dayOfWeek)).size !== value.days.length) {
     context.addIssue({ code: "custom", message: "Each weekday may appear only once" });

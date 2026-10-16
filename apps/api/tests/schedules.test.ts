@@ -55,15 +55,18 @@ describe("barber schedules and eligibility", () => {
     expect((await request(app).get(`/schedules/${employeeIds[1]}`).set("Cookie", barber.cookie)).status).toBe(403);
     const own = await request(app).get("/schedules/me").set("Cookie", barber.cookie);
     expect(own.status).toBe(200);
-    expect(own.body).toMatchObject({ employeeId: employeeIds[0], days: [], exceptions: [] });
+    expect(own.body).toMatchObject({ employeeId: employeeIds[0], exceptions: [] });
+    expect(own.body.days).toHaveLength(7);
+    expect(own.body.days.every((day: { active: boolean; intervals: unknown[] }) => day.active && day.intervals.length === 0)).toBe(true);
   });
 
   it("returns only enabled barbers whose full window fits a shift and a date exception", async () => {
     const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
     const updated = await request(app).put(`/schedules/${employeeIds[0]}/weekly`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }] });
+      .send({ days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }] });
     expect(updated.status).toBe(200);
-    expect(updated.body.days).toHaveLength(1);
+    expect(updated.body.days).toHaveLength(7);
+    expect(updated.body.days.find((day: { dayOfWeek: number }) => day.dayOfWeek === 1)).toMatchObject({ active: true, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] });
     const eligible = await request(app).get("/availability/eligible?date=2026-10-05&startTime=09:00&endTime=09:20").set("Cookie", admin.cookie);
     expect(eligible.status).toBe(200);
     expect(eligible.body.barbers).toEqual([{ id: employeeIds[0], displayName: "سالم" }]);
@@ -82,6 +85,18 @@ describe("barber schedules and eligibility", () => {
     expect(closure.status).toBe(200);
     expect((await request(app).get("/availability/eligible?date=2026-10-05&startTime=10:00&endTime=10:20").set("Cookie", admin.cookie)).body.barbers).toEqual([]);
     expect((await request(app).delete(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)).status).toBe(204);
+    expect((await request(app).get("/availability/eligible?date=2026-10-05&startTime=10:00&endTime=10:20").set("Cookie", admin.cookie)).body.barbers).toHaveLength(1);
+  });
+
+  it("stores weekday switches, closes an inactive day, and lets a date exception reopen it", async () => {
+    const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
+    const path = `/schedules/${employeeIds[0]}/weekly`;
+    const off = await request(app).put(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
+      .send({ days: [{ dayOfWeek: 1, active: false, intervals: [{ startTime: "09:00", endTime: "13:00" }] }] });
+    expect(off.status).toBe(200);
+    expect(off.body.days.find((day: { dayOfWeek: number }) => day.dayOfWeek === 1)).toEqual({ dayOfWeek: 1, active: false, intervals: [{ startTime: "09:00", endTime: "13:00" }] });
+    expect((await request(app).get("/availability/eligible?date=2026-10-05&startTime=09:00&endTime=09:20").set("Cookie", admin.cookie)).body.barbers).toEqual([]);
+    expect((await request(app).put(`/schedules/${employeeIds[0]}/exceptions/2026-10-05`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ intervals: [{ startTime: "10:00", endTime: "12:00" }] })).status).toBe(200);
     expect((await request(app).get("/availability/eligible?date=2026-10-05&startTime=10:00&endTime=10:20").set("Cookie", admin.cookie)).body.barbers).toHaveLength(1);
   });
 });

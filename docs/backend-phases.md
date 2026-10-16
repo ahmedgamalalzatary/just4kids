@@ -153,6 +153,8 @@ Phase 5 integration evidence (2026-10-02): eligibility reads working hours, exce
 
 CodeRabbit follow-up (2026-10-02): `coderabbit review --committed --base backup-main --agent --fresh` reviewed the three commits through `8e64878` and returned one major finding: historical blocking visits permanently prevented new weekly hours. The owner confirmed that ended reservation windows must not prevent schedule changes. The guard now queries today/future dates in Kuwait, skips windows at or past their end, and reuses working hours per date. Six real-MySQL regression cases failed before the fix and pass afterward, covering past booked/arrived/completed records, unchanged invoice/history, Kuwait midnight, ongoing windows, and the exact end boundary. Targeted booking/visit/schedule tests passed (3 files, 39 tests); forced backend lint/typecheck/build passed (11 tasks). No migration or frontend changes are required.
 
+Weekday switches (2026-10-16, feature batch P7): migration `0029_add_employee_work_days` adds `employee_work_days` (a missing row means active). Weekly schedule request and response days carry `active`; an inactive weekday returns no weekly intervals while a dated exception still overrides. `readWorkingHours` and the eligibility read apply the flag for bookings, edits, locks, restoration, and schedule guards. Save/read switches, a future-booking conflict on turning a day off, and an exception reopening an inactive day are covered by API tests.
+
 ## Phase 4 — Clients and usable service addresses
 
 Depends on: phase 1. Confirmed: one client per international-format phone; each address requires area, block, street, and house number or building name. Optional location data is a Google Maps link.

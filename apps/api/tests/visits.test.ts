@@ -68,7 +68,7 @@ describe("employee visit actions and history", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T00:00:00+03:00`) + 24 * 60 * 60 * 1000);
     const path = `/schedules/${employeeId}/weekly`;
     const save = (startTime: string) => request(app).put(path).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ days: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, intervals: [{ startTime, endTime: "23:00" }] })) });
+      .send({ days: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, active: true, intervals: [{ startTime, endTime: "23:00" }] })) });
     try {
       expect((await save("11:00")).status).toBe(200);
       expect(await detail()).toEqual(previous);

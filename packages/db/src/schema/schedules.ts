@@ -1,7 +1,17 @@
 import { sql } from "drizzle-orm";
-import { check, date, datetime, foreignKey, int, mysqlTable, primaryKey, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { boolean, check, date, datetime, foreignKey, int, mysqlTable, primaryKey, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
 import { employees } from "./organization.js";
+
+export const employeeWorkDays = mysqlTable("employee_work_days", {
+  employeeId: varchar("employee_id", { length: 36 }).notNull(),
+  dayOfWeek: int("day_of_week").notNull(),
+  active: boolean("active").notNull(),
+}, table => [
+  primaryKey({ columns: [table.employeeId, table.dayOfWeek] }),
+  foreignKey({ name: "work_day_employee_fk", columns: [table.employeeId], foreignColumns: [employees.accountId] }).onDelete("cascade"),
+  check("work_day_active_range", sql`${table.dayOfWeek} BETWEEN 0 AND 6`),
+]);
 
 export const employeeWorkIntervals = mysqlTable("employee_work_intervals", {
   employeeId: varchar("employee_id", { length: 36 }).notNull(),

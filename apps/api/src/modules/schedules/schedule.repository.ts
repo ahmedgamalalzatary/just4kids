@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, bookings, employees, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkIntervals, employeeTimeBlocks } from "@just4kids/db/schema";
+import { accounts, bookings, employees, employeeExceptionIntervals, employeeScheduleExceptions, employeeWorkDays, employeeWorkIntervals, employeeTimeBlocks } from "@just4kids/db/schema";
 import type { Account, TimeBlockCreate, WorkInterval, WeeklySchedule } from "@just4kids/contracts";
 import { assertSchedulePreservesBookings, lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
@@ -16,13 +16,14 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
   async function get(id: string) {
     if (!await employeeExists(id)) return undefined;
     const work = await db.select().from(employeeWorkIntervals).where(eq(employeeWorkIntervals.employeeId, id)).orderBy(asc(employeeWorkIntervals.dayOfWeek), asc(employeeWorkIntervals.startTime));
+    const workDays = await db.select().from(employeeWorkDays).where(eq(employeeWorkDays.employeeId, id)).orderBy(asc(employeeWorkDays.dayOfWeek));
     const exceptions = await db.select().from(employeeScheduleExceptions).where(eq(employeeScheduleExceptions.employeeId, id)).orderBy(asc(employeeScheduleExceptions.date));
     const exceptionIds = exceptions.map(row => row.id);
     const intervals = exceptionIds.length ? await db.select().from(employeeExceptionIntervals)
       .where(inArray(employeeExceptionIntervals.exceptionId, exceptionIds))
       .orderBy(asc(employeeExceptionIntervals.startTime)) : [];
     const blocks = await db.select().from(employeeTimeBlocks).where(eq(employeeTimeBlocks.employeeId, id)).orderBy(asc(employeeTimeBlocks.date), asc(employeeTimeBlocks.startTime));
-    return { employeeId: id, work, exceptions, intervals, blocks };
+    return { employeeId: id, work, workDays, exceptions, intervals, blocks };
   }
   return {
     employeeExists,
@@ -62,8 +63,11 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
         const employee = await lockEmployee(transaction, id);
         if (!employee) return false;
         await transaction.delete(employeeWorkIntervals).where(eq(employeeWorkIntervals.employeeId, id));
+        await transaction.delete(employeeWorkDays).where(eq(employeeWorkDays.employeeId, id));
         const rows = schedule.days.flatMap(day => day.intervals.map(interval => ({ employeeId: id, dayOfWeek: day.dayOfWeek, ...interval })));
         if (rows.length) await transaction.insert(employeeWorkIntervals).values(rows);
+        const inactive = schedule.days.filter(day => !day.active).map(day => ({ employeeId: id, dayOfWeek: day.dayOfWeek, active: false }));
+        if (inactive.length) await transaction.insert(employeeWorkDays).values(inactive);
         await assertSchedulePreservesBookings(transaction, id);
         return true;
       });
@@ -101,12 +105,13 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
           .where(and(eq(accounts.role, "employee"), eq(accounts.enabled, true))).orderBy(asc(employees.displayName), asc(employees.accountId));
         const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
         const work = await transaction.select().from(employeeWorkIntervals).where(eq(employeeWorkIntervals.dayOfWeek, weekday));
+        const workDays = await transaction.select().from(employeeWorkDays).where(eq(employeeWorkDays.dayOfWeek, weekday));
         const exceptions = await transaction.select({ employeeId: employeeScheduleExceptions.employeeId, exceptionId: employeeScheduleExceptions.id, interval: employeeExceptionIntervals })
           .from(employeeScheduleExceptions).leftJoin(employeeExceptionIntervals, eq(employeeScheduleExceptions.id, employeeExceptionIntervals.exceptionId))
           .where(eq(employeeScheduleExceptions.date, date));
         const visits = await transaction.select().from(bookings).where(eq(bookings.date, date));
         const blocks = await transaction.select().from(employeeTimeBlocks).where(eq(employeeTimeBlocks.date, date));
-        return { barbers, work, exceptions, visits, blocks };
+        return { barbers, work, workDays, exceptions, visits, blocks };
       });
     },
   };

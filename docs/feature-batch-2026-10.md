@@ -180,7 +180,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/api/tests/schedules.test.ts` (save/read switches; turning off a day with a future booking → 409; exception on an off day opens it), `apps/api/tests/availability-service.test.ts`, `apps/api/tests/bookings.test.ts` (booking on an off day rejected), `apps/api/tests/time-blocks.test.ts`, `apps/web/tests/day.test.ts`, schedule editor and view tests.
 
-- [ ] P7 done
+- [x] P7 done
 
 ---
 

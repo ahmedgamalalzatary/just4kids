@@ -19,7 +19,7 @@ function mount(options: { known?: boolean; failFirst?: boolean; createFails?: bo
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/employees") return new Response(JSON.stringify({ employees: [{ id, displayName: "سالم", phone: "+96550000002", enabled: true, accessUntil: null, photoUpdatedAt: null, createdAt: timestamp, updatedAt: timestamp }] }));
-    if (url === `/api/schedules/${id}`) return new Response(JSON.stringify({ employeeId: id, days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] }));
+    if (url === `/api/schedules/${id}`) return new Response(JSON.stringify({ employeeId: id, days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] }));
     if (url.startsWith("/api/bookings?") || url.startsWith("/api/clients?")) return new Response(JSON.stringify({ bookings: [], clients: [], total: 0, limit: 20, offset: 0 }));
     if (url.startsWith("/api/areas")) return new Response(JSON.stringify({ areas: [{ id, name: address.area, enabled: true, createdAt: timestamp, updatedAt: timestamp }] }));
     if (url.startsWith("/api/clients/lookup")) return registered ? new Response(JSON.stringify(client)) : new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "غير موجود" } }), { status: 404 });
