@@ -32,9 +32,13 @@ export const scheduleExceptionSchema = z.strictObject({ intervals: intervalsSche
 export const scheduleDateSchema = dateSchema;
 export const timeBlockCreateSchema = z.strictObject({
   date: dateSchema,
-  startTime: timeSchema.refine(time => minuteOfDay(time) % 30 === 0 && minuteOfDay(time) + 30 < 1440, "Locks must be a whole half-hour within one day"),
+  startTime: timeSchema,
+  endTime: timeSchema,
   reason: z.string().trim().max(500).optional(),
-});
+}).refine(value => {
+  const start = minuteOfDay(value.startTime), end = minuteOfDay(value.endTime);
+  return start % 30 === 0 && end % 30 === 0 && end > start;
+}, "Locks must be whole half-hours on the same day, ending after they start");
 export const timeBlockResponseSchema = z.strictObject({
   id: z.uuid(), employeeId: z.uuid(), date: dateSchema, startTime: timeSchema, endTime: timeSchema,
   reason: z.string().max(500).nullable(), createdBy: z.uuid(), createdAt: z.iso.datetime(),

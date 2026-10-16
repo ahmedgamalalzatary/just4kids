@@ -24,7 +24,8 @@ async function mount(options: { blocked?: boolean; conflict?: boolean; role?: "a
     const url = String(input);
     if (url.endsWith("/blocks") && init?.method === "POST") {
       if (options.conflict) return new Response(JSON.stringify({ error: { code: "TIME_BLOCK_CONFLICT", message: "Time محجوز، أعد تحميل الأوقات" } }), { status: 409 });
-      blocks = [{ ...block, reason: JSON.parse(String(init.body)).reason }];
+      const input = JSON.parse(String(init.body));
+      blocks = [{ ...block, startTime: input.startTime, endTime: input.endTime, reason: input.reason }];
       return new Response(JSON.stringify(blocks[0]), { status: 201 });
     }
     if (url.endsWith(`/blocks/${blockId}`) && init?.method === "DELETE") { blocks = []; return new Response(null, { status: 204 }); }
@@ -81,8 +82,8 @@ describe("booked hour bubble", () => {
 });
 
 describe("booking time lock controls", () => {
-  it("asks for the end time after tapping a start and reports the chosen window, and locks only half an hour", async () => {
-    const { fetch, select, changed } = await mount();
+  it("asks for the end time after tapping a start and discards it when the start changes", async () => {
+    const { select } = await mount();
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     await userEvent.click(screen.getByRole("radio", { name: "End at 2:00 PM" }));
     expect(select).toHaveBeenCalledWith({ startTime: "13:00", endTime: "14:00" });
@@ -92,32 +93,45 @@ describe("booking time lock controls", () => {
     expect(screen.getAllByRole("radio", { name: /^End at/ }).every(end => end.getAttribute("aria-checked") === "false")).toBe(true);
     expect(select).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status").textContent).toContain("Visit starts at 2:00 PM");
+  });
+  it("picks a start and an end for a lock and stores the whole window", async () => {
+    const { fetch, changed } = await mount();
     await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Lock until 2:00 PM" }));
     await userEvent.type(screen.getByLabelText(/Lock reason/), "موعد Special");
-    await userEvent.click(screen.getByRole("button", { name: "Lock half-hour" }));
+    await userEvent.click(screen.getByRole("button", { name: "Lock 1:00 PM to 2:00 PM" }));
     expect(await screen.findByRole("radio", { name: "1:00 PM, closed: موعد Special" })).toHaveClass("bg-status-locked-soft");
     const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(call[0]).toBe(`/api/schedules/${id}/blocks`);
-    expect(JSON.parse(String(call[1]?.body))).toEqual({ date, startTime: "13:00", reason: "موعد Special" });
+    expect(JSON.parse(String(call[1]?.body))).toEqual({ date, startTime: "13:00", endTime: "14:00", reason: "موعد Special" });
     expect(new Headers(call[1]?.headers).get("X-CSRF-Token")).toBe("csrf");
     expect(changed).toHaveBeenCalled();
   });
-  it("shows the saved reason and unlocks the manual lock without offering to unlock scheduled breaks", async () => {
+  it("defaults the lock end to the first half-hour after the start", async () => {
+    const { fetch } = await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
+    expect(screen.getByRole("status").textContent).toContain("Closing from 1:00 PM to 1:30 PM");
+    await userEvent.click(screen.getByRole("button", { name: "Lock 1:00 PM to 1:30 PM" }));
+    const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(JSON.parse(String(call[1]?.body))).toEqual({ date, startTime: "13:00", endTime: "13:30", reason: "" });
+  });
+  it("shows the saved reason and unlocks the manual window without offering to unlock scheduled breaks", async () => {
     const { fetch } = await mount({ blocked: true });
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM, closed: موعد Special" }));
     expect(screen.getByText("Closed: موعد Special")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Unlock half-hour" }));
+    await userEvent.click(screen.getByRole("button", { name: "Unlock 1:00 PM – 1:30 PM" }));
     await waitFor(() => expect(screen.getByRole("radio", { name: "1:00 PM" })).toBeInTheDocument());
     expect(fetch.mock.calls.some(([url, init]) => String(url).endsWith(`/blocks/${blockId}`) && init?.method === "DELETE")).toBe(true);
     await userEvent.click(screen.getByRole("radio", { name: "3:00 PM, closed: Break" }));
-    expect(screen.queryByRole("button", { name: "Unlock half-hour" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Unlock/ })).not.toBeInTheDocument();
   });
   it("shows a recoverable conflict and never pretends the time was locked", async () => {
     await mount({ conflict: true });
     await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
-    await userEvent.click(screen.getByRole("button", { name: "Lock half-hour" }));
+    await userEvent.click(screen.getByRole("button", { name: "Lock 1:00 PM to 1:30 PM" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Time محجوز، أعد تحميل الأوقات");
     expect(screen.queryByRole("radio", { name: /^1:00 PM, closed/ })).not.toBeInTheDocument();
   });
@@ -125,6 +139,6 @@ describe("booking time lock controls", () => {
     await mount({ blocked: true, role: "employee" });
     expect(screen.queryByRole("button", { name: "Lock / unlock times" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM, closed: موعد Special" }));
-    expect(screen.queryByRole("button", { name: "Unlock half-hour" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Unlock/ })).not.toBeInTheDocument();
   });
 });

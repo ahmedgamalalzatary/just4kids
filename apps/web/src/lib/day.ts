@@ -80,12 +80,23 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, now = ne
 }
 
 /** The valid end times for a visit starting at `startTime`: half-hour steps until the shift ends, a visit, or a lock is hit. */
-export function buildEndOptions<T extends Visit>({ date, schedule, bookings, startTime, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; startTime: string; now?: Date }): string[] {
+export function buildEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
+  return endOptions(args, MAX_VISIT_MINUTES);
+}
+
+/** The valid end times for locking from `startTime`: half-hour steps until the shift ends or a visit or another lock starts. */
+export function buildLockEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
+  return endOptions(args, Number.POSITIVE_INFINITY);
+}
+
+type EndOptionsArgs<T extends Visit> = { date: string; schedule: ScheduleLike; bookings: T[]; startTime: string; now?: Date };
+
+function endOptions<T extends Visit>({ date, schedule, bookings, startTime, now = new Date() }: EndOptionsArgs<T>, maxMinutes: number): string[] {
   if (kuwaitInstant(date, startTime) <= now) return [];
   const intervals = workingIntervals(schedule, date);
   if (!covered(intervals, startTime, timeOf(minuteOfDay(startTime) + SLOT_MINUTES))) return [];
   const startMinute = minuteOfDay(startTime);
-  const endMinute = Math.min(startMinute + MAX_VISIT_MINUTES, minuteOfDay(DAY_END));
+  const endMinute = Math.min(startMinute + maxMinutes, minuteOfDay(DAY_END));
   const blocks = (schedule.blocks ?? []).filter(block => block.date === date);
   const busy = [
     ...bookings.filter(booking => blocking.has(booking.visitStatus)).map(booking => minuteOfDay(booking.startTime)),

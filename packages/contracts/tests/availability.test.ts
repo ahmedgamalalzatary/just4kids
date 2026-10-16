@@ -3,11 +3,20 @@ import { eligibilityQuerySchema, eligibilityResponseSchema, scheduleExceptionSch
 import * as contracts from "../src/index.js";
 
 describe("availability contracts", () => {
-  it("accepts only whole half-hour manual locks with an optional trimmed reason", () => {
+  it("accepts only whole half-hour manual locks ending after they start", () => {
     expect(contracts.timeBlockCreateSchema).toBeDefined();
     const schema = contracts.timeBlockCreateSchema;
-    expect(schema.parse({ date: "2099-01-05", startTime: "13:00", reason: " lunch " })).toEqual({ date: "2099-01-05", startTime: "13:00", reason: "lunch" });
-    for (const input of [{ date: "2099-02-30", startTime: "13:00" }, { date: "2099-01-05", startTime: "13:15" }, { date: "2099-01-05", startTime: "23:30" }, { date: "2099-01-05", startTime: "13:00", endTime: "14:00" }, { date: "2099-01-05", startTime: "13:00", reason: "x".repeat(501) }]) expect(schema.safeParse(input).success).toBe(false);
+    expect(schema.parse({ date: "2099-01-05", startTime: "13:00", endTime: "15:00", reason: " lunch " })).toEqual({ date: "2099-01-05", startTime: "13:00", endTime: "15:00", reason: "lunch" });
+    for (const input of [
+      { date: "2099-02-30", startTime: "13:00", endTime: "14:00" },
+      { date: "2099-01-05", startTime: "13:15", endTime: "14:00" },
+      { date: "2099-01-05", startTime: "13:00", endTime: "14:15" },
+      { date: "2099-01-05", startTime: "13:00", endTime: "13:00" },
+      { date: "2099-01-05", startTime: "14:00", endTime: "13:00" },
+      { date: "2099-01-05", startTime: "23:30", endTime: "23:59" },
+      { date: "2099-01-05", startTime: "13:00" },
+      { date: "2099-01-05", startTime: "13:00", endTime: "14:00", reason: "x".repeat(501) },
+    ]) expect(schema.safeParse(input).success).toBe(false);
   });
   it("accepts disjoint weekly shifts and a one-day closure", () => {
     expect(weeklyScheduleSchema.parse({ days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "13:00" }, { startTime: "15:00", endTime: "19:00" }] }] })).toEqual({

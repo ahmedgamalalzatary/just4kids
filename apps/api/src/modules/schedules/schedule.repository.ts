@@ -33,9 +33,7 @@ export function createScheduleRepository(connection: ReturnType<typeof createDat
         if (actor.role !== "admin" || !administrator) throw new ForbiddenError();
         const barber = await lockEmployee(transaction, id);
         if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Barber not found");
-        const endMinutes = Number(input.startTime.slice(0, 2)) * 60 + Number(input.startTime.slice(3)) + 30;
-        const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
-        const window = { date: input.date, startTime: input.startTime, endTime };
+        const window = { date: input.date, startTime: input.startTime, endTime: input.endTime };
         const hours = await readWorkingHours(transaction, id, input.date);
         const visits = await readBlockingBookings(transaction, id, input.date);
         const blocks = await readTimeBlocks(transaction, id, input.date);

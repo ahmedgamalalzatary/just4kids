@@ -32,8 +32,12 @@ async function signIn(phone: string, password: string): Promise<Session> {
 function write(method: "post" | "patch" | "delete", path: string, body = {}, session = admin) {
   return request(app)[method](path).set("Origin", origin).set("Cookie", session.cookie).set("X-CSRF-Token", session.csrf).send(body);
 }
+function end(startTime: string, minutes: number): string {
+  const total = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3)) + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 async function lock(visitDate = date, startTime = "13:00", id = employeeId) {
-  const result = await write("post", `/schedules/${id}/blocks`, { date: visitDate, startTime, reason: "موعد خاص" });
+  const result = await write("post", `/schedules/${id}/blocks`, { date: visitDate, startTime, endTime: end(startTime, 30), reason: "موعد خاص" });
   expect(result.status).toBe(201);
   return result.body as { id: string; startTime: string; endTime: string };
 }
@@ -76,14 +80,35 @@ describe("manual half-hour locks", () => {
     expect((await write("delete", `/schedules/${otherId}/blocks/${block.id}`)).status).toBe(404);
     expect((await write("delete", `${base}/${block.id}`)).status).toBe(204);
   });
-  it("rejects invalid/past/nonworking locks, duplicates and unknown barbers", async () => {
-    for (const body of [{ date, startTime: "13:15" }, { date: "2099-02-30", startTime: "13:00" }, { date, startTime: "23:30" }, { date, startTime: "13:00", endTime: "14:00" }]) expect((await write("post", base, body)).status).toBe(400);
-    expect((await write("post", base, { date: "2000-01-01", startTime: "13:00" })).status).toBe(400);
-    expect((await write("post", base, { date, startTime: "07:00" })).status).toBe(409);
-    expect((await write("post", `/schedules/${randomUUID()}/blocks`, { date, startTime: "13:00" })).status).toBe(404);
+  it("rejects invalid/past/nonworking locks, overlaps and unknown barbers", async () => {
+    for (const body of [
+      { date, startTime: "13:15", endTime: "14:00" },
+      { date, startTime: "13:00", endTime: "14:15" },
+      { date: "2099-02-30", startTime: "13:00", endTime: "14:00" },
+      { date, startTime: "13:00", endTime: "13:00" },
+      { date, startTime: "14:00", endTime: "13:00" },
+      { date, startTime: "23:30", endTime: "23:59" },
+      { date, startTime: "13:00" },
+    ]) expect((await write("post", base, body)).status).toBe(400);
+    expect((await write("post", base, { date: "2000-01-01", startTime: "13:00", endTime: "14:00" })).status).toBe(400);
+    expect((await write("post", base, { date, startTime: "07:00", endTime: "08:00" })).status).toBe(409);
+    expect((await write("post", `/schedules/${randomUUID()}/blocks`, { date, startTime: "13:00", endTime: "14:00" })).status).toBe(404);
     const block = await lock();
-    expect((await write("post", base, { date, startTime: "13:00" })).status).toBe(409);
+    expect((await write("post", base, { date, startTime: "13:00", endTime: "13:30" })).status).toBe(409);
+    expect((await write("post", base, { date, startTime: "13:15", endTime: "14:00" })).status).toBe(400);
     await write("delete", `${base}/${block.id}`);
+  });
+  it("locks a multi-hour window, blocks every half-hour inside it, and keeps touching endpoints free", async () => {
+    const visitDate = "2099-01-09";
+    const created = await write("post", base, { date: visitDate, startTime: "13:00", endTime: "15:00", reason: "ظهيرة" });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ startTime: "13:00", endTime: "15:00", reason: "ظهيرة" });
+    for (const [startTime, endTime] of [["13:00", "14:00"], ["14:30", "15:00"]]) expect((await write("post", "/bookings", { ...booking(visitDate), startTime, endTime })).status).toBe(409);
+    expect((await write("post", "/bookings", { ...booking(visitDate), startTime: "12:00", endTime: "13:00" })).status).toBe(201);
+    expect((await write("post", base, { date: visitDate, startTime: "14:00", endTime: "16:00" })).status).toBe(409);
+    expect((await write("post", base, { date: visitDate, startTime: "15:00", endTime: "16:00" })).status).toBe(201);
+    const own = await request(app).get(`/schedules/${employeeId}`).set("Cookie", admin.cookie);
+    expect(own.body.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id, startTime: "13:00", endTime: "15:00" })]));
   });
   it("blocks full-window creation and eligibility, preserves touching endpoints, and restores availability on unlock", async () => {
     const block = await lock();
@@ -93,7 +118,7 @@ describe("manual half-hour locks", () => {
     const denied = await write("post", "/bookings", booking());
     expect(denied.status).toBe(409);
     expect(denied.body.error.code).toBe("BARBER_UNAVAILABLE");
-    const [counts] = await connection.pool.execute("SELECT COUNT(*) AS n FROM bookings WHERE employee_id = ?", [employeeId]);
+    const [counts] = await connection.pool.execute("SELECT COUNT(*) AS n FROM bookings WHERE employee_id = ? AND date = ?", [employeeId, date]);
     expect(counts).toMatchObject([{ n: 0 }]);
     for (const [startTime, endTime] of [["12:30", "13:00"], ["13:30", "14:00"]]) expect((await write("post", "/bookings", { ...booking(), startTime, endTime })).status).toBe(201);
     const service = createBookingService(createBookingRepository(connection));
@@ -105,7 +130,7 @@ describe("manual half-hour locks", () => {
     const visitDate = "2099-01-06";
     const created = await write("post", "/bookings", { ...booking(visitDate), startTime: "09:00", endTime: "09:30" });
     expect(created.status).toBe(201);
-    expect((await write("post", base, { date: visitDate, startTime: "09:00" })).status).toBe(409);
+    expect((await write("post", base, { date: visitDate, startTime: "09:00", endTime: "09:30" })).status).toBe(409);
     const block = await lock(visitDate);
     expect((await write("patch", `/bookings/${created.body.id}`, { expectedVersion: 0, startTime: "12:30", endTime: "13:30" })).body.error.code).toBe("BARBER_UNAVAILABLE");
     const other = await write("post", "/bookings", { ...booking(visitDate), employeeId: otherId });
@@ -122,10 +147,10 @@ describe("manual half-hour locks", () => {
   });
   it("serializes concurrent locks and a booking racing with a lock", async () => {
     const visitDate = "2099-01-07";
-    const results = await Promise.all([write("post", base, { date: visitDate, startTime: "13:00" }), write("post", base, { date: visitDate, startTime: "13:00" })]);
+    const results = await Promise.all([write("post", base, { date: visitDate, startTime: "13:00", endTime: "13:30" }), write("post", base, { date: visitDate, startTime: "13:00", endTime: "13:30" })]);
     expect(results.map(result => result.status).sort()).toEqual([201, 409]);
     const raceDate = "2099-01-08";
-    const [locked, created] = await Promise.all([write("post", base, { date: raceDate, startTime: "13:00" }), write("post", "/bookings", booking(raceDate))]);
+    const [locked, created] = await Promise.all([write("post", base, { date: raceDate, startTime: "13:00", endTime: "13:30" }), write("post", "/bookings", booking(raceDate))]);
     expect([[201, 409], [409, 201]]).toContainEqual([locked.status, created.status]);
   });
 });

@@ -151,7 +151,7 @@ P8  Reservations without money  (#4)  db → contracts → api → web     hard
 
 **Tests:** `apps/api/tests/time-blocks.test.ts` (multi-hour lock, overlap with a booking/lock/break is rejected, not on the half-hour is rejected, end ≤ start is rejected), `packages/contracts/tests/availability.test.ts`, `apps/web/tests/day.test.ts`, `apps/web/tests/booking-slot-pills.test.tsx`.
 
-- [ ] P6 done
+- [x] P6 done
 
 ---
 

@@ -12,7 +12,7 @@ import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from "@/compone
 import { keys, useCreateTimeBlock, useDayBookings, useDeleteTimeBlock, useSchedule } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { Booking, Employee } from "@/lib/api/types";
-import { buildEndOptions, buildSlots, haircutSummary, timeWords, type Slot } from "@/lib/day";
+import { buildEndOptions, buildLockEndOptions, buildSlots, haircutSummary, timeWords, type Slot } from "@/lib/day";
 import { formatTime, formatWindow } from "@/lib/kuwait-time";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ const slotStyles: Record<Slot<Booking>["state"], string> = {
 };
 const lockReason = (slot: Slot<Booking>) => slot.reason === "manual" ? slot.block?.reason || "Manual lock" : slot.reason === "day-off" ? "Day off / exception" : "Break";
 
-/** Tapping a free pill picks the start; the end time is then chosen from the valid window. Lock management stays half-hour based. */
+/** Tapping a free pill picks the start; the end time is then chosen from the valid window. Lock management picks both ends of a closed window. */
 export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAvailabilityChange }: {
   barber: Employee; date: string; selected: string | null; selectedEnd: string | null;
   onSelect: (slot: { startTime: string; endTime: string }) => void;
@@ -39,6 +39,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
   const [manage, setManage] = useState(false);
   const [shown, setShown] = useState<string | null>(null);
   const [actionTime, setActionTime] = useState<string | null>(null);
+  const [lockEndChoice, setLockEndChoice] = useState<string | null>(null);
   const [pendingStart, setPendingStart] = useState<string | null>(null);
   const [pendingEnd, setPendingEnd] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -52,6 +53,8 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
   const action = slots.find(slot => slot.startTime === actionTime);
   const activeStart = pendingStart ?? selected;
   const endOptions = activeStart ? buildEndOptions({ date, schedule: schedule.data, bookings: day.data.bookings, startTime: activeStart }) : [];
+  const lockEndOptions = managing && action?.state === "free" ? buildLockEndOptions({ date, schedule: schedule.data, bookings: day.data.bookings, startTime: action.startTime }) : [];
+  const lockEnd = lockEndChoice ?? lockEndOptions[0] ?? null;
   // A freshly tapped start invalidates the previously chosen end; only keep it when revisiting the same start.
   const chosenEnd = pendingStart ? pendingEnd : selectedEnd;
   const pickEnd = (endTime: string) => {
@@ -64,7 +67,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
     setPendingStart(startTime);
     setPendingEnd(null);
   };
-  const resetAction = () => { setActionTime(null); setReason(""); create.reset(); remove.reset(); };
+  const resetAction = () => { setActionTime(null); setLockEndChoice(null); setReason(""); create.reset(); remove.reset(); };
   const refreshAfterConflict = () => {
     onAvailabilityChange();
     void queryClient.invalidateQueries({ queryKey: keys.schedule(barber.id) });
@@ -79,7 +82,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
           onClick={() => { setManage(!manage); setShown(null); setPendingStart(null); setPendingEnd(null); resetAction(); onAvailabilityChange(); }}>
           <Lock aria-hidden />Lock / unlock times
         </Button>
-        {managing ? <p className="text-sm text-muted-foreground">Select a half-hour to lock, or a locked slot to unlock.</p> : null}
+        {managing ? <p className="text-sm text-muted-foreground">Select the start of the closed window, then its end; or a closed slot to unlock.</p> : null}
       </div> : null}
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={managing ? "Lock time" : "Start time"}>
         {slots.map(slot => {
@@ -144,17 +147,30 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-muted" aria-hidden />Past or already started</span>
       </p>
       {action ? <div className="flex flex-col gap-3 border-t border-border pt-3">
-        <p className="text-sm" role="status">{action.state === "locked" ? `Closed: ${lockReason(action)}` : <>Lock time: <span data-numeric>{formatWindow(action.startTime, action.endTime)}</span></>}</p>
-        {isAdmin && managing && action.state === "free" ? <>
+        {action.state === "locked" ? <>
+          <p className="text-sm" role="status">Closed: {lockReason(action)}</p>
+          {isAdmin && action.block ? <Button type="button" variant="outline" className="w-fit" disabled={busy}
+            onClick={() => remove.mutate({ id: barber.id, blockId: action.block!.id }, { onSuccess: saved, onError: refreshAfterConflict })}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Unlock aria-hidden />}Unlock {formatWindow(action.block.startTime, action.block.endTime)}
+          </Button> : null}
+        </> : isAdmin && managing ? <>
+          <p className="text-sm" role="status">Closing from <span data-numeric>{formatTime(action.startTime)}</span> to <span data-numeric>{lockEnd ? formatTime(lockEnd) : "—"}</span>.</p>
+          {lockEndOptions.length ? <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Lock end time">
+            {lockEndOptions.map(endTime => (
+              <button key={endTime} type="button" role="radio" aria-checked={endTime === lockEnd} aria-label={`Lock until ${formatTime(endTime)}`}
+                onClick={() => setLockEndChoice(endTime)} data-numeric
+                className={cn("min-w-[5.5rem] rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  endTime === lockEnd ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:border-primary hover:bg-accent")}>
+                {formatTime(endTime)}
+              </button>
+            ))}
+          </div> : <p className="text-xs text-destructive">No window fits after this start. Choose another start.</p>}
           <Field label="Lock reason" optional><Input value={reason} onChange={event => setReason(event.target.value)} maxLength={500} disabled={busy} /></Field>
-          <Button type="button" variant="outline" className="w-fit" disabled={busy} onClick={() => create.mutate({ id: barber.id, date, startTime: action.startTime, reason: reason.trim() }, { onSuccess: saved, onError: refreshAfterConflict })}>
-            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Lock aria-hidden />}Lock half-hour
-          </Button>
+          {lockEnd ? <Button type="button" variant="outline" className="w-fit" disabled={busy}
+            onClick={() => create.mutate({ id: barber.id, date, startTime: action.startTime, endTime: lockEnd, reason: reason.trim() }, { onSuccess: saved, onError: refreshAfterConflict })}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Lock aria-hidden />}Lock {formatTime(action.startTime)} to {formatTime(lockEnd)}
+          </Button> : null}
         </> : null}
-        {isAdmin && action.state === "locked" && action.block ? <Button type="button" variant="outline" className="w-fit" disabled={busy}
-          onClick={() => remove.mutate({ id: barber.id, blockId: action.block!.id }, { onSuccess: saved, onError: refreshAfterConflict })}>
-          {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Unlock aria-hidden />}Unlock half-hour
-        </Button> : null}
       </div> : null}
       <FormAlert error={create.error ?? remove.error} />
     </div>

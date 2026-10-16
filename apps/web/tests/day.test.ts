@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEndOptions, buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink } from "../src/lib/day";
+import { buildEndOptions, buildLockEndOptions, buildSlots, cancelReasonText, currentOrNext, daySummary, shiftDate, timeWords, whatsAppLink } from "../src/lib/day";
 
 // 2099-01-05 is a Monday (dayOfWeek 1).
 const date = "2099-01-05";
@@ -9,6 +9,15 @@ const visit = (startTime: string, endTime: string, visitStatus: "booked" | "arri
 const early = new Date("2099-01-01T00:00:00+03:00");
 
 describe("buildSlots", () => {
+  it("marks every half-hour inside a multi-hour lock as locked and points at the same block", () => {
+    const blocks = [{ id: "manual", date, startTime: "09:30", endTime: "11:00", reason: null }];
+    const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], now: early });
+    expect(slots.filter(slot => slot.block === blocks[0]).map(slot => [slot.startTime, slot.state, slot.reason])).toEqual([
+      ["09:30", "locked", "manual"], ["10:00", "locked", "manual"], ["10:30", "locked", "manual"],
+    ]);
+    expect(slots.find(slot => slot.startTime === "09:00")).toMatchObject({ state: "free" });
+  });
+
   it("shows manual locks with their reason and frees the half-hours around them", () => {
     const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: "موعد Special" }];
     const slots = buildSlots({ date, schedule: { ...schedule, blocks }, bookings: [], now: early });
@@ -99,6 +108,23 @@ describe("buildEndOptions", () => {
 
   it("returns no ends for a start outside the working hours", () => {
     expect(buildEndOptions({ date, schedule, bookings: [], startTime: "12:00", now: early })).toEqual([]);
+  });
+});
+
+describe("buildLockEndOptions", () => {
+  const wide = { days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [] };
+
+  it("lists half-hour ends up to the shift end without the visit-length cap", () => {
+    expect(buildLockEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: early })).toEqual([
+      "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00",
+    ]);
+  });
+
+  it("stops before the next booking or manual lock and refuses a start outside the shift", () => {
+    const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: null }];
+    expect(buildLockEndOptions({ date, schedule: { ...wide, blocks }, bookings: [visit("11:00", "11:30")], startTime: "09:00", now: early })).toEqual(["09:30", "10:00"]);
+    expect(buildLockEndOptions({ date, schedule, bookings: [], startTime: "11:00", now: early })).toEqual([]);
+    expect(buildLockEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: new Date(`${date}T12:00:00+03:00`) })).toEqual([]);
   });
 });
 
