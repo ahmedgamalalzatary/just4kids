@@ -7,6 +7,8 @@ import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: { default: "just4kids", template: "%s · just4kids" },
   description: "Home haircut reservation management",
+  applicationName: "just4kids",
+  appleWebApp: { capable: true, title: "just4kids", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
