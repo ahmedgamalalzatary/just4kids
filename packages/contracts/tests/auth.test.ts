@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { loginRequestSchema, sessionResponseSchema } from "../src/index.js";
+import { loginRequestSchema, phoneSchema, sessionResponseSchema } from "../src/index.js";
 
 describe("authentication contracts", () => {
   it("accepts canonical international phones and preserves password whitespace", () => {
     expect(loginRequestSchema.parse({ phone: "+96555551234", password: " password with spaces " })).toEqual({ phone: "+96555551234", password: " password with spaces " });
+  });
+
+  it("explains an invalid phone in English", () => {
+    expect(phoneSchema.safeParse("55551234").error?.issues[0]?.message).toBe("Enter an international number, e.g. +96550000000");
   });
 
   it.each([

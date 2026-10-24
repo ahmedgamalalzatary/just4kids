@@ -13,7 +13,7 @@ export const visitTransitionSchema = z.strictObject({ status: z.enum(["arrived",
 export const visitCorrectionSchema = z.strictObject({ status: visitStatusSchema, expectedVersion: version, reason });
 export const visitEventResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), version, fromStatus: visitStatusSchema.nullable(), toStatus: visitStatusSchema,
-  actorType: z.enum(["admin", "employee", "client", "system"]), actorAccountId: z.uuid().nullable(), actorClientId: z.uuid().nullable(),
+  actorType: z.enum(["admin", "employee", "system"]), actorAccountId: z.uuid().nullable(),
   reason: reason.nullable(), correction: z.boolean(), occurredAt: z.iso.datetime(),
 });
 export type VisitStatus = z.infer<typeof visitStatusSchema>;

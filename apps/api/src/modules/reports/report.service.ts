@@ -40,7 +40,6 @@ export function createReportService(repository: ReportRepository) {
       const query = { ...parsed, ...trackingPeriod(parsed) };
       const data = await repository.tracking(query);
       const accounts = new Map(data.actors.map(actor => [actor.id, actor]));
-      const clients = new Map(data.clients.map(client => [client.id, client.phone]));
       const byBooking = <Row extends { bookingId: string }>(rows: Row[]) => {
         const groups = new Map<string, Row[]>();
         for (const row of rows) { const group = groups.get(row.bookingId); if (group) group.push(row); else groups.set(row.bookingId, [row]); }
@@ -50,7 +49,7 @@ export function createReportService(repository: ReportRepository) {
       const actor = (id: string | null, role?: BookingTrackingEvent["actor"]["role"]): BookingTrackingEvent["actor"] => {
         const account = id ? accounts.get(id) : undefined;
         const kind = role ?? account?.role ?? "system";
-        const name = kind === "client" ? (id ? clients.get(id) : undefined) ?? "Client" : kind === "admin" ? "Administrator" : kind === "system" ? "System" : account?.name ?? "Another account";
+        const name = kind === "admin" ? "Administrator" : kind === "system" ? "System" : account?.name ?? "Another account";
         return { id, name, role: kind };
       };
       return bookingTrackingResponseSchema.parse({
@@ -60,7 +59,7 @@ export function createReportService(repository: ReportRepository) {
           const entries: { value: BookingTrackingEvent; version: number; id: string }[] = [];
           const add = (value: BookingTrackingEvent, id: string, version = Number.MAX_SAFE_INTEGER) => entries.push({ value, id, version });
           for (const event of serializeVisitHistory(row.booking, visits.get(id) ?? [])) {
-            add({ type: "visit", at: event.occurredAt, actor: actor(event.actorAccountId ?? event.actorClientId, event.actorType), event }, event.id, event.version);
+            add({ type: "visit", at: event.occurredAt, actor: actor(event.actorAccountId, event.actorType), event }, event.id, event.version);
           }
           for (const revision of revisions.get(id) ?? []) {
             add({ type: "revision", at: revision.occurredAt.toISOString(), actor: actor(revision.actorAccountId), revision: bookingRevisionResponseSchema.parse({ ...revision, occurredAt: revision.occurredAt.toISOString() }) }, revision.id, revision.version);

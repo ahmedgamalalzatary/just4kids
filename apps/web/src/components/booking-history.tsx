@@ -44,7 +44,7 @@ function VisitHistory({ id }: { id: string }) {
   const actorName = useActorName();
   if (history.isPending) return <LoadingRows rows={3} />;
   if (history.isError) return <ErrorState error={history.error} onRetry={() => history.refetch()} />;
-  const name = (event: VisitEvent) => event.actorType === "client" ? "Client" : event.actorType === "system" ? "System" : actorName(event.actorAccountId);
+  const name = (event: VisitEvent) => event.actorType === "system" ? "System" : actorName(event.actorAccountId);
   const timeline = buildTimeline(history.data.events, history.data.messages);
   return (
     <Timeline>

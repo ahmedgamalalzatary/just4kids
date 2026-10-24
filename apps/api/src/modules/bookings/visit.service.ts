@@ -16,7 +16,7 @@ export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect
   const events = rows.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() }));
   if (!events.some(event => event.fromStatus === null)) events.unshift(visitEventResponseSchema.parse({
     id: booking.id, bookingId: booking.id, version: 0, fromStatus: null, toStatus: "booked",
-    actorType: "admin", actorAccountId: booking.createdBy, actorClientId: null, reason: null, correction: false,
+    actorType: "admin", actorAccountId: booking.createdBy, reason: null, correction: false,
     occurredAt: booking.createdAt.toISOString(),
   }));
   return events;
@@ -48,7 +48,7 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
       const version = booking.visitVersion + 1;
       await transaction.update(bookings).set({ visitStatus: input.status, visitVersion: version }).where(eq(bookings.id, id));
       await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version, fromStatus: booking.visitStatus, toStatus: input.status,
-        actorType: account.role, actorAccountId: account.id, actorClientId: null,
+        actorType: account.role, actorAccountId: account.id,
         reason: input.reason ?? null, correction, occurredAt: new Date(now) });
       return serializeBooking({ ...booking, visitStatus: input.status, visitVersion: version });
     });

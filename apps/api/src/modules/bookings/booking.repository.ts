@@ -53,7 +53,7 @@ export function createBookingRepository(connection: ReturnType<typeof createData
       employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
     };
     await transaction.insert(bookings).values(booking);
-    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: accountId, actorClientId: null, reason: null, correction: false, occurredAt: now });
+    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: accountId, reason: null, correction: false, occurredAt: now });
     return booking;
   }
   return {

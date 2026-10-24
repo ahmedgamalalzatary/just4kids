@@ -23,7 +23,7 @@ export function visitEventTitle(event: VisitEvent) {
   return event.fromStatus === null ? `Reservation created: ${visitStatusLabels[event.toStatus]}` : `${event.correction ? "Correction: " : ""}${visitStatusLabels[event.fromStatus]} → ${visitStatusLabels[event.toStatus]}`;
 }
 
-const actorRoleLabels = { admin: "Administrator", employee: "barber", client: "client", system: "System" };
+const actorRoleLabels = { admin: "Administrator", employee: "barber", system: "System" };
 
 /** Keeps the API's booking/time order and uses the same labels and change details as per-booking history. */
 export function trackingGroups(data: BookingTrackingResponse) {

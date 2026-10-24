@@ -232,6 +232,13 @@
       "when": 1792864354006,
       "tag": "0032_add_whatsapp_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1792866149116,
+      "tag": "0033_drop_client_visit_actor",
+      "breakpoints": true
     }
   ]
 }

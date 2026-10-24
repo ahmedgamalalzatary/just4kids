@@ -176,7 +176,8 @@ describe("employee visit actions and history", () => {
     expect((await detail())).toMatchObject({ visitStatus: "completed", visitVersion: 0 });
     const recorded = await history();
     expect(recorded.body.events).toHaveLength(1);
-    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, actorClientId: null, fromStatus: null, toStatus: "completed" });
+    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, fromStatus: null, toStatus: "completed" });
+    expect(recorded.body.events[0]).not.toHaveProperty("actorClientId");
   });
 });
 
