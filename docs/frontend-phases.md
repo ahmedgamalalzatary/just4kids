@@ -1,6 +1,6 @@
 # Just4Kids frontend phases
 
-Current UI and client model (2026-10-16): the dashboard, validation/errors, dates, reports and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details`. Confirmed 2026-10-16 (feature batch P8): a reservation carries **no price, invoice or payment**; the new-reservation screen shows only the reservation summary and the two save buttons, and the invoice and payment screens, badges and filters are removed. Money remains only in barber daily collections, salon entries, and the collection-based totals in the barber and comprehensive reports. The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). This supersedes older UI/name/location/invoice descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+Current UI and client model (2026-10-16): the dashboard, validation/errors, dates, reports and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details`. Confirmed 2026-10-16 (feature batch P8): a reservation carries **no price, invoice or payment**; the new-reservation screen shows only the reservation summary and the two save buttons, and the invoice and payment screens, badges and filters are removed. Money remains only in barber daily collections, salon entries, and the collection-based totals in the barber and comprehensive reports. The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). This supersedes older UI/name/location/invoice descriptions below. Confirmed 2026-10-21: the Arabic client-facing WhatsApp AI only collects booking requests and hands them to staff, who book in the existing dashboard; no WhatsApp booking views are planned.
 
 
 Created: 2026-10-08. Product authority: [project-contract.md](project-contract.md). Backend tracker and API handoffs: [backend-phases.md](backend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md).
@@ -28,7 +28,8 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 | 9 | Reservation and haircut reports | Yes | No |
 | 10 | Barber and branch performance reports | Yes | No |
 | 11 | Client history and collection reports | Yes | No |
-| 12–13 | WhatsApp booking views | No | No |
+| 12 | WhatsApp request intake (no new screens; remove the reservation source filter, labels and count) | No | No |
+| 13 | WhatsApp booking lookup and changes (removed 2026-10-21) | — | — |
 
 ## Phase 0 — Foundation and design system
 

@@ -1,6 +1,6 @@
 # Just4Kids backend phases
 
-Current UI and client model (2026-10-16): the dashboard, validation/errors, dates, reports and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details`. Confirmed 2026-10-16 (feature batch P8): a reservation carries **no price, invoice or payment**; the `invoices`, `cash_payments` and `cash_payment_events` tables and the invoice/cash-payment endpoints and reports are removed, and saving creates the reservation and initial history atomically. Money remains only in barber daily collections and salon entries and their report measures. The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). This supersedes older UI/name/location/invoice descriptions below; the planned Arabic client-facing WhatsApp AI is unchanged.
+Current UI and client model (2026-10-16): the dashboard, validation/errors, dates, reports and barber WhatsApp handoff use English with a left-to-right layout. Saved user-entered text is preserved in its original language. Clients have a phone number and addresses; client names, address instructions and latitude/longitude are removed from forms, API contracts, database columns and saved reservation/revision JSON by migrations `0024_remove_client_details` and `0025_remove_client_receipt_details`. Confirmed 2026-10-16 (feature batch P8): a reservation carries **no price, invoice or payment**; the `invoices`, `cash_payments` and `cash_payment_events` tables and the invoice/cash-payment endpoints and reports are removed, and saving creates the reservation and initial history atomically. Money remains only in barber daily collections and salon entries and their report measures. The reservation action offers two buttons: **Save reservation** (save and return to today's reservations) and **Save & send via WhatsApp** (save, record the WhatsApp handoff, open WhatsApp for the barber, then return to today's reservations). This supersedes older UI/name/location/invoice descriptions below. Confirmed 2026-10-21: the Arabic client-facing WhatsApp AI only collects booking requests and hands them to staff; it does not book (phase 12 below; phase 13 is removed).
 
 
 Created: 2026-09-29. Product authority: [project-contract.md](project-contract.md). Frontend tracker: [frontend-phases.md](frontend-phases.md). Repository rules: [AGENTS.md](../AGENTS.md). Setup commands: [README.md](../README.md).
@@ -35,7 +35,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Frontend | English LTR dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–11 implemented; phases 12–14 and all frontend journeys pending |
+| Business features | Backend phases 1–11 implemented; phase 13 removed (2026-10-21); phases 12 and 14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -352,7 +352,7 @@ Backend verification (2026-10-02): baseline forced backend lint/typecheck/build 
 
 ## Phase 9 — Reservation overview and haircut reports
 
-Depends on: phases 5–8. AI-source breakdown becomes end-to-end verifiable after phase 12. Decisions confirmed on 2026-10-08: selectable visit-date or booking-date basis; haircut quantities shown as reserved plus completed/open/cancelled/no-show; changes count administrator edits and status corrections separately.
+Depends on: phases 5–8. Since 2026-10-21 the WhatsApp AI creates no reservations, so the `ai` source receives no new records. Decisions confirmed on 2026-10-08: selectable visit-date or booking-date basis; haircut quantities shown as reserved plus completed/open/cancelled/no-show; changes count administrator edits and status corrections separately.
 
 Outcome: administrator and employees inspect permitted reservations and haircut output using labelled date bases.
 
@@ -431,55 +431,47 @@ Acceptance:
 
 - [ ] A paid cancelled visit and revised invoice appear correctly without inflating invoice totals or hiding recorded cash history.
 
-## Phase 12 — Arabic WhatsApp booking journey
+## Phase 12 — Arabic WhatsApp booking-request intake
 
-Depends on: phases 2–5 and their shared services. Decision gate: WhatsApp provider/onboarding, AI provider/model, conversation retention, automatic barber-selection tie-breaks, and provider credentials.
+Depends on: phase 4 (client phone format). Decided 2026-10-21: OpenWA gateway, intake-only AI with staff handoff, conversations kept indefinitely; the owner accepts OpenWA's number-ban risk. Decided 2026-10-24: OpenAI-compatible Chat Completions AI format, follow-up handling (new request, change/cancellation update, forward), English staff messages, and removal of the reservation `source` field. Decision gate still open: the AI provider and model, and OpenWA onboarding (session and number linking).
 
-Outcome: a client books through the business's single WhatsApp number and receives an Arabic result backed by a committed reservation/invoice.
+Outcome: a client sends a booking request to the business's single WhatsApp number in Arabic; the AI collects the details, tells the client a person will follow up, and sends one request summary to the staff WhatsApp number. Later messages produce a new summary, an update to an earlier request, or a forward. Staff create and change reservations manually in the dashboard. Product rules: [project-contract.md](project-contract.md#whatsapp-journey).
 
-Backend checklist:
+Processing design:
 
-- [ ] Install/configure only the selected provider/AI dependencies and validate credentials without exposing secrets.
-- [ ] Implement provider verification, authenticated webhook handling, sender identity, delivery/retry handling, and durable duplicate-operation protection.
-- [ ] Implement Arabic conversation state under the agreed retention policy: counts, contact, address/location, date/window, barber/branch choice, and price review.
-- [ ] Support named-barber choice or AI selection using the confirmed tie-break policy and offer alternatives on unavailability.
-- [ ] Expose narrowly authorized AI tools using the same booking/availability/client services; never give the model direct database/admin access.
-- [ ] Save reservation and invoice together with AI source and reply with a reference only after backend success; require no administrator approval.
-- [ ] Test duplicate/concurrent webhooks, retries/restarts, sender isolation, validation/conflict alternatives, and failures without false success; pass targeted checks.
-- [ ] Verify the real provider conversation once credentials/onboarding are available.
-
-Frontend checklist:
-
-- [ ] Show AI-source bookings and their invoice/details in the existing dashboard and source filters.
-- [ ] Verify that WhatsApp-created reservations appear in the appropriate administrator/assigned-employee views.
-
-Acceptance:
-
-- [ ] One Arabic WhatsApp booking creates one reservation/invoice despite retries, and the dashboard displays the committed result.
-
-## Phase 13 — WhatsApp booking lookup and changes
-
-Depends on: phases 6–8 and 12. Decision gate: future-booked self-service policy, lead-time cutoff, terminal-state behavior, and any client-edit pricing policy.
-
-Outcome: the sender finds the correct own reservation and can request permitted rescheduling/cancellation through conversation.
+```text
+OpenWA ─POST /api/whatsapp/webhook─► verify signature ─► save inbound (unique idempotency key) ─► 200
+                                                                │
+                              worker (one conversation at a time, resumes after restart)
+                                                                ▼
+                         AI turn ─► outbound rows (stable Idempotency-Key, status pending → sent / failed)
+                                    staff message first, then the client reply
+```
 
 Backend checklist:
 
-- [ ] Implement sender-scoped booking lookup and disambiguation before any mutation.
-- [ ] Add permitted client reschedule/cancel tools through shared services; deny arbitrary record IDs and administrator-only/employee-only actions.
-- [ ] Apply the confirmed future/state policy, availability commit checks, failed-reschedule rollback, invoice preservation/cancellation, and paid-record safeguards.
-- [ ] Apply durable idempotency to reads/mutations/retries as appropriate and provide truthful Arabic results/alternatives after backend completion.
-- [ ] Test ambiguous references, cross-client access, terminal/past visits, duplicate operations, booking races, and no false success; pass targeted checks.
-- [ ] Verify real lookup/reschedule/cancel conversations under the selected provider.
+- [ ] Add OpenWA, AI (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`) and staff-number settings to `.env`, `.env.production` and their examples; validate them at startup without exposing secrets. Use the built-in `fetch`; no AI SDK dependency.
+- [ ] Receive OpenWA `message.received` webhooks: verify `X-OpenWA-Signature` over the raw body, answer individual-chat `text` messages only (ignore `fromMe`, groups and every other type), and deduplicate on `X-OpenWA-Idempotency-Key`.
+- [ ] Store conversations and messages indefinitely, keyed by the sender's international phone number (`senderPhone` for `@lid` senders, with `RESOLVE_LID_TO_PHONE=true` on OpenWA).
+- [ ] Have the AI collect adult/child counts, address, and requested date and time window in Arabic, with no database, booking or administrator access.
+- [ ] When a request is complete, send one request summary (client phone, counts, address, date and window) to `STAFF_WHATSAPP_NUMBER` through OpenWA `send-text` with an `Idempotency-Key`, then reply "we will let a human know".
+- [ ] For a change to or cancellation of a request already sent, send staff an update naming the earlier request; forward anything else to staff and reply "we will let a human know".
+- [ ] Remove the unused AI-source creation path, the internal client-cancellation service, and the reservation `source` field (contracts, database column, reports filter and summary count). No `ai` records existed in the development database on 2026-10-24; the migration must still refuse to run silently over production `ai` rows.
+- [ ] Test signature rejection, duplicate/concurrent webhooks, retries/restarts, sender isolation, AI/OpenWA failures (no false "sent" state), and exactly one staff message per completed request or update; pass targeted checks.
+- [ ] Verify a real conversation and staff message once OpenWA is linked and the AI provider is chosen.
 
 Frontend checklist:
 
-- [ ] Display WhatsApp-driven changes, cancellations, and permitted history in dashboard detail/report views.
-- [ ] Verify the dashboard reflects a failed reschedule's unchanged original booking and a successful conversation's committed changes.
+- [ ] Remove the source filter, source labels and the source summary count from the bookings list, booking detail and reports.
+- [ ] No new screens: staff create the reservation through the existing new-booking screen. Any dashboard view of WhatsApp requests or conversations needs a separate decision.
 
 Acceptance:
 
-- [ ] A client changes only their own eligible booking; duplicate messages and rejected changes leave a consistent dashboard and history.
+- [ ] One Arabic WhatsApp request produces one client reply and one staff request summary despite retries, and no reservation is created automatically.
+
+## Phase 13 — WhatsApp booking lookup and changes (removed)
+
+Removed 2026-10-21. The WhatsApp AI handles only new booking requests; questions about existing bookings, changes and cancellations are forwarded to staff, who act in the dashboard. The internal `cancelForClient` service, the trusted-sender AI creation path from phases 5–6, and the `ai` reservation source are removed as part of phase 12.
 
 ## Phase 14 — Production rollout and complete acceptance
 
@@ -491,7 +483,7 @@ Backend/operations checklist:
 - [ ] Build and verify the API production image and selected deployment configuration with the existing host MySQL.
 - [ ] Configure HTTPS, managed processes, database access, safe logs, health/readiness checks, and operational failure handling.
 - [ ] Configure backups and successfully restore one into an isolated database; record the restore procedure and evidence.
-- [ ] Verify authenticated real WhatsApp delivery, provider retries, and selected AI configuration in the deployment environment.
+- [ ] Run OpenWA in the deployment environment and verify signed webhook delivery, retries, the staff request summary, and the selected AI configuration.
 - [ ] Verify all backend lint/typecheck/tests/builds and real-MySQL booking/payment concurrency, authorization, snapshots, revision, and report acceptance.
 - [ ] Document setup, migrations, integrations, deployment, backups/restoration, and remaining operational responsibilities without secrets.
 
