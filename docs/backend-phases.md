@@ -35,7 +35,7 @@ Current backend state reviewed on 2026-10-02; frontend and container entries ret
 | Frontend | English LTR dashboard for backend phases 1–10 with shadcn/ui, design tokens, light/dark themes; checks and RTL shell verified, journeys with real records not yet verified |
 | Containers | Separate API/web Dockerfiles, Compose, secret-excluding Docker ignore file; execution unverified |
 | Local tools | Node `24.14.0`, pnpm `12.4.1`, MySQL listener on port `3306`; Docker command unavailable |
-| Business features | Backend phases 1–11 implemented; phase 13 removed (2026-10-21); phases 12 and 14 and all frontend journeys pending |
+| Business features | Backend phases 1–12 implemented (phase 12 awaits a real OpenWA/AI check); phase 13 removed (2026-10-21); phase 14 and all frontend journeys pending |
 
 No existing frontend item is marked complete. Its scaffold has been inspected for context only.
 
@@ -450,20 +450,36 @@ OpenWA ─POST /api/whatsapp/webhook─► verify signature ─► save inbound 
 
 Backend checklist:
 
-- [ ] Add OpenWA, AI (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`) and staff-number settings to `.env`, `.env.production` and their examples; validate them at startup without exposing secrets. Use the built-in `fetch`; no AI SDK dependency.
-- [ ] Receive OpenWA `message.received` webhooks: verify `X-OpenWA-Signature` over the raw body, answer individual-chat `text` messages only (ignore `fromMe`, groups and every other type), and deduplicate on `X-OpenWA-Idempotency-Key`.
-- [ ] Store conversations and messages indefinitely, keyed by the sender's international phone number (`senderPhone` for `@lid` senders, with `RESOLVE_LID_TO_PHONE=true` on OpenWA).
-- [ ] Have the AI collect adult/child counts, address, and requested date and time window in Arabic, with no database, booking or administrator access.
-- [ ] When a request is complete, send one request summary (client phone, counts, address, date and window) to `STAFF_WHATSAPP_NUMBER` through OpenWA `send-text` with an `Idempotency-Key`, then reply "we will let a human know".
-- [ ] For a change to or cancellation of a request already sent, send staff an update naming the earlier request; forward anything else to staff and reply "we will let a human know".
-- [ ] Remove the unused AI-source creation path, the internal client-cancellation service, and the reservation `source` field (contracts, database column, reports filter and summary count). No `ai` records existed in the development database on 2026-10-24; the migration must still refuse to run silently over production `ai` rows.
-- [ ] Test signature rejection, duplicate/concurrent webhooks, retries/restarts, sender isolation, AI/OpenWA failures (no false "sent" state), and exactly one staff message per completed request or update; pass targeted checks.
+- [x] Add OpenWA, AI (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`) and staff-number settings to `.env`, `.env.production` and their examples; validate them at startup without exposing secrets. Use the built-in `fetch`; no AI SDK dependency.
+- [x] Receive OpenWA `message.received` webhooks: verify `X-OpenWA-Signature` over the raw body, answer individual-chat `text` messages only (ignore `fromMe`, groups and every other type), and deduplicate on `X-OpenWA-Idempotency-Key`.
+- [x] Store conversations and messages indefinitely, keyed by the sender's international phone number (`senderPhone` for `@lid` senders, with `RESOLVE_LID_TO_PHONE=true` on OpenWA).
+- [x] Have the AI collect adult/child counts, address, and requested date and time window in Arabic, with no database, booking or administrator access.
+- [x] Load the owner's prompt from `apps/api/prompts/whatsapp-ai.md` (starter version provided; the owner replaces it) and append the fixed answer-format part in code; ship the file in the API Docker image.
+- [x] When a request is complete, send one request summary (client phone, counts, address, date and window) to `STAFF_WHATSAPP_NUMBER` through OpenWA `send-text` with an `Idempotency-Key`, then reply "we will let a human know".
+- [x] For a change to or cancellation of a request already sent, send staff an update naming the earlier request; forward anything else to staff and reply "we will let a human know".
+- [x] Remove the unused AI-source creation path, the internal client-cancellation service, and the reservation `source` field (contracts, database column, reports filter and summary count). The AI creation path never had an external caller (no webhook existed), so no `ai` rows can exist; the development database had none on 2026-10-24. Migration `0031_drop_booking_source` drops the column.
+- [x] Test signature rejection, duplicate/concurrent webhooks, retries/restarts, sender isolation, AI/OpenWA failures (no false "sent" state), and exactly one staff message per completed request or update; pass targeted checks.
 - [ ] Verify a real conversation and staff message once OpenWA is linked and the AI provider is chosen.
 
 Frontend checklist:
 
-- [ ] Remove the source filter, source labels and the source summary count from the bookings list, booking detail and reports.
-- [ ] No new screens: staff create the reservation through the existing new-booking screen. Any dashboard view of WhatsApp requests or conversations needs a separate decision.
+- [x] Remove the source filter, source labels and the source summary count from the bookings list, booking detail and reports.
+- [x] No new screens: staff create the reservation through the existing new-booking screen. Any dashboard view of WhatsApp requests or conversations needs a separate decision.
+
+Implemented 2026-10-24 (branch `feat/whatsapp-intake`): migration `0031_drop_booking_source` drops the reservation source; migration `0032_add_whatsapp_intake` adds `whatsapp_conversations` (one per phone, with a worker lease and retry time), `whatsapp_messages` (inbound and outbound, unique idempotency key, pending/done/failed) and `whatsapp_requests` (the request number staff see). The API module `apps/api/src/modules/whatsapp` serves `POST /whatsapp/webhook` only when every setting is present, answers after acknowledging, retries AI and OpenWA failures with back-off (30 seconds doubling to 10 minutes; gives up after 12 attempts and marks the work failed), resumes stored work at startup and every 30 seconds, and lets one worker at a time answer a conversation. The AI reads the last 40 client messages and replies. Tests: `apps/api/tests/whatsapp-parts.test.ts` and `apps/api/tests/whatsapp.test.ts` (real MySQL, fake AI and OpenWA).
+
+Also built 2026-10-24: the compose service `openwa` (pinned image `ghcr.io/rmyndharis/openwa:0.25.0`, opt-in profile `whatsapp`, loopback-only dashboard, webhook to `http://api:4000/whatsapp/webhook` on the private network), `pnpm docker:up:whatsapp`, `OPENWA_SESSION_ID` validated as the session UUID (OpenWA's webhooks and send routes use the id, not the name), and the onboarding steps in the README. Migration `0033_drop_client_visit_actor` removes the unused `client` visit-history actor and `actor_client_id` (no rows used them), and the shared phone validation message is English.
+
+Open decisions (deliberately not built):
+
+| Decision | Status / what it blocks |
+| --- | --- |
+| AI provider and model | Settings only (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`). The provider must accept `response_format: { "type": "json_object" }` on Chat Completions; one that does not needs a code change. Blocks the real conversation check. |
+| Owner's prompt | `apps/api/prompts/whatsapp-ai.md` holds a starter version until the owner writes theirs. |
+| OpenWA onboarding | Which phone number/SIM is linked and who scans the QR; the engine (`OPENWA_ENGINE_TYPE`: empty keeps OpenWA's default whatsapp-web.js, which runs Chromium and is budgeted 2 GB; `baileys` needs no browser); whether the Hostinger KVM1 VPS has the memory for it beside MySQL, the API and the web app. |
+| Repeated AI failure | After 12 failed AI attempts (about 1.5 hours) the client's messages are marked failed: the client gets no reply and staff are not told. Whether staff should get an alert is undecided. |
+| Dashboard view of WhatsApp requests | No screen exists; requests reach staff only through WhatsApp. Needs a separate decision. |
+| Production rollout | Phase 14: HTTPS/domain, backups (now including the `openwa-data` volume, which holds the linked session) and the real webhook/retry check. |
 
 Acceptance:
 
@@ -483,7 +499,7 @@ Backend/operations checklist:
 - [ ] Build and verify the API production image and selected deployment configuration with the existing host MySQL.
 - [ ] Configure HTTPS, managed processes, database access, safe logs, health/readiness checks, and operational failure handling.
 - [ ] Configure backups and successfully restore one into an isolated database; record the restore procedure and evidence.
-- [ ] Run OpenWA in the deployment environment and verify signed webhook delivery, retries, the staff request summary, and the selected AI configuration.
+- [ ] Run OpenWA in the deployment environment (compose service `openwa`, built in phase 12) and verify signed webhook delivery, retries, the staff request summary, and the selected AI configuration. Back up the `openwa-data` volume with the database.
 - [ ] Verify all backend lint/typecheck/tests/builds and real-MySQL booking/payment concurrency, authorization, snapshots, revision, and report acceptance.
 - [ ] Document setup, migrations, integrations, deployment, backups/restoration, and remaining operational responsibilities without secrets.
 
