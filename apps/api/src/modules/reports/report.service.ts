@@ -29,7 +29,7 @@ function collectionCash(row: CollectionRow | undefined) {
 
 // Daily collections carry only a barber and a day, so they follow the period and barber filters and nothing else.
 function collectionsFollow(query: HaircutReportQuery) {
-  return !query.clientId && !query.status && !query.source && !query.q;
+  return !query.clientId && !query.status && !query.q;
 }
 
 export function createReportService(repository: ReportRepository) {
@@ -80,7 +80,6 @@ export function createReportService(repository: ReportRepository) {
         dateBasis: query.dateBasis, timeZone: "Asia/Kuwait",
         summary: {
           bookings: summary.bookings, statuses: { booked: summary.booked, arrived: summary.arrived, completed: summary.completed, cancelled: summary.cancelled, no_show: summary.noShow },
-          sources: { manual: summary.manual, ai: summary.ai },
           editedBookings: summary.editedBookings, edits: summary.edits, correctedBookings: summary.correctedBookings, corrections: summary.corrections,
         },
         bookings: rows.map(row => ({ ...serializeBooking(row.booking), editCount: row.editCount, correctionCount: row.correctionCount })),

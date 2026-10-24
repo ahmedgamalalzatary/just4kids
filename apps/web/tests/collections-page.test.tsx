@@ -58,7 +58,7 @@ const id = "11111111-1111-4111-8111-111111111111", entryId = "33333333-3333-4333
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
 const client = { phone };
 const barber = { id, displayName: "سالم" };
-const completed = bookingResponseSchema.parse({ id, reference: "J4K-1", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 3, specialChildCount: 1, notes: null, source: "manual", visitStatus: "completed", visitVersion: 0, createdAt: timestamp, client, address, employee: barber });
+const completed = bookingResponseSchema.parse({ id, reference: "J4K-1", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 3, specialChildCount: 1, notes: null, visitStatus: "completed", visitVersion: 0, createdAt: timestamp, client, address, employee: barber });
 const entry = { id: entryId, version: 1, employeeId: id, displayName: "سالم", date: "2099-01-05", normalChildren: 2, specialChildren: 1, cash: "6.000", link: "1.000", knet: "0.000", total: "7.000", enteredBy: id, createdAt: timestamp, updatedAt: timestamp };
 const snapshot = (cash: string, total: string) => ({ employeeId: id, date: "2099-01-05", normalChildren: 2, specialChildren: 1, cash, link: "1.000", knet: "0.000", total });
 const history = [

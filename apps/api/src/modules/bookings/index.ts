@@ -25,7 +25,7 @@ export function createBookings(connection: ReturnType<typeof createDatabase>, au
   router.use(auth.requireAuth);
   router.get("/", handle(async (request, response) => { response.json(await service.list(request.query, (response.locals.auth as Authenticated).account)); }));
   router.post("/", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => {
-    response.status(201).json(await service.create(request.body, { kind: "administrator", accountId: (response.locals.auth as Authenticated).account.id }));
+    response.status(201).json(await service.create(request.body, (response.locals.auth as Authenticated).account.id));
   }));
   router.post("/with-client", auth.requireAdmin, auth.requireCsrf, handle(async (request, response) => {
     response.status(201).json(await service.createWithClient(request.body, (response.locals.auth as Authenticated).account.id));

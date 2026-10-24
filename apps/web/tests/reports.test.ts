@@ -7,8 +7,8 @@ const clientId = "9f8e7d6c-5b4a-4321-8765-432109876543";
 
 describe("report filters", () => {
   it("reads valid filters from the address", () => {
-    const params = new URLSearchParams({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, status: "no_show", source: "ai", q: "  J4K-1 " });
-    expect(readReportFilters(params, true)).toEqual({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, clientId: "", status: "no_show", source: "ai", q: "J4K-1" });
+    const params = new URLSearchParams({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, status: "no_show", source: "manual", q: "  J4K-1 " });
+    expect(readReportFilters(params, true)).toEqual({ dateBasis: "created_date", from: "2026-10-01", to: "2026-10-31", branchId, employeeId, clientId: "", status: "no_show", q: "J4K-1" });
   });
 
   it("reads the client drill-down", () => {
@@ -33,7 +33,7 @@ describe("report filters", () => {
   });
 
   it("round-trips through the address", () => {
-    const filters = { ...emptyReportFilters, dateBasis: "created_date" as const, from: "2026-10-01", to: "2026-10-02", branchId, source: "manual" as const };
+    const filters = { ...emptyReportFilters, dateBasis: "created_date" as const, from: "2026-10-01", to: "2026-10-02", branchId };
     expect(readReportFilters(new URLSearchParams(reportSearch(filters)), true)).toEqual(filters);
     const driven = { ...emptyReportFilters, clientId };
     expect(readReportFilters(new URLSearchParams(reportSearch(driven)), true)).toEqual(driven);

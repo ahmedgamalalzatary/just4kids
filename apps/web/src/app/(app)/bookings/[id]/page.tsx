@@ -10,7 +10,7 @@ import { WhatsAppButton } from "@/components/day-bookings";
 import { BookingEditDialog } from "@/components/booking-edit-dialog";
 import { BookingHistory } from "@/components/booking-history";
 import { Detail, ErrorState, LoadingRows, Ltr } from "@/components/page";
-import { SourceLabel, VisitStatusBadge } from "@/components/status";
+import { VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/client";
@@ -83,7 +83,6 @@ function BookingScreen({ id }: { id: string }) {
               </Detail>
               <Detail label="Haircuts">{[data.adultCount ? `${data.adultCount} adult` : null, data.childCount ? `${data.childCount} child` : null, data.specialChildCount ? `${data.specialChildCount} with special needs` : null].filter(Boolean).join(", ")}</Detail>
               {data.notes ? <Detail label="Notes" className="sm:col-span-2">{data.notes}</Detail> : null}
-              <Detail label="Source"><SourceLabel source={data.source} /></Detail>
               <Detail label="Reservation date">{formatDateTime(data.createdAt)}</Detail>
             </dl>
           </CardContent>

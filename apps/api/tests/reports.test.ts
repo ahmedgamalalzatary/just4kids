@@ -20,15 +20,15 @@ const phones = { [barberA]: `+965${randomInt(40000000, 44999999)}`, [barberB]: `
 const range = { from: "2097-03-01", to: "2097-03-03" };
 type Session = { cookie: string; accountId: string };
 let admin: Session, sessionA: Session, sessionB: Session;
-type Fixture = { date: string; employeeId: string; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; source: "manual" | "ai"; adult: number; child: number; createdAt: string };
+type Fixture = { date: string; employeeId: string; clientId: string; status: "booked" | "arrived" | "completed" | "cancelled" | "no_show"; adult: number; child: number; createdAt: string };
 // b2 is completed; b3 is cancelled. tier only picked the old fixture prices.
 const fixtures: Fixture[] = [
-  { date: "2097-03-01", employeeId: barberA, clientId: clientOne, status: "completed", source: "manual", adult: 2, child: 1, createdAt: "2097-02-20T22:30:00Z" },
-  { date: "2097-03-01", employeeId: barberA, clientId: clientTwo, status: "completed", source: "ai", adult: 1, child: 0, createdAt: "2097-02-21T10:00:00Z" },
-  { date: "2097-03-02", employeeId: barberB, clientId: clientOne, status: "cancelled", source: "manual", adult: 0, child: 2, createdAt: "2097-02-21T21:00:00Z" },
-  { date: "2097-03-02", employeeId: barberC, clientId: clientTwo, status: "no_show", source: "manual", adult: 1, child: 1, createdAt: "2097-02-22T00:00:00Z" },
-  { date: "2097-03-03", employeeId: barberA, clientId: clientOne, status: "booked", source: "manual", adult: 3, child: 0, createdAt: "2097-02-25T08:00:00Z" },
-  { date: "2097-03-03", employeeId: barberC, clientId: clientOne, status: "arrived", source: "ai", adult: 0, child: 1, createdAt: "2097-02-25T09:00:00Z" },
+  { date: "2097-03-01", employeeId: barberA, clientId: clientOne, status: "completed", adult: 2, child: 1, createdAt: "2097-02-20T22:30:00Z" },
+  { date: "2097-03-01", employeeId: barberA, clientId: clientTwo, status: "completed", adult: 1, child: 0, createdAt: "2097-02-21T10:00:00Z" },
+  { date: "2097-03-02", employeeId: barberB, clientId: clientOne, status: "cancelled", adult: 0, child: 2, createdAt: "2097-02-21T21:00:00Z" },
+  { date: "2097-03-02", employeeId: barberC, clientId: clientTwo, status: "no_show", adult: 1, child: 1, createdAt: "2097-02-22T00:00:00Z" },
+  { date: "2097-03-03", employeeId: barberA, clientId: clientOne, status: "booked", adult: 3, child: 0, createdAt: "2097-02-25T08:00:00Z" },
+  { date: "2097-03-03", employeeId: barberC, clientId: clientOne, status: "arrived", adult: 0, child: 1, createdAt: "2097-02-25T09:00:00Z" },
 ];
 const ids: string[] = fixtures.map(() => randomUUID());
 const references = ids.map(id => `J4K-RPT${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`);
@@ -57,7 +57,7 @@ beforeAll(async () => {
     const client = fixture.clientId === clientOne ? { phone: "+96555000001" } : { phone: "+96555000002" };
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
-      date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: fixture.source, visitStatus: fixture.status, visitVersion: 3,
+      date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, visitStatus: fixture.status, visitVersion: 3,
       clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(fixture.createdAt),
     });
@@ -92,11 +92,11 @@ describe("reservation overview report", () => {
     expect(invalid.status).toBe(400);
     expect(invalid.body.error.code).toBe("INVALID_INPUT");
   });
-  it("summarizes statuses, sources, edits, and corrections by visit date and lists the matching reservations", async () => {
+  it("summarizes statuses, edits, and corrections by visit date and lists the matching reservations", async () => {
     const response = await report("reservations", range);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ dateBasis: "visit_date", timeZone: "Asia/Kuwait", total: 6, limit: 20, offset: 0 });
-    expect(response.body.summary).toEqual({ bookings: 6, statuses: { booked: 1, arrived: 1, completed: 2, cancelled: 1, no_show: 1 }, sources: { manual: 4, ai: 2 }, editedBookings: 2, edits: 3, correctedBookings: 1, corrections: 1 });
+    expect(response.body.summary).toEqual({ bookings: 6, statuses: { booked: 1, arrived: 1, completed: 2, cancelled: 1, no_show: 1 }, editedBookings: 2, edits: 3, correctedBookings: 1, corrections: 1 });
     // Newest visit date first; equal windows fall back to descending ID.
     const descending = (left: string, right: string) => right.localeCompare(left);
     expect(response.body.bookings.map((booking: { id: string }) => booking.id)).toEqual([[ids[4]!, ids[5]!], [ids[2]!, ids[3]!], [ids[0]!, ids[1]!]].flatMap(day => day.sort(descending)));
@@ -113,10 +113,10 @@ describe("reservation overview report", () => {
     expect(bookedDay.body.bookings.map((booking: { id: string }) => booking.id).sort()).toEqual([ids[0], ids[1]].sort());
     expect(bookedDay.body.summary.bookings).toBe(2);
   });
-  it("filters by status, source, client, barber, and search text, and paginates details without changing the summary", async () => {
+  it("filters by status, client, barber, and search text, and paginates details without changing the summary", async () => {
     const idsFor = async (query: Record<string, string>) => (await report("reservations", { ...range, ...query })).body.bookings.map((booking: { id: string }) => booking.id).sort();
     expect(await idsFor({ status: "completed" })).toEqual([ids[0], ids[1]].sort());
-    expect(await idsFor({ source: "ai" })).toEqual([ids[1], ids[5]].sort());
+    expect((await report("reservations", { ...range, source: "manual" })).status).toBe(400);
     expect(await idsFor({ clientId: clientTwo })).toEqual([ids[1], ids[3]].sort());
     expect((await report("reservations", { ...range, branchId: randomUUID() })).status).toBe(400);
     expect(await idsFor({ employeeId: barberA })).toEqual([ids[0], ids[1], ids[4]].sort());
@@ -164,7 +164,7 @@ describe("haircut report", () => {
     const response = await report("haircuts", { dateBasis: "created_date", from: "2097-02-21", to: "2097-02-22" });
     expect(response.body.dateBasis).toBe("created_date");
     expect(response.body.byDate.map((row: { date: string; bookings: number }) => [row.date, row.bookings])).toEqual([["2097-02-21", 2], ["2097-02-22", 2]]);
-    const completed = await report("haircuts", { ...range, status: "completed", source: "ai" });
+    const completed = await report("haircuts", { ...range, status: "completed", clientId: clientTwo });
     expect(completed.body.totals).toMatchObject({ bookings: 1, reserved: pair(1, 0), completed: pair(1, 0) });
   });
   it("limits a barber's haircut report to their own work", async () => {

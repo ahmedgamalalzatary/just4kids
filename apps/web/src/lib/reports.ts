@@ -3,10 +3,10 @@ import { bookingTrackingQuerySchema, reportDateBasisSchema, TRACKING_MAX_DAYS, t
 import type { ReportDateBasis, VisitStatus } from "@just4kids/contracts";
 
 export type ReportFilters = {
-  dateBasis: ReportDateBasis; from: string; to: string; branchId: string; employeeId: string; clientId: string; status: VisitStatus | ""; source: "manual" | "ai" | ""; q: string;
+  dateBasis: ReportDateBasis; from: string; to: string; branchId: string; employeeId: string; clientId: string; status: VisitStatus | ""; q: string;
 };
 
-export const emptyReportFilters: ReportFilters = { dateBasis: "visit_date", from: "", to: "", branchId: "", employeeId: "", clientId: "", status: "", source: "", q: "" };
+export const emptyReportFilters: ReportFilters = { dateBasis: "visit_date", from: "", to: "", branchId: "", employeeId: "", clientId: "", status: "", q: "" };
 
 export function trackingFilters(filters: ReportFilters): ReportFilters {
   return { ...emptyReportFilters, from: filters.from, to: filters.to, employeeId: filters.employeeId, clientId: filters.clientId };
@@ -23,7 +23,6 @@ export function trackingRangeError(from: string, to: string): string | undefined
 
 const date = z.iso.date();
 const uuid = z.uuid();
-const source = z.enum(["manual", "ai"]);
 const pick = <T>(schema: z.ZodType<T>, value: string | null, fallback: T): T => {
   const parsed = schema.safeParse(value);
   return parsed.success ? parsed.data : fallback;
@@ -39,7 +38,6 @@ export function readReportFilters(params: Pick<URLSearchParams, "get">, isAdmin:
     employeeId: isAdmin ? pick(uuid, params.get("employeeId"), "") : "",
     clientId: isAdmin ? pick(uuid, params.get("clientId"), "") : "",
     status: pick(visitStatusSchema, params.get("status"), ""),
-    source: pick(source, params.get("source"), ""),
     q: q.length <= 120 ? q : "",
   };
 }

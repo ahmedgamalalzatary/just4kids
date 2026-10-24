@@ -9,7 +9,7 @@ const filters = {
   dateBasis: reportDateBasisSchema.default("visit_date"),
   from: eligibilityQuerySchema.shape.date.optional(), to: eligibilityQuerySchema.shape.date.optional(),
   employeeId: z.uuid().optional(), clientId: z.uuid().optional(),
-  status: visitStatusSchema.optional(), source: z.enum(["manual", "ai"]).optional(),
+  status: visitStatusSchema.optional(),
   q: z.string().trim().max(120).default(""),
 };
 const orderedRange = (value: { from?: string | undefined; to?: string | undefined }, context: z.RefinementCtx) => {
@@ -60,7 +60,7 @@ const statusCounts = z.strictObject({ booked: total, arrived: total, completed: 
 export const reservationReportResponseSchema = z.strictObject({
   dateBasis: reportDateBasisSchema, timeZone: z.literal("Asia/Kuwait"),
   summary: z.strictObject({
-    bookings: total, statuses: statusCounts, sources: z.strictObject({ manual: total, ai: total }),
+    bookings: total, statuses: statusCounts,
     // Edits are administrator reservation revisions; corrections are administrator visit-status corrections.
     editedBookings: total, edits: total, correctedBookings: total, corrections: total,
   }),

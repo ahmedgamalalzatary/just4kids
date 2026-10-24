@@ -69,7 +69,7 @@ beforeAll(async () => {
     const id = ids[index]!;
     await connection.db.insert(bookings).values({
       id, reference: `J4K-PRF${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`, clientId, addressId, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
-      date: "2096-04-06", startTime: fixture.start, endTime: fixture.end, adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 2,
+      date: "2096-04-06", startTime: fixture.start, endTime: fixture.end, adultCount: fixture.adult, childCount: fixture.child, visitStatus: fixture.status, visitVersion: 2,
       clientSnapshot: { phone: "+96555000003" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "قديم" }, createdAt: new Date("2096-04-01T08:00:00Z"),
     });

@@ -50,7 +50,7 @@ beforeAll(async () => {
     await connection.db.insert(bookings).values({
       id, reference: `J4K-${id.slice(0, 8)}`, employeeId, clientId, addressId: clientId === clientA ? addressA : addressB, createdBy: adminId,
       date: index === 3 ? "2096-04-12" : index === 0 ? "2096-04-10" : "2096-04-11", startTime: index === 1 ? "12:00" : "10:00", endTime: "13:00",
-      adultCount: 1, childCount: 2, specialChildCount: 1, visitStatus: "completed", visitVersion: 8, source: "manual", createdAt: at(8),
+      adultCount: 1, childCount: 2, specialChildCount: 1, visitStatus: "completed", visitVersion: 8, createdAt: at(8),
       clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: employeeId, displayName: "اسم الحلاق وقت الحجز" },
       addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
     });
@@ -58,7 +58,7 @@ beforeAll(async () => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuwait" }).format(now);
   await connection.db.insert(bookings).values({
     id: thisWeek, reference: `J4K-${thisWeek.slice(0, 8)}`, employeeId: barberA, clientId: clientA, addressId: addressA, createdBy: adminId,
-    date: today, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1, specialChildCount: 0, visitStatus: "booked", visitVersion: 0, source: "manual", createdAt: now,
+    date: today, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1, specialChildCount: 0, visitStatus: "booked", visitVersion: 0, createdAt: now,
     clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: barberA, displayName: "حلاق التتبع" },
     addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
   });

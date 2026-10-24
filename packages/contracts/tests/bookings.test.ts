@@ -51,12 +51,13 @@ describe("booking contracts", () => {
       id: "11111111-1111-4111-8111-111111111111", reference: "J4K-ABCDEFGHIJKL", clientId: "22222222-2222-4222-8222-222222222222",
       addressId: "33333333-3333-4333-8333-333333333333", employeeId: "44444444-4444-4444-8444-444444444444",
       date: "2099-03-10", startTime: "09:00", endTime: "09:20", timeZone: "Asia/Kuwait",
-      adultCount: 1, childCount: 0, specialChildCount: 0, source: "manual", visitStatus: "booked", visitVersion: 1, createdAt: "2026-10-11T00:00:00.000Z",
+      adultCount: 1, childCount: 0, specialChildCount: 0, visitStatus: "booked", visitVersion: 1, createdAt: "2026-10-11T00:00:00.000Z",
       client: { phone: "+96555550101" },
       address: { area: "حولي", block: "3", street: "شارع 5", houseNumber: "12", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
       employee: { id: "44444444-4444-4444-8444-444444444444", displayName: "سالم" },
     };
     expect(bookingResponseSchema.parse(booking)).not.toHaveProperty("invoice");
+    expect(bookingResponseSchema.safeParse({ ...booking, source: "manual" }).success).toBe(false);
     expect(bookingResponseSchema.safeParse({ ...booking, invoice: { id: "77777777-7777-4777-8777-777777777777" } }).success).toBe(false);
   });
 });

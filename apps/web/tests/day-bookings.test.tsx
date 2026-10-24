@@ -8,7 +8,7 @@ import { sessionKey } from "@/lib/api/session";
 
 const id = "11111111-1111-4111-8111-111111111111", timestamp = "2026-10-13T00:00:00.000Z", phone = "+96550000002";
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
-const booking = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId: id, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, source: "manual", visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone }, address, employee: { id, displayName: "سالم" } });
+const booking = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId: id, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone }, address, employee: { id, displayName: "سالم" } });
 
 function mount(send: (attempt: number) => Response | Promise<Response>) {
   let attempt = 0;
