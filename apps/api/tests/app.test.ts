@@ -9,6 +9,10 @@ describe("API infrastructure", () => {
     expect(response.body).toEqual({ status: "ok", service: "api" });
   });
 
+  it("has no WhatsApp webhook while the intake is not configured", async () => {
+    expect((await request(createApp()).post("/whatsapp/webhook").send({})).status).toBe(404);
+  });
+
   it("returns a JSON error for unknown routes", async () => {
     const response = await request(createApp()).get("/missing");
     expect(response.status).toBe(404);

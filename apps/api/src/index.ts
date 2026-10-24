@@ -7,8 +7,8 @@ const root = new URL("../../../", import.meta.url);
 const envFile = process.env.ENV_FILE ?? (process.env.NODE_ENV === "production" ? ".env.production" : ".env");
 config({ path: fileURLToPath(new URL(envFile, root)), quiet: true });
 const env = apiEnvSchema.parse(process.env);
-const { server, pool } = await startApi(env);
-console.log(`API listening at http://${env.HOST}:${env.PORT}`);
+const { server, pool, whatsapp } = await startApi(env);
+console.log(`API listening at http://${env.HOST}:${env.PORT}${whatsapp ? " with the WhatsApp intake" : ""}`);
 
 server.on("error", async (error) => {
   console.error(error);
@@ -23,6 +23,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
         console.error(error);
         process.exitCode = 1;
       }
+      await whatsapp?.stop();
       await pool.end();
     });
   });

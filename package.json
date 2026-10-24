@@ -20,7 +20,8 @@
     "db:studio": "pnpm --filter @just4kids/db db:studio",
     "docker:build": "docker compose --env-file .env.production build",
     "docker:up": "docker compose --env-file .env.production up --detach --build",
-    "docker:down": "docker compose --env-file .env.production down"
+    "docker:up:whatsapp": "docker compose --env-file .env.production --profile whatsapp up --detach --build",
+    "docker:down": "docker compose --env-file .env.production --profile whatsapp down"
   },
   "devDependencies": {
     "@just4kids/config": "workspace:*",

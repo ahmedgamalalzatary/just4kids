@@ -8,3 +8,4 @@ export * from "./visits.js";
 export * from "./booking-revisions.js";
 export * from "./salon.js";
 export * from "./collections.js";
+export * from "./whatsapp.js";
