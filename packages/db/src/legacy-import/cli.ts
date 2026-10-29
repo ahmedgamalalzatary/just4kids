@@ -9,6 +9,12 @@ const options = {
   salonBranchName: "Fahahel salon",
   // Old barber "leenny" (id 4) is the live employee Lenny, whose phone changed.
   barberPhoneOverrides: { 4: "+96560923073" },
+  // Owner-approved (2026-10-29) old spellings of areas that already exist on the live site.
+  areaAliases: {
+    Fahaheel: "Fahahel", Fanitees: "Fainatees", Khaitan: "Kheitan", Mesaila: "Messila", Reqqa: "Riqqa", Shwikh: "Shuwaikh",
+    Sulaibikhat: "Solibkhat", Sulaibiya: "Salibya", "Old Jahra": "Old Gahra",
+    "Al-Adan Hospital... Motherhood and Childhood": "Al-Adan Hospital... Motherhood and Childhoo",
+  },
 };
 
 class DryRun extends Error {}

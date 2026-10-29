@@ -12,6 +12,8 @@ export type ImportOptions = {
   salonBranchName: string;
   // Old barber id -> phone of the live employee they are, when the phone changed between the two systems.
   barberPhoneOverrides: Record<number, string>;
+  // Old area name -> live area name, for areas spelled differently in the two systems.
+  areaAliases: Record<string, string>;
 };
 export type ImportReport = { created: Record<string, number>; skipped: Record<string, number> };
 
@@ -79,16 +81,15 @@ export async function importLegacy(transaction: Executor, legacy: Pool, options:
     return barber ? { actorType: "employee" as const, actorAccountId: barber.id } : { actorType: "admin" as const, actorAccountId: admin.id };
   };
 
-  // Areas: matched to live areas by name, ignoring case; missing ones are added.
-  const liveAreas = new Map((await transaction.select().from(areas)).map(row => [row.name.toLowerCase(), row.name]));
-  const areaNames = new Map<string, string>();
+  // Areas: matched to live areas by name, ignoring case and extra spaces, after the owner's spelling aliases.
+  // Missing areas are added only when an imported address uses them.
+  const areaKey = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+  const aliases = new Map(Object.entries(options.areaAliases).map(([from, to]) => [areaKey(from), to]));
+  const liveAreas = new Map((await transaction.select().from(areas)).map(row => [areaKey(row.name), row.name]));
+  const areaNames = new Map<string, string>(), missingAreas = new Map<string, typeof areas.$inferInsert>();
   for (const area of await read<{ code: string; name_en: string; is_active: number }>("SELECT code, name_en, is_active FROM areas")) {
-    const name = area.name_en.trim(), key = name.toLowerCase();
-    if (!liveAreas.has(key)) {
-      await transaction.insert(areas).values({ id: legacyId("area", key), name, enabled: Boolean(area.is_active), createdAt: now, updatedAt: now });
-      liveAreas.set(key, name);
-      created.areas++;
-    }
+    const name = (aliases.get(areaKey(area.name_en)) ?? area.name_en).trim().replace(/\s+/g, " "), key = areaKey(name);
+    if (!liveAreas.has(key) && !missingAreas.has(key)) missingAreas.set(key, { id: legacyId("area", key), name, enabled: Boolean(area.is_active), createdAt: now, updatedAt: now });
     areaNames.set(area.code, liveAreas.get(key) ?? name);
   }
 
@@ -167,6 +168,10 @@ export async function importLegacy(transaction: Executor, legacy: Pool, options:
   }
   // A client needs at least one usable address in the new system; clients without one also have no address rows here.
   for (const clientId of newClients.keys()) if (!clientsWithAddress.has(clientId)) { newClients.delete(clientId); skipped.customersWithoutAddress++; }
+  const usedAreas = new Set(newAddresses.map(address => areaKey(address.area)));
+  const newAreas = [...missingAreas].filter(([key]) => usedAreas.has(key)).map(([, area]) => area);
+  await insertChunks(newAreas, chunk => transaction.insert(areas).values(chunk));
+  created.areas = newAreas.length;
   await insertChunks([...newClients.values()], chunk => transaction.insert(clients).values(chunk));
   await insertChunks(newAddresses, chunk => transaction.insert(clientAddresses).values(chunk));
   await insertChunks(newBookings, chunk => transaction.insert(bookings).values(chunk));

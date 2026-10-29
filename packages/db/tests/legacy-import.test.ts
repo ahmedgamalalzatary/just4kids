@@ -24,11 +24,13 @@ CREATE TABLE salon_work (id INT PRIMARY KEY, work_date DATE, kidsno INT, link_am
 INSERT INTO users VALUES (2,'Admin','admin','+96550000002',1,'2025-11-18 09:00:00'),(3,'heneer','barber','+96541110003',1,'2025-11-18 09:00:00'),(4,'leenny','barber','+96541110004',1,'2025-11-18 09:00:00'),(10,'Fabi','barber','96541110010',1,'2026-04-05 01:00:00');
 INSERT INTO barber_details VALUES (10,'Fabi');
 INSERT INTO barber_working_hours VALUES (10,0,'10:00:00','23:00:00',1),(10,2,'10:00:00','22:00:00',1);
-INSERT INTO areas VALUES ('a1','Legacy Test Salmiya',1),('a2','Legacy Test New Area',1);
+INSERT INTO areas VALUES ('a1','Legacy Test Salmiya',1),('a2','Legacy Test New Area',1),('a3','Legacy  Test   Spaced',1),('a4','Legacy Old Spelling',1),('a5','Legacy Unused Area',1);
 INSERT INTO customers VALUES
  (1,'41120001','a1','4','12','7','','','','','',NULL,'2025-12-01 08:00:00'),
  (2,'','a1','4','12','7','','','','','',NULL,'2025-12-01 08:00:00'),
- (3,'4112-0001','a2','9','3','15','','','','','','https://maps.example/x','2025-12-02 08:00:00');
+ (3,'4112-0001','a2','9','3','15','','','','','','https://maps.example/x','2025-12-02 08:00:00'),
+ (4,'41120004','a3','1','1','1','','','','','',NULL,'2025-12-03 08:00:00'),
+ (5,'41120005','a4','1','1','1','','','','','',NULL,'2025-12-03 08:00:00');
 INSERT INTO appointments VALUES
  (101,1,'',3,'2026-10-01','10:00:00',0,0,0,'confirmed',1,'one dinar delivery','2026-09-30 07:00:00','','2026-09-30 07:00:00','4','12','7','','','','','',NULL),
  (102,3,'',4,'2026-10-02','13:30:00',2,1,1,'completed',1,NULL,'2026-10-01 07:00:00','','2026-10-02 11:00:00','9','3','15','','','','','','2026-10-02 11:00:00'),
@@ -66,13 +68,16 @@ it("imports the old site's data into the new schema once, following the owner's 
     // Heneer keeps the old phone; Lenny's phone changed, so the owner's override links old barber 4 to the live account.
     await transaction.insert(accounts).values([[heneer, "+96541110003"], [lenny, "+96541129991"]].map(([id = "", phone = ""]) => ({ id, phone, role: "employee" as const, passwordHash: "x", createdAt: now, updatedAt: now })));
     await transaction.insert(employees).values([{ accountId: heneer, displayName: "Heneer" }, { accountId: lenny, displayName: "Lenny" }].map(row => ({ ...row, createdAt: now, updatedAt: now })));
-    await transaction.insert(areas).values({ id: randomUUID(), name: "legacy test salmiya", enabled: true, createdAt: now, updatedAt: now });
+    await transaction.insert(areas).values(["legacy test salmiya", "Legacy Test Spaced", "Legacy Live Spelling"].map(name => ({ id: randomUUID(), name, enabled: true, createdAt: now, updatedAt: now })));
     await transaction.insert(branches).values({ id: salon, name: "Legacy Test Salon", address: "x", createdAt: now, updatedAt: now });
 
-    const options = { today: "2026-10-29", salonBranchName: "Legacy Test Salon", barberPhoneOverrides: { 4: "+96541129991" } };
+    const options = { today: "2026-10-29", salonBranchName: "Legacy Test Salon", barberPhoneOverrides: { 4: "+96541129991" }, areaAliases: { "Legacy Old Spelling": "Legacy Live Spelling" } };
     const report: ImportReport = await importLegacy(transaction, legacy, options);
     expect(report.skipped).toMatchObject({ customersWithoutValidPhone: 1, bookingsWithIncompleteAddress: 1, bookingsWithoutClient: 1, unsupportedEditLogs: 1 });
-    expect(report.created).toMatchObject({ employees: 1, areas: 1, clients: 1, addresses: 2, bookings: 4, bookingMessages: 1, barberCollections: 1, salonEntries: 1 });
+    // Only the used new area is added: spacing differences and the owner's spelling aliases reuse live areas, unused old areas are dropped.
+    expect(report.created).toMatchObject({ employees: 1, areas: 1, clients: 3, addresses: 4, bookings: 4, bookingMessages: 1, barberCollections: 1, salonEntries: 1 });
+    expect((await transaction.select({ area: clientAddresses.area }).from(clientAddresses).innerJoin(clients, eq(clients.id, clientAddresses.clientId)).where(inArray(clients.phone, ["+96541120004", "+96541120005"]))).map(row => row.area).sort()).toEqual(["Legacy Live Spelling", "Legacy Test Spaced"]);
+    expect(await transaction.select().from(areas).where(eq(areas.name, "Legacy Unused Area"))).toEqual([]);
 
     // Fabi is new: disabled, password "fabi1234", named from the old profile, and keeps the old weekly hours.
     const fabi = legacyId("user", 10);

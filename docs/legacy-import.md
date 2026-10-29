@@ -8,7 +8,7 @@ One-off import of the old PHP/phpMyAdmin site's data (`u614391038_just4kidsdb.sq
 |---|---|
 | Barbers | Matched to live employees by phone; old `leenny` (id 4) is live Lenny (`+96560923073`). Unknown barbers (Fabi, angel) are created **disabled** with the password `<old name in lower case>1234` (`fabi1234`, `angel1234`); the administrator enables them when ready. Matched barbers keep their current passwords. Their old weekly hours are copied; live employees keep their current hours. |
 | Manager accounts (superadmin, admin, care center, general manager, Hair salon) | Not imported; their history actions are credited to the live administrator. |
-| Areas | Matched to live areas by name (any letter case); missing ones are added. |
+| Areas | Matched to live areas by name (any letter case, extra spaces ignored). Owner-approved old spellings use the live name (`areaAliases` in `cli.ts`, e.g. Fahaheel → Fahahel). Missing areas (Abdullah Mubarak, Ali sabah Alsalem, Tayma/Al-Jahra) are added only when an imported address uses them. |
 | Customers | One client per phone (8 digits → `+965…`); a live client with the same phone is reused. Missing/broken phones are skipped. A customer with no complete address and no bookings is skipped. |
 | Addresses | Need area, block, street and building (house number); empty optional parts become empty. Duplicates per client are merged. |
 | Bookings | 30-minute window (the new booking screen's default; the old site stored none). 0 children → 1 child. Bookings whose address lacks block/street/building are skipped. Same-time double bookings are kept. |
