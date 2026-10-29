@@ -18,7 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:test": "drizzle-kit migrate --config drizzle.test.config.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:import-legacy": "node dist/legacy-import/cli.js"
   },
   "dependencies": { "drizzle-orm": "catalog:", "mysql2": "catalog:" },
   "devDependencies": {
