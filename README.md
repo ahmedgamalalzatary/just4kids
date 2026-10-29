@@ -132,7 +132,7 @@ Onboarding steps, run on the server once the open decisions below are settled (`
 5. Register the webhook: `POST /api/sessions/<id>/webhooks` with `{"url":"http://api:4000/whatsapp/webhook","events":["message.received"],"secret":"<OPENWA_WEBHOOK_SECRET>"}`.
 6. Fill the remaining settings in `.env.production` (`OPENWA_BASE_URL=http://openwa:2785`, `OPENWA_WEBHOOK_SECRET`, `STAFF_WHATSAPP_NUMBER`, `AI_*`), then restart: `pnpm docker:up:whatsapp`. The API log says "with the WhatsApp intake" when it is on.
 
-Open decisions (not built; see [docs/backend-phases.md](docs/backend-phases.md#phase-12--arabic-whatsapp-booking-request-intake)): the AI provider and model; OpenWA onboarding (which phone/SIM, the engine, whether the VPS has memory for it); and what staff should hear when the AI keeps failing.
+Open decisions and the ordered go-live steps are in [docs/backend-phases.md](docs/backend-phases.md#phase-12--arabic-whatsapp-booking-request-intake). In short, still open: setting up the chosen AI (Xiaomi MiMo-V2.6-Flash, pay-as-you-go: account, test call, thinking off); OpenWA onboarding (which phone/SIM, the engine, whether the VPS has memory for it); and what staff should hear when the AI keeps failing.
 
 ## Web dashboard
 

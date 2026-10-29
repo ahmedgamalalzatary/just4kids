@@ -474,12 +474,23 @@ Open decisions (deliberately not built):
 
 | Decision | Status / what it blocks |
 | --- | --- |
-| AI provider and model | Settings only (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`). The provider must accept `response_format: { "type": "json_object" }` on Chat Completions; one that does not needs a code change. Blocks the real conversation check. |
+| AI provider and model | Chosen 2026-10-24, account not yet created: Xiaomi MiMo-V2.6-Flash, bought directly from Xiaomi on pay-as-you-go (`AI_BASE_URL=https://api.xiaomimimo.com/v1`, `AI_MODEL=mimo-v2.6-flash`, an `sk-` key from the console's API Keys page). Not the Token Plan subscription (`tp-` keys, a different address, aimed at coding tools). Why: $0.14 input / $0.28 output / $0.0028 cached input per 1M tokens with no peak hours, and Xiaomi lists `json_object` support for this model; DeepSeek V4.1 Flash costs 2–4× more for output and doubles in Kuwait's morning peak; OpenRouter and other hosts save only cents at this volume and add a middleman. Still to do: create the account and top up (payment from Kuwait unconfirmed), test one `json_object` call, and add a setting to turn the model's "thinking" off (measured about 38 s before the first answer word with it on; Xiaomi's docs do not state the default or the switch, so the test call must confirm `thinking: { "type": "disabled" }`). Arabic quality is unproven: try 10–20 sample client messages before go-live. Blocks the real conversation check. |
 | Owner's prompt | `apps/api/prompts/whatsapp-ai.md` holds a starter version until the owner writes theirs. |
 | OpenWA onboarding | Which phone number/SIM is linked and who scans the QR; the engine (`OPENWA_ENGINE_TYPE`: empty keeps OpenWA's default whatsapp-web.js, which runs Chromium and is budgeted 2 GB; `baileys` needs no browser); whether the Hostinger KVM1 VPS has the memory for it beside MySQL, the API and the web app. |
 | Repeated AI failure | After 12 failed AI attempts (about 1.5 hours) the client's messages are marked failed: the client gets no reply and staff are not told. Whether staff should get an alert is undecided. |
 | Dashboard view of WhatsApp requests | No screen exists; requests reach staff only through WhatsApp. Needs a separate decision. |
 | Production rollout | Phase 14: HTTPS/domain, backups (now including the `openwa-data` volume, which holds the linked session) and the real webhook/retry check. |
+
+Remaining steps to go live, in order:
+
+1. Create the Xiaomi MiMo pay-as-you-go account, top up, create the API key, run one test call (JSON answer, thinking off), then add the thinking-off setting and try sample Arabic messages (see the AI provider row above).
+2. Replace the starter prompt in `apps/api/prompts/whatsapp-ai.md` with the owner's prompt.
+3. Settle OpenWA onboarding: a dedicated business number/SIM (not a personal one), the engine, and VPS memory.
+4. Merge `feat/whatsapp-intake` into `main`.
+5. Deploy to the VPS and follow the README onboarding steps (start OpenWA, create the session, scan the QR, create the operator key, register the webhook, fill the settings).
+6. Verify one real Arabic request: one client reply and exactly one staff summary (the open checklist item above).
+
+Can wait: the repeated-AI-failure alert and a dashboard view of WhatsApp requests. HTTPS/domain is not needed for the WhatsApp link itself (OpenWA reaches the API on the private Docker network), but backups must include the `openwa-data` volume once the number is linked.
 
 Acceptance:
 
