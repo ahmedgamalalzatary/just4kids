@@ -159,8 +159,7 @@ export async function importLegacy(transaction: Executor, legacy: Pool, options:
       if (log.action_type === "update" || log.action_type === "edit_amounts_admin") skipped.unsupportedEditLogs++;
     }
     newBookings.push({
-      // Staff entered every old booking. Remove `source` when merging feat/whatsapp-intake, which drops the column.
-      id, reference: `J4K-${id.replaceAll("-", "").toUpperCase()}`, source: "manual", clientId: customer.clientId, addressId: address.id, employeeId: barber.id, createdBy: admin.id,
+      id, reference: `J4K-${id.replaceAll("-", "").toUpperCase()}`, clientId: customer.clientId, addressId: address.id, employeeId: barber.id, createdBy: admin.id,
       date: row.appointment_date, ...window, adultCount: 0, ...childCounts(row.total_children, row.normal_children, row.special_needs_children),
       notes: row.notes?.trim().slice(0, 1000) || null, seenByBarberAt: row.is_seen_by_barber ? createdAt : null, visitStatus: status, visitVersion: visits.length - 1,
       clientSnapshot: { phone: customer.phone }, addressSnapshot: address.address, employeeSnapshot: { id: barber.id, displayName: barber.displayName }, createdAt,

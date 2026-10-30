@@ -96,7 +96,7 @@ it("imports the old site's data into the new schema once, following the owner's 
 
     const imported = await transaction.select().from(bookings).where(inArray(bookings.id, [101, 102, 103, 104].map(id => legacyId("appointment", id))));
     const byId = (id: number) => imported.find(row => row.id === legacyId("appointment", id));
-    expect(byId(101)).toMatchObject({ source: "manual", employeeId: heneer, visitStatus: "completed", visitVersion: 2, childCount: 1, adultCount: 0, startTime: "10:00", endTime: "10:30", notes: "one dinar delivery", createdBy: adminId });
+    expect(byId(101)).toMatchObject({ employeeId: heneer, visitStatus: "completed", visitVersion: 2, childCount: 1, adultCount: 0, startTime: "10:00", endTime: "10:30", notes: "one dinar delivery", createdBy: adminId });
     expect(byId(101)?.createdAt.toISOString()).toBe("2026-09-30T07:00:00.000Z");
     expect(byId(101)?.reference).toBe(`J4K-${legacyId("appointment", 101).replaceAll("-", "").toUpperCase()}`);
     expect(byId(102)).toMatchObject({ employeeId: lenny, visitStatus: "completed", childCount: 2, specialChildCount: 1, employeeSnapshot: { id: lenny, displayName: "Lenny" }, clientSnapshot: { phone: "+96541120001" } });
