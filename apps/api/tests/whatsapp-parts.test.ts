@@ -132,18 +132,21 @@ describe("AI answers", () => {
 
 describe("staff messages", () => {
   const address = { block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null };
-  const details = { adults: 1, children: 2, specialChildren: 1, barberId: "b1", barberName: "Lenny", date: "2026-11-01", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address };
+  const details = { who: "family" as const, adults: 1, children: 2, specialChildren: 1, barberId: "b1", barberName: "Lenny", date: "2026-11-01", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address };
   it("sends the full request and how to answer it", () => {
     expect(staffMessage({ type: "new_request", details }, "+96550000001", 12)).toBe([
-      "New WhatsApp request #12", "Client: +96550000001", "Adults: 1", "Children: 2", "Special needs: 1", "Barber: Lenny", "Date: 2026-11-01", "Time: 16:00 - 18:00", "Area: Hawally", "Address: Block 3, Street 5, House 12",
-      "", "Approve: yes 12", "Reject: no 12 <reason>", "Or create it in the dashboard, then reject it here.",
+      "طلب حجز جديد من واتساب #12", "العميل: +96550000001", "لمن: كبار وأطفال", "الكبار: 1", "الأطفال: 2", "ذوو احتياجات خاصة: 1", "الحلاق: Lenny", "التاريخ: 2026-11-01", "الوقت: 16:00 - 18:00", "المنطقة: Hawally", "العنوان: قطعة 3، شارع 5، منزل 12",
+      "", "للموافقة: yes 12", "للرفض: no 12 <السبب>", "أو أنشئ الحجز من لوحة التحكم، ثم ارفض الطلب هنا.",
     ].join("\n"));
+  });
+  it.each([["boy", "ولد"], ["girl", "بنت"], ["baby", "رضيع"], ["special", "ذوو احتياجات خاصة"], ["both", "ولد وبنت"], ["adults", "كبار"], ["family", "كبار وأطفال"]] as const)("tells staff the client chose %s", (who, label) => {
+    expect(staffMessage({ type: "new_request", details: { ...details, who } }, "+96550000001", 12).split("\n")[2]).toBe(`لمن: ${label}`);
   });
   it("asks staff to name a barber and shows only the link for a link-only address", () => {
     const text = staffMessage({ type: "new_request", details: { ...details, barberId: null, barberName: null, address: { ...address, block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED, mapsUrl: "https://maps.app.goo.gl/x" } } }, "+96550000001", 12);
-    expect(text).toContain("Barber: Any barber (staff choose)");
-    expect(text).toContain("Approve: yes 12 <barber name>");
-    expect(text).toContain("Location: https://maps.app.goo.gl/x");
+    expect(text).toContain("الحلاق: أي حلاق (يختار الموظف)");
+    expect(text).toContain("للموافقة: yes 12 <اسم الحلاق>");
+    expect(text).toContain("الموقع: https://maps.app.goo.gl/x");
     expect(text).not.toContain("Address:");
   });
   it("copies a change request as written, and alerts when the AI fails", () => {

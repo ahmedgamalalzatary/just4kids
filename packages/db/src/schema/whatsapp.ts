@@ -2,7 +2,10 @@ import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mys
 
 // WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
+export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
 export type WhatsAppRequestDetails = {
+  // Null when the flow has no answer; requests saved before this field have none either.
+  who?: WhatsAppWho | null;
   adults: number; children: number; specialChildren: number;
   // Null when the client chose "any barber": staff name one when approving.
   barberId: string | null; barberName: string | null;
@@ -15,7 +18,6 @@ export type WhatsAppStaffAction =
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
 export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "area" | "address" | "confirm" | "change";
-export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.

@@ -1,27 +1,28 @@
-import type { WhatsAppRequestDetails } from "@just4kids/db/schema";
+import type { WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import { NOT_PROVIDED, type StaffNotice } from "./flow.js";
 
 const STAFF_HELP = "Commands:\nyes 12 — approve request 12\nyes 12 Lenny — approve and choose the barber\nno 12 reason — reject request 12\nai on +96550000000 — the AI answers that client again";
 
+const WHO_LABELS: Record<WhatsAppWho, string> = { boy: "ولد", girl: "بنت", baby: "رضيع", special: "ذوو احتياجات خاصة", both: "ولد وبنت", adults: "كبار", family: "كبار وأطفال" };
+
 function requestLines(details: WhatsAppRequestDetails) {
   const { address } = details;
-  const parts: [string, string | null][] = [["Block", address.block], ["Street", address.street], ["House", address.houseNumber], ["Building", address.buildingName], ["Avenue", address.avenue], ["Floor", address.floor], ["Apartment", address.apartment]];
-  const typed = parts.filter(([, value]) => value && value !== NOT_PROVIDED).map(([label, value]) => `${label} ${value}`).join(", ");
+  const parts: [string, string | null][] = [["قطعة", address.block], ["شارع", address.street], ["منزل", address.houseNumber], ["بناية", address.buildingName], ["جادة", address.avenue], ["دور", address.floor], ["شقة", address.apartment]];
+  const typed = parts.filter(([, value]) => value && value !== NOT_PROVIDED).map(([label, value]) => `${label} ${value}`).join("، ");
   return [
-    `Adults: ${details.adults}`, `Children: ${details.children}`, ...(details.specialChildren ? [`Special needs: ${details.specialChildren}`] : []),
-    `Barber: ${details.barberName ?? "Any barber (staff choose)"}`, `Date: ${details.date}`, `Time: ${details.startTime} - ${details.endTime}`,
-    `Area: ${details.area}`, ...(typed ? [`Address: ${typed}`] : []), ...(address.mapsUrl ? [`Location: ${address.mapsUrl}`] : []),
+    ...(details.who ? [`لمن: ${WHO_LABELS[details.who]}`] : []), `الكبار: ${details.adults}`, `الأطفال: ${details.children}`, ...(details.specialChildren ? [`ذوو احتياجات خاصة: ${details.specialChildren}`] : []),
+    `الحلاق: ${details.barberName ?? "أي حلاق (يختار الموظف)"}`, `التاريخ: ${details.date}`, `الوقت: ${details.startTime} - ${details.endTime}`,
+    `المنطقة: ${details.area}`, ...(typed ? [`العنوان: ${typed}`] : []), ...(address.mapsUrl ? [`الموقع: ${address.mapsUrl}`] : []),
   ];
 }
 
-/** The English message sent to the staff number; client text is copied as written. */
+/** The message sent to the staff number: a reservation request uses the Arabic template, the rest is English; client text is copied as written. */
 export function staffMessage(notice: StaffNotice, phone: string, requestNumber: number | null, earlierRequests: number[] = []) {
   if (notice.type === "new_request") {
-    const approve = notice.details.barberId ? `yes ${requestNumber}` : `yes ${requestNumber} <barber name>`;
-    return [`New WhatsApp request #${requestNumber}`, `Client: ${phone}`, ...requestLines(notice.details), "", `Approve: ${approve}`, `Reject: no ${requestNumber} <reason>`, "Or create it in the dashboard, then reject it here."].join("\n");
+    const approve = notice.details.barberId ? `yes ${requestNumber}` : `yes ${requestNumber} <اسم الحلاق>`;
+    return [`طلب حجز جديد من واتساب #${requestNumber}`, `العميل: ${phone}`, ...requestLines(notice.details), "", `للموافقة: ${approve}`, `للرفض: no ${requestNumber} <السبب>`, "أو أنشئ الحجز من لوحة التحكم، ثم ارفض الطلب هنا."].join("\n");
   }
   if (notice.type === "change") return ["Client wants to change or cancel", `Client: ${phone}`, ...(earlierRequests.length ? [`Requests: ${earlierRequests.map(number => `#${number}`).join(", ")}`] : []), `Message: ${notice.text}`].join("\n");
-  if (notice.type === "talk") return ["Client wants to talk to staff", `Client: ${phone}`, "Reply from the business phone; the AI stops for this client."].join("\n");
   return ["WhatsApp message for staff", `Client: ${phone}`, notice.summary].join("\n");
 }
 

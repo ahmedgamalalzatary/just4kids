@@ -190,9 +190,9 @@ describe("WhatsApp booking flow", () => {
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
     const number = (await stored(phone)).requests[0]!.number;
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
-    expect(h.sent[0]!.text).toContain(`New WhatsApp request #${number}`);
-    expect(h.sent[0]!.text).toContain(`Barber: ${barberName}`);
-    expect(h.sent[0]!.text).toContain("Location: https://www.google.com/maps?q=29.3,48.0");
+    expect(h.sent[0]!.text).toContain(`طلب حجز جديد من واتساب #${number}`);
+    expect(h.sent[0]!.text).toContain(`الحلاق: ${barberName}`);
+    expect(h.sent[0]!.text).toContain("الموقع: https://www.google.com/maps?q=29.3,48.0");
     expect(h.aiCalls).toHaveLength(0);
   });
 

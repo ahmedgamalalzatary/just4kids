@@ -23,8 +23,53 @@ describe("WhatsApp flow", () => {
   it("sends the main menu without my-bookings after a language is chosen", async () => {
     const turn = await walk({ step: "language", language: null }, "2");
     expect(turn.reply).toContain("✅ اللغة: العربية");
-    expect(turn.reply).toContain("1. حجز موعد\n2. إلغاء أو تعديل طلب\n3. التحدث مع موظف");
+    expect(turn.reply).toContain("1. حجز موعد\n2. إلغاء أو تعديل طلب\n3. الرجوع للخطوة السابقة");
     expect(turn.reply).not.toContain("حجوزاتي");
+  });
+
+  it("ends every list with a way back, in the client's language", async () => {
+    const booking = { language: "ar" as const, who: "boy" as const, children: 1, date: "2026-10-30", startTime: "16:00", endTime: "18:00", area: context.areas[0]!, address: { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null } };
+    for (const step of ["language", "menu", "who", "barber", "date", "confirm"] as const) {
+      expect(render({ ...booking, step }, context).split("\n").at(-1)).not.toBe("");
+      expect(render({ ...booking, step }, context)).toMatch(/\d\. الرجوع للخطوة السابقة(\n\n.*)?$/);
+    }
+    expect(render({ step: "who", language: "en" }, context).split("\n").at(-1)).toMatch(/^\d\. Back to the previous step$/);
+  });
+
+  it("offers no way back before a language was ever chosen", () => {
+    expect(render({ step: "language", language: null }, context)).not.toContain("الرجوع");
+  });
+
+  it.each([
+    ["menu", {}, "3", "language"],
+    ["who", {}, "9", "menu"],
+    ["barber", { who: "boy", children: 1 }, "5", "children"],
+    ["barber", { who: "adults", adults: 1 }, "5", "adults"],
+    ["barber", { who: "family", adults: 1, children: 1 }, "5", "children"],
+    ["date", {}, "9", "barber"],
+  ] as const)("goes back from %s", async (step, extra, choice, previous) => {
+    const turn = await advance({ step, language: "en", ...extra }, choice, context, noAi);
+    expect(turn.state.step).toBe(previous);
+    expect(turn.state).toMatchObject(extra);
+  });
+
+  it("goes back from the confirmation to the address, keeping what was entered", async () => {
+    const address = { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null };
+    const turn = await advance({ step: "confirm", language: "en", children: 1, date: "2026-10-30", startTime: "16:00", endTime: "18:00", area: context.areas[0]!, address }, "4", context, noAi);
+    expect(turn.state).toMatchObject({ step: "address", children: 1, address });
+    expect(turn.staff).toBeUndefined();
+  });
+
+  it("still changes language from the option before the way back", async () => {
+    const atLanguage = await advance({ step: "who", language: "en" }, "8", context, noAi);
+    expect(atLanguage.state).toMatchObject({ step: "language", resume: "who" });
+    const back = await advance(atLanguage.state, "3", context, noAi);
+    expect(back.state).toEqual({ step: "who", language: "en" });
+  });
+
+  it("returns from the language list to the menu when opened from the menu", async () => {
+    const atLanguage = await advance({ step: "menu", language: "en" }, "3", context, noAi);
+    expect((await advance(atLanguage.state, "3", context, noAi)).state).toEqual({ step: "menu", language: "en" });
   });
 
   it("accepts Arabic digits in the menus", async () => {
@@ -40,7 +85,7 @@ describe("WhatsApp flow", () => {
     expect(atConfirm.reply).toContain("This is a request — our team will confirm the exact time.");
     state = atConfirm.state;
     const sent = await advance(state, "1", context, noAi);
-    expect(sent.staff).toMatchObject({ type: "new_request", details: { adults: 0, children: 2, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12" } } });
+    expect(sent.staff).toMatchObject({ type: "new_request", details: { who: "boy", adults: 0, children: 2, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12" } } });
     expect(sent.state).toEqual({ step: "menu", language: "en" });
   });
 
@@ -95,11 +140,10 @@ describe("WhatsApp flow", () => {
     expect((await walk({ step: "date", language: "ar", who: "boy" }, "القائمة")).state).toEqual({ step: "menu", language: "ar" });
   });
 
-  it("forwards a change request as written and a talk request, without the AI", async () => {
+  it("forwards a change request as written, without the AI", async () => {
     const asked = await walk({ step: "menu", language: "en" }, "2");
     const sent = await walk(asked.state, "Cancel Sunday please");
     expect(sent.staff).toEqual({ type: "change", text: "Cancel Sunday please" });
-    expect((await walk({ step: "menu", language: "en" }, "3")).staff).toEqual({ type: "talk" });
   });
 
   it("uses the AI for free text: it answers, forwards, and repeats the menu", async () => {

@@ -96,7 +96,7 @@ Client WhatsApp ─► OpenWA ─webhook─► API ─► numbered menus (code) 
 Decided 2026-10-30 (replaces the intake-only decision of 2026-10-21): the AI talks with clients and answers their questions, a complete request goes to staff for approval, and approval creates the reservation.
 
 1. A client messages the business number and chooses English or Arabic. The code sends every menu word for word; the AI only reads what a client types outside the menus.
-2. Main menu: book, cancel or change a request, talk to staff. Booking collects: who it is for and the counts, the barber (from the dashboard, or any barber), the date, the client's own start and end time, the area (from the dashboard), and a location, Google Maps link, or block, street and house or building. The client's phone comes from the sender identity.
+2. Main menu: book, cancel or change a request. A client who asks for a person in their own words is forwarded to staff. Booking collects: who it is for and the counts, the barber (from the dashboard, or any barber), the date, the client's own start and end time, the area (from the dashboard), and a location, Google Maps link, or block, street and house or building. The client's phone comes from the sender identity.
 3. The client confirms a summary, and the full request goes to the staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`).
 4. Staff answer from that number: `yes 12`, `yes 12 <barber>` (required when the client chose any barber, or to change the barber), or `no 12 <reason>`. Staff may instead create the reservation manually in the dashboard.
 5. Approval creates a normal reservation through the same rules as the dashboard (availability, future start, enabled barber and client), then tells the client. If the rules refuse it, nothing is saved, staff are told why, and the request stays open.
@@ -111,7 +111,7 @@ Other rules:
 
 - A location-only address is saved with the area and the link; the other required address parts show "—" for staff to complete in the dashboard.
 - The client reply about a handoff is sent only after the staff message was accepted by OpenWA, so the client is never told staff know when they do not.
-- Staff messages are in English; the address and other client text are copied as written.
+- A reservation request sent to staff uses an Arabic template; other staff messages are in English. The address and other client text are copied as written, and staff commands stay `yes` and `no`.
 - The AI cannot create or change anything: the code validates everything it reads, and only a staff `yes` creates a reservation. It must not promise a booking, time or barber.
 - Text messages and shared locations are read; other message types (voice notes, images, stickers, files) get no reply.
 - When the AI cannot answer (decided 2026-10-30), staff get one alert with the client's number and messages so they can contact the client; the client gets no automatic reply.

@@ -10,15 +10,14 @@ export type FlowContext = { barbers: { id: string; name: string }[]; areas: { id
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "change"; text: string }
-  | { type: "talk" }
   | { type: "forward"; summary: string };
 export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice };
 type Language = "en" | "ar";
 
 const copy = {
   en: {
-    changeLanguage: "Change language / تغيير اللغة", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", talk: "Talk to staff", pick: "Send a number to choose.",
+    changeLanguage: "Change language / تغيير اللغة", back: "Back to the previous step", languageSet: "✅ Language: English",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", pick: "Send a number to choose.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Adults", "Adults and kids"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber would you like?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ What time on ${date}? Send the start and end, for example 4 pm to 6 pm.`,
@@ -31,13 +30,13 @@ const copy = {
     requestNote: "This is a request — our team will confirm the exact time.", confirm: "Confirm ✅", startOver: "Start over ❌",
     sent: "✅ Your request was sent to our team. They will contact you to confirm.",
     changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.",
-    talkSent: "✅ We told our team. A staff member will reply here soon.", invalid: "⚠️ Please send one of the numbers above.", countInvalid: "⚠️ Please send a number from 1 to 50.",
+    invalid: "⚠️ Please send one of the numbers above.", countInvalid: "⚠️ Please send a number from 1 to 50.",
     approved: (date: string, time: string, barber: string) => `✅ Your reservation is confirmed.\n📅 ${date} · ${time}\n💈 Barber: ${barber}`,
     rejected: (reason: string | null) => `❌ We could not confirm your request.${reason ? `\n${reason}` : ""}\nA staff member will contact you if needed.`,
   },
   ar: {
-    changeLanguage: "Change language / تغيير اللغة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", talk: "التحدث مع موظف", pick: "أرسل رقماً للاختيار.",
+    changeLanguage: "Change language / تغيير اللغة", back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", pick: "أرسل رقماً للاختيار.",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "كبار", "كبار وأطفال"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تفضل؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ ما الوقت المناسب يوم ${date}؟ أرسل البداية والنهاية، مثال: من 4 إلى 6 مساءً.`,
@@ -50,7 +49,7 @@ const copy = {
     requestNote: "هذا طلب — سيؤكد فريقنا الوقت المحدد.", confirm: "تأكيد ✅", startOver: "البدء من جديد ❌",
     sent: "✅ تم إرسال طلبك إلى فريقنا. سيتواصلون معك للتأكيد.",
     changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.",
-    talkSent: "✅ أبلغنا فريقنا. سيرد عليك موظف هنا قريباً.", invalid: "⚠️ أرسل أحد الأرقام أعلاه.", countInvalid: "⚠️ أرسل رقماً من 1 إلى 50.",
+    invalid: "⚠️ أرسل أحد الأرقام أعلاه.", countInvalid: "⚠️ أرسل رقماً من 1 إلى 50.",
     approved: (date: string, time: string, barber: string) => `✅ تم تأكيد حجزك.\n📅 ${date} · ${time}\n💈 الحلاق: ${barber}`,
     rejected: (reason: string | null) => `❌ لم نتمكن من تأكيد طلبك.${reason ? `\n${reason}` : ""}\nسيتواصل معك موظف عند الحاجة.`,
   },
@@ -72,12 +71,12 @@ export function clientRejected(language: Language | null, reason: string | null)
 /** The options of a numbered step, in the order the client sees them. */
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
-  if (state.step === "language") return ["English", "العربية"];
-  if (state.step === "menu") return [text.book, text.change, text.talk];
-  if (state.step === "who") return [...text.whoOptions, text.changeLanguage];
-  if (state.step === "barber") return [...context.barbers.map(barber => barber.name), text.any, text.changeLanguage];
-  if (state.step === "date") return [...days(context.now).map(date => dateLabel(date, language)), text.changeLanguage];
-  if (state.step === "confirm") return [text.confirm, text.startOver, text.changeLanguage];
+  if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
+  if (state.step === "menu") return [text.book, text.change, text.back];
+  if (state.step === "who") return [...text.whoOptions, text.changeLanguage, text.back];
+  if (state.step === "barber") return [...context.barbers.map(barber => barber.name), text.any, text.changeLanguage, text.back];
+  if (state.step === "date") return [...days(context.now).map(date => dateLabel(date, language)), text.changeLanguage, text.back];
+  if (state.step === "confirm") return [text.confirm, text.startOver, text.changeLanguage, text.back];
   return [];
 }
 
@@ -122,7 +121,7 @@ const freshBooking = (state: WhatsAppFlow): WhatsAppFlow => ({ step: "menu", lan
 
 function details(state: WhatsAppFlow): WhatsAppRequestDetails {
   return {
-    adults: state.adults ?? 0, children: state.children ?? 0, specialChildren: state.who === "special" ? state.children ?? 0 : 0,
+    who: state.who ?? null, adults: state.adults ?? 0, children: state.children ?? 0, specialChildren: state.who === "special" ? state.children ?? 0 : 0,
     barberId: state.barber?.id ?? null, barberName: state.barber?.name ?? null,
     date: state.date!, startTime: state.startTime!, endTime: state.endTime!, areaId: state.area!.id, area: state.area!.name, address: state.address!,
   };
@@ -132,12 +131,30 @@ function chooseLanguageStep(state: WhatsAppFlow, context: FlowContext) {
   return move({ ...state, resume: state.step }, "language", context);
 }
 
+/** The step the "back" option of a list returns to. */
+function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
+  switch (state.step) {
+    case "language": return "menu";
+    case "menu": return "language";
+    case "who": return "menu";
+    case "barber": return state.who === "adults" ? "adults" : "children";
+    case "date": return "barber";
+    case "confirm": return "address";
+    default: return state.step;
+  }
+}
+
 /** Applies a menu number; null when the number is not one of the step's options. */
 function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext): Turn | null {
   const language = state.language ?? "ar", count = options(state, context, language).length;
   if (!Number.isInteger(choice) || choice < 1 || choice > count) return null;
-  // The last option of these steps is always "change language".
-  if (["who", "barber", "date", "confirm"].includes(state.step) && choice === count) return chooseLanguageStep(state, context);
+  // The last option of a list is "back", when the list has one.
+  if (options(state, context, language).at(-1) === copy[language].back && choice === count) {
+    const { resume, ...rest } = state;
+    return move(rest, resume ?? previousStep(state), context);
+  }
+  // The option before it on these steps is always "change language".
+  if (["who", "barber", "date", "confirm"].includes(state.step) && choice === count - 1) return chooseLanguageStep(state, context);
   switch (state.step) {
     case "language": {
       const chosen: Language = choice === 1 ? "en" : "ar";
@@ -146,8 +163,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     }
     case "menu":
       if (choice === 1) return move(freshBooking(state), "who", context);
-      if (choice === 2) return move(state, "change", context);
-      return { state: freshBooking(state), reply: copy[language].talkSent, staff: { type: "talk" } };
+      return move(state, "change", context);
     case "who": {
       const who = whoValues[choice - 1]!;
       return move({ ...state, who }, who === "adults" || who === "family" ? "adults" : "children", context);
