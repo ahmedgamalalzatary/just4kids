@@ -26,6 +26,8 @@ export const apiEnvSchema = z.object({
   AI_BASE_URL: optional(baseUrl),
   AI_API_KEY: optional(z.string().trim().min(1)),
   AI_MODEL: optional(z.string().trim().min(1).max(200)),
+  // Not part of the required set: only some providers accept this field. MiMo thinks unless told not to, which delays replies.
+  AI_THINKING: optional(z.enum(["enabled", "disabled"])),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === "production") {
     if (!env.APP_ORIGIN.startsWith("https://")) context.addIssue({ code: "custom", path: ["APP_ORIGIN"], message: "Production requires an HTTPS APP_ORIGIN" });
@@ -34,12 +36,12 @@ export const apiEnvSchema = z.object({
   // The intake runs with every setting or none; a partial set is a configuration mistake.
   const missing = whatsappKeys.filter(key => env[key] === undefined);
   if (missing.length && missing.length < whatsappKeys.length) for (const key of missing) context.addIssue({ code: "custom", path: [key], message: `${key} is required when the WhatsApp intake is configured` });
-}).transform(({ OPENWA_BASE_URL, OPENWA_API_KEY, OPENWA_SESSION_ID, OPENWA_WEBHOOK_SECRET, STAFF_WHATSAPP_NUMBER, AI_BASE_URL, AI_API_KEY, AI_MODEL, ...env }) => ({
+}).transform(({ OPENWA_BASE_URL, OPENWA_API_KEY, OPENWA_SESSION_ID, OPENWA_WEBHOOK_SECRET, STAFF_WHATSAPP_NUMBER, AI_BASE_URL, AI_API_KEY, AI_MODEL, AI_THINKING, ...env }) => ({
   ...env,
   whatsapp: OPENWA_BASE_URL && OPENWA_API_KEY && OPENWA_SESSION_ID && OPENWA_WEBHOOK_SECRET && STAFF_WHATSAPP_NUMBER && AI_BASE_URL && AI_API_KEY && AI_MODEL ? {
     openwa: { baseUrl: OPENWA_BASE_URL, apiKey: OPENWA_API_KEY, sessionId: OPENWA_SESSION_ID, webhookSecret: OPENWA_WEBHOOK_SECRET },
     staffPhone: STAFF_WHATSAPP_NUMBER,
-    ai: { baseUrl: AI_BASE_URL, apiKey: AI_API_KEY, model: AI_MODEL },
+    ai: { baseUrl: AI_BASE_URL, apiKey: AI_API_KEY, model: AI_MODEL, ...(AI_THINKING && { thinking: AI_THINKING }) },
   } : null,
 }));
 

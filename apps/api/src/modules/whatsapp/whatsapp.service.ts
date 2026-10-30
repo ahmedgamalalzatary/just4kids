@@ -1,6 +1,7 @@
 import type { WhatsAppSettings } from "../../configs/env.js";
+import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage, Decision } from "./ai.js";
-import { technicalPrompt } from "./messages.js";
+import { aiFailureMessage, technicalPrompt } from "./messages.js";
 import type { OpenWa } from "./openwa.js";
 import type { WhatsAppRepository } from "./whatsapp.repository.js";
 
@@ -31,6 +32,14 @@ export function createWhatsAppService(repository: WhatsAppRepository, openwa: Op
     return true;
   }
 
+  /** Stops trying to answer the waiting client messages and queues an alert so staff can contact the client. */
+  async function giveUp(id: string, reason: string) {
+    const inbound = await repository.pending(id, "inbound");
+    if (!inbound.length) return;
+    const conversation = (await repository.conversation(id))!;
+    await repository.giveUp(id, inbound.map(message => message.id), `No AI answer: ${reason}`, aiFailureMessage(conversation.phone, reason, inbound.map(message => message.body)), staffChatId, now());
+  }
+
   /** One AI answer for every waiting client message; false when a retry is needed later. */
   async function answerPending(id: string) {
     const inbound = await repository.pending(id, "inbound");
@@ -49,6 +58,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, openwa: Op
       if (decision.action?.type === "update_request" && !requests.some(request => request.number === (decision.action as { requestNumber: number }).requestNumber)) throw new Error("AI named a request this client does not have");
     } catch (error) {
       console.error(`WhatsApp AI answer failed for conversation ${id}: ${error instanceof Error ? error.message : "unknown error"}`);
+      if (error instanceof AiRefusedError) { await giveUp(id, error.reason); return true; }
       return false;
     }
     await repository.commitTurn(conversation, inbound.map(message => message.id), decision, staffChatId, now());
@@ -64,11 +74,9 @@ export function createWhatsAppService(repository: WhatsAppRepository, openwa: Op
         const answered = sent && await answerPending(id);
         if (!answered) {
           const failures = await repository.releaseAfterFailure(id, retryAt);
-          if (sent && failures >= MAX_AI_FAILURES) {
-            await repository.failInbound((await repository.pending(id, "inbound")).map(message => message.id), "No AI answer after repeated attempts", now());
-            await repository.release(id);
-          }
-          return;
+          if (!sent || failures < MAX_AI_FAILURES) return;
+          await giveUp(id, "the AI kept failing");
+          break;
         }
         if (!await hasWork(id)) break;
       }

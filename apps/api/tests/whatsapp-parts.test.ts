@@ -1,8 +1,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { parseInbound, verifySignature, createOpenWa } from "../src/modules/whatsapp/openwa.js";
-import { createAi, parseDecision } from "../src/modules/whatsapp/ai.js";
-import { staffMessage, technicalPrompt } from "../src/modules/whatsapp/messages.js";
+import { AiRefusedError, createAi, parseDecision } from "../src/modules/whatsapp/ai.js";
+import { aiFailureMessage, staffMessage, technicalPrompt } from "../src/modules/whatsapp/messages.js";
 import { readOwnerPrompt } from "../src/modules/whatsapp/index.js";
 import apiPackage from "../package.json" with { type: "json" };
 
@@ -104,7 +104,20 @@ describe("AI decisions", () => {
     const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe("https://ai.example.com/v1/chat/completions");
     expect(init).toMatchObject({ method: "POST", headers: { Authorization: "Bearer ai-key", "Content-Type": "application/json" } });
-    expect(JSON.parse(String(init?.body))).toEqual({ model: "model-1", messages: [{ role: "system", content: "rules" }, { role: "user", content: "السلام عليكم" }], response_format: { type: "json_object" } });
+    expect(JSON.parse(String(init?.body))).toEqual({ model: "model-1", messages: [{ role: "system", content: "rules" }, { role: "user", content: "السلام عليكم" }], response_format: { type: "json_object" }, max_completion_tokens: 2000, temperature: 0.3 });
+  });
+  it("sends the thinking setting only when it is configured", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply: "أهلا", action: null }) } }] }), { status: 200 }));
+    await createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m", thinking: "disabled" }, fetcher).decide([]);
+    expect(JSON.parse(String(fetcher.mock.calls[0]![1]?.body)).thinking).toEqual({ type: "disabled" });
+  });
+  it.each([400, 401, 402, 403, 404, 421])("marks a %i answer as a refusal that a retry cannot fix", async status => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status }));
+    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).decide([])).rejects.toBeInstanceOf(AiRefusedError);
+  });
+  it.each([429, 500, 503])("treats a %i answer as temporary", async status => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status }));
+    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).decide([])).rejects.not.toBeInstanceOf(AiRefusedError);
   });
   it("fails without exposing the API key when the provider refuses", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{\"error\":\"bad key\"}", { status: 401 }));
@@ -127,6 +140,14 @@ describe("staff messages", () => {
   });
 });
 
+describe("AI failure alert", () => {
+  it("tells staff who got no reply, why, and what the client wrote", () => {
+    expect(aiFailureMessage("+96550000001", "the AI account has no credit", ["أبي موعد", "بكرة"])).toBe([
+      "WhatsApp AI could not answer", "Client: +96550000001", "Reason: the AI account has no credit", "The client got no reply. Please contact them.", "Client's messages:", "أبي موعد", "بكرة",
+    ].join("\n"));
+  });
+});
+
 describe("technical prompt", () => {
   it("states today's Kuwait date, the answer shape, and only this client's earlier requests", () => {
     const prompt = technicalPrompt(new Date("2026-10-24T22:30:00.000Z"), [{ number: 12, details: { adults: 2, children: 1, address: "حولي", date: "2026-10-25", window: "4–6 pm" } }]);
@@ -135,6 +156,11 @@ describe("technical prompt", () => {
     expect(prompt).toContain("\"new_request\"");
     expect(prompt).toContain("\"update_request\"");
     expect(prompt).toContain("\"forward\"");
+  });
+  it("requires an action whenever the reply promises a person, and dates its example from tomorrow in Kuwait", () => {
+    const prompt = technicalPrompt(new Date("2026-10-24T22:30:00.000Z"), []);
+    expect(prompt).toContain("\"action\" MUST NOT be null");
+    expect(prompt).toContain("\"date\": \"2026-10-26\"");
   });
 });
 

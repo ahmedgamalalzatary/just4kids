@@ -115,13 +115,13 @@ OpenWA ─POST /whatsapp/webhook─► check signature ─► store message ─�
                               worker: AI answer ─► staff message first ─► client reply
 ```
 
-- It runs only when every setting is filled in `.env` / `.env.production`: `OPENWA_BASE_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`, `OPENWA_WEBHOOK_SECRET`, `STAFF_WHATSAPP_NUMBER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`. All empty keeps it off; a partial set stops the API at startup.
+- It runs only when every setting is filled in `.env` / `.env.production`: `OPENWA_BASE_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`, `OPENWA_WEBHOOK_SECRET`, `STAFF_WHATSAPP_NUMBER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`. All empty keeps it off; a partial set stops the API at startup. `AI_THINKING` (`enabled` or `disabled`) is optional and not part of that set; Xiaomi MiMo uses `disabled`.
 - OpenWA runs as the compose service `openwa` (image `ghcr.io/rmyndharis/openwa:0.25.0`, profile `whatsapp`, data volume `openwa-data`) with `RESOLVE_LID_TO_PHONE=true`, `AUTO_START_SESSIONS=true` and `SSRF_ALLOWED_HOSTS=api`. `pnpm docker:up` leaves it off; `pnpm docker:up:whatsapp` starts it with the rest. Its dashboard and API listen on `127.0.0.1:2785` only (reach it over an SSH tunnel).
 - `OPENWA_SESSION_ID` is the session's id (a UUID), not its name; the API refuses anything else.
 - AI: any OpenAI-compatible Chat Completions provider (`POST {AI_BASE_URL}/chat/completions` with `response_format: json_object`). Change provider or model by changing settings only.
 - The owner's prompt lives in `apps/api/prompts/whatsapp-ai.md` and ships in the API image; the code appends today's Kuwait date, the client's earlier requests and the required JSON answer shape.
 - Only individual-chat text messages are answered. Messages from the staff number, the session's own messages, groups and media are ignored.
-- Conversations, messages and requests are kept indefinitely (`whatsapp_conversations`, `whatsapp_messages`, `whatsapp_requests`). Failed AI calls and OpenWA sends retry with back-off from 30 seconds to 10 minutes and are marked failed after 12 attempts; a client reply is never sent after its staff message failed.
+- Conversations, messages and requests are kept indefinitely (`whatsapp_conversations`, `whatsapp_messages`, `whatsapp_requests`). Temporary AI failures and OpenWA sends retry with back-off from 30 seconds to 10 minutes and are marked failed after 12 attempts; a client reply is never sent after its staff message failed. When the AI cannot answer, either after those retries or at once for an answer a retry cannot fix (bad key, no credit, blocked, content filter), staff get one alert with the client's number and messages, and the client gets no reply.
 
 Onboarding steps, run on the server once the open decisions below are settled (`$KEY` is OpenWA's admin key: `OPENWA_MASTER_KEY`, or the key OpenWA wrote to `data/.api-key`):
 
@@ -132,7 +132,7 @@ Onboarding steps, run on the server once the open decisions below are settled (`
 5. Register the webhook: `POST /api/sessions/<id>/webhooks` with `{"url":"http://api:4000/whatsapp/webhook","events":["message.received"],"secret":"<OPENWA_WEBHOOK_SECRET>"}`.
 6. Fill the remaining settings in `.env.production` (`OPENWA_BASE_URL=http://openwa:2785`, `OPENWA_WEBHOOK_SECRET`, `STAFF_WHATSAPP_NUMBER`, `AI_*`), then restart: `pnpm docker:up:whatsapp`. The API log says "with the WhatsApp intake" when it is on.
 
-Open decisions and the ordered go-live steps are in [docs/backend-phases.md](docs/backend-phases.md#phase-12--arabic-whatsapp-booking-request-intake). In short, still open: setting up the chosen AI (Xiaomi MiMo-V2.6-Flash, pay-as-you-go: account, test call, thinking off); OpenWA onboarding (which phone/SIM, the engine, whether the VPS has memory for it); and what staff should hear when the AI keeps failing.
+Open decisions and the ordered go-live steps are in [docs/backend-phases.md](docs/backend-phases.md#phase-12--arabic-whatsapp-booking-request-intake). In short, still open: the owner's final prompt, and OpenWA onboarding (which phone/SIM and the engine).
 
 ## Web dashboard
 

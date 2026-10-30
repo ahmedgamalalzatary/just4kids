@@ -69,6 +69,13 @@ describe("password storage", () => {
       });
     });
 
+    it("treats the thinking setting as optional and passes it with the AI settings", () => {
+      expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, AI_THINKING: "" }).whatsapp?.ai.thinking).toBeUndefined();
+      expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, AI_THINKING: "disabled" }).whatsapp?.ai.thinking).toBe("disabled");
+      expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, AI_THINKING: "off" }).success).toBe(false);
+      expect(apiEnvSchema.parse({ ...credentials, AI_THINKING: "disabled" }).whatsapp).toBeNull();
+    });
+
     it.each(Object.keys(whatsapp))("refuses startup when only %s is missing", key => {
       expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, [key]: "" }).success).toBe(false);
     });

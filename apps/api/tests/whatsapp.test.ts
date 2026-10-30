@@ -26,7 +26,7 @@ type Sent = { chatId: string; text: string; key: string };
 type Decision = { reply: string; action: Record<string, unknown> | null };
 function harness() {
   const sent: Sent[] = [], aiCalls: { role: string; content: string }[][] = [];
-  const decisions: (Decision | Error)[] = [];
+  const decisions: (Decision | Error | number)[] = [];
   let sendStatus: (sent: Sent) => { status: number; body?: unknown } = () => ({ status: 201 });
   let clock = new Date("2026-10-24T09:00:00.000Z");
   const fetcher: typeof fetch = async (input, init) => {
@@ -34,6 +34,7 @@ function harness() {
     if (url === "http://ai.test/v1/chat/completions") {
       aiCalls.push(body.messages);
       const next = decisions.shift() ?? new Error("no AI answer queued");
+      if (typeof next === "number") return new Response("{}", { status: next });
       if (next instanceof Error) return new Response("{}", { status: 503 });
       return Response.json({ choices: [{ message: { role: "assistant", content: JSON.stringify(next) } }] });
     }
@@ -49,7 +50,7 @@ function harness() {
   const app = createApp({ auth, connection, env, whatsapp });
   return {
     app, whatsapp, sent, aiCalls,
-    answer: (...next: (Decision | Error)[]) => { decisions.push(...next); },
+    answer: (...next: (Decision | Error | number)[]) => { decisions.push(...next); },
     failSends: (next: typeof sendStatus) => { sendStatus = next; },
     advance: (ms: number) => { clock = new Date(clock.getTime() + ms); },
   };
@@ -228,6 +229,48 @@ describe("WhatsApp intake", () => {
     await h.whatsapp.drain();
     expect(h.aiCalls).toHaveLength(2);
     expect(h.sent.map(message => message.text)).toEqual(["أهلا"]);
+  });
+
+  it("alerts staff at once, without retrying, when the AI refuses for a reason a retry cannot fix", async () => {
+    const { phone } = client();
+    h.answer(402);
+    await deliver(h.app, payload(phone, "أبي موعد")); await h.whatsapp.idle();
+    expect(h.aiCalls).toHaveLength(1);
+    expect(h.sent).toEqual([{ chatId: `${staff.slice(1)}@c.us`, text: `WhatsApp AI could not answer\nClient: ${phone}\nReason: the AI account has no credit\nThe client got no reply. Please contact them.\nClient's messages:\nأبي موعد`, key: expect.any(String) }]);
+    const { messages, conversation } = await stored(phone);
+    expect(messages.map(message => [message.direction, message.audience, message.status])).toEqual([["inbound", "client", "failed"], ["outbound", "staff", "done"]]);
+    expect(conversation!.failures).toBe(0);
+    h.advance(60 * 60_000); await h.whatsapp.drain();
+    expect(h.aiCalls).toHaveLength(1);
+    expect(h.sent).toHaveLength(1);
+  });
+
+  it("answers the client's next message normally after an alert, without the failed message or alert in the AI's history", async () => {
+    const { phone } = client();
+    h.answer(402);
+    await deliver(h.app, payload(phone, "الرسالة الأولى")); await h.whatsapp.idle();
+    h.answer({ reply: "أهلا", action: null });
+    await deliver(h.app, payload(phone, "الرسالة الثانية")); await h.whatsapp.idle();
+    expect(h.aiCalls[1]!.slice(1)).toEqual([{ role: "user", content: "الرسالة الثانية" }]);
+    expect(h.sent.at(-1)).toMatchObject({ text: "أهلا" });
+  });
+
+  it("alerts staff once when temporary AI failures use up every retry", async () => {
+    const { phone } = client();
+    h.answer(new Error("down"));
+    await deliver(h.app, payload(phone, "أبي موعد")); await h.whatsapp.idle();
+    for (let attempt = 2; attempt <= 12; attempt++) {
+      expect(h.sent).toEqual([]);
+      h.answer(new Error("down"));
+      h.advance(10 * 60_000);
+      await h.whatsapp.drain(); await h.whatsapp.idle();
+    }
+    expect(h.aiCalls).toHaveLength(12);
+    expect(h.sent.map(message => message.text)).toEqual([`WhatsApp AI could not answer\nClient: ${phone}\nReason: the AI kept failing\nThe client got no reply. Please contact them.\nClient's messages:\nأبي موعد`]);
+    h.advance(60 * 60_000); await h.whatsapp.drain(); await h.whatsapp.idle();
+    expect(h.aiCalls).toHaveLength(12);
+    expect(h.sent).toHaveLength(1);
+    expect((await stored(phone)).conversation!.failures).toBe(0);
   });
 
   it("holds the client reply until staff got the request, retrying with the same key", async () => {

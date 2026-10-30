@@ -105,8 +105,15 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       if (message.turnId) await db.update(whatsappMessages).set({ status: "failed", error: "Not sent: an earlier message of this answer failed", completedAt: now })
         .where(and(eq(whatsappMessages.turnId, message.turnId), eq(whatsappMessages.status, "pending")));
     },
-    async failInbound(ids: number[], error: string, now: Date) {
-      await db.update(whatsappMessages).set({ status: "failed", error: error.slice(0, 500), completedAt: now }).where(and(inArray(whatsappMessages.id, ids), eq(whatsappMessages.status, "pending")));
+    /** Gives up on client messages the AI cannot answer and queues the staff alert, atomically so a retry cannot alert twice. */
+    async giveUp(conversationId: string, inboundIds: number[], error: string, alert: string, staffChatId: string, now: Date) {
+      return db.transaction(async transaction => {
+        const failed = await transaction.update(whatsappMessages).set({ status: "failed", error: error.slice(0, 500), completedAt: now })
+          .where(and(inArray(whatsappMessages.id, inboundIds), eq(whatsappMessages.status, "pending")));
+        // Another worker settled these messages first.
+        if (affected(failed) !== inboundIds.length) transaction.rollback();
+        await transaction.insert(whatsappMessages).values({ conversationId, direction: "outbound", audience: "staff", body: alert, status: "pending", turnId: randomUUID(), idempotencyKey: `j4k-${randomUUID()}`, chatId: staffChatId, createdAt: now });
+      }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
   };
 }
