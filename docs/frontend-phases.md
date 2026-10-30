@@ -28,7 +28,7 @@ Created: 2026-10-08. Product authority: [project-contract.md](project-contract.m
 | 9 | Reservation and haircut reports | Yes | No |
 | 10 | Barber and branch performance reports | Yes | No |
 | 11 | Client history and collection reports | Yes | No |
-| 12 | WhatsApp request intake (no new screens; remove the reservation source filter, labels and count) | No | No |
+| 12 | WhatsApp request intake (no new screens; remove the reservation source filter, labels and count) | Yes | No |
 | 13 | WhatsApp booking lookup and changes (removed 2026-10-21) | — | — |
 
 ## Phase 0 — Foundation and design system

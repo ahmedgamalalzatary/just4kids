@@ -13,7 +13,7 @@ export const visitTransitionSchema = z.strictObject({ status: z.enum(["arrived",
 export const visitCorrectionSchema = z.strictObject({ status: visitStatusSchema, expectedVersion: version, reason });
 export const visitEventResponseSchema = z.strictObject({
   id: z.uuid(), bookingId: z.uuid(), version, fromStatus: visitStatusSchema.nullable(), toStatus: visitStatusSchema,
-  actorType: z.enum(["admin", "employee", "client", "system"]), actorAccountId: z.uuid().nullable(), actorClientId: z.uuid().nullable(),
+  actorType: z.enum(["admin", "employee", "system"]), actorAccountId: z.uuid().nullable(),
   reason: reason.nullable(), correction: z.boolean(), occurredAt: z.iso.datetime(),
 });
 export type VisitStatus = z.infer<typeof visitStatusSchema>;
@@ -54,7 +54,7 @@ export const bookingResponseObjectSchema = z.strictObject({
   date: eligibilityQuerySchema.shape.date, startTime: eligibilityQuerySchema.shape.startTime, endTime: eligibilityQuerySchema.shape.endTime,
   timeZone: z.literal("Asia/Kuwait"), adultCount: haircutCount, childCount: haircutCount, specialChildCount: haircutCount.default(0), notes: z.string().max(1000).nullable().default(null),
   seenByBarberAt: z.iso.datetime().nullable().default(null),
-  source: z.enum(["manual", "ai"]), visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
+  visitStatus: visitStatusSchema, visitVersion: version, createdAt: z.iso.datetime(),
   client: bookingClientSnapshotSchema, address: bookingAddressSnapshotSchema, employee: bookingEmployeeSnapshotSchema,
 });
 export const bookingResponseSchema = z.preprocess(withoutKeys(["branchId"]), bookingResponseObjectSchema);

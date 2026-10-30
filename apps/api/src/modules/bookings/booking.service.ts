@@ -1,7 +1,7 @@
 import { bookingCreateSchema, bookingListQuerySchema, bookingResponseSchema, bookingWithClientCreateSchema } from "@just4kids/contracts";
 import type { Account } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
-import type { BookingActor, BookingRepository } from "./booking.repository.js";
+import type { BookingRepository } from "./booking.repository.js";
 
 export function serializeBooking(booking: NonNullable<Awaited<ReturnType<BookingRepository["get"]>>>) {
   const snapshots = { client: booking.clientSnapshot, address: booking.addressSnapshot, employee: booking.employeeSnapshot };
@@ -9,12 +9,12 @@ export function serializeBooking(booking: NonNullable<Awaited<ReturnType<Booking
     id: booking.id, reference: booking.reference, clientId: booking.clientId, addressId: booking.addressId, employeeId: booking.employeeId,
     date: booking.date, startTime: booking.startTime, endTime: booking.endTime, timeZone: "Asia/Kuwait", adultCount: booking.adultCount, childCount: booking.childCount, specialChildCount: booking.specialChildCount, notes: booking.notes,
     seenByBarberAt: booking.seenByBarberAt ? booking.seenByBarberAt.toISOString() : null,
-    source: booking.source, visitStatus: booking.visitStatus, visitVersion: booking.visitVersion, createdAt: booking.createdAt.toISOString(), ...snapshots,
+    visitStatus: booking.visitStatus, visitVersion: booking.visitVersion, createdAt: booking.createdAt.toISOString(), ...snapshots,
   });
 }
 export function createBookingService(repository: BookingRepository) {
   return {
-    async create(body: unknown, actor: BookingActor) { return serializeBooking(await repository.create(bookingCreateSchema.parse(body), actor)); },
+    async create(body: unknown, accountId: string) { return serializeBooking(await repository.create(bookingCreateSchema.parse(body), accountId)); },
     async createWithClient(body: unknown, accountId: string) {
       const input = bookingWithClientCreateSchema.parse(body);
       try { return serializeBooking(await repository.createWithClient(input, accountId)); }

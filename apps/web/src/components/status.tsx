@@ -27,7 +27,3 @@ export function VisitStatusBadge({ status, className }: { status: VisitStatus; c
     </span>
   );
 }
-
-export function SourceLabel({ source }: { source: "manual" | "ai" }) {
-  return <span className="text-xs text-muted-foreground">{source === "ai" ? "Via WhatsApp" : "Manual reservation"}</span>;
-}

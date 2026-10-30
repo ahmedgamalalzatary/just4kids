@@ -15,11 +15,14 @@ import { createBookings } from "./modules/bookings/index.js";
 import { createSalon } from "./modules/salon/index.js";
 import { createCollections } from "./modules/collections/index.js";
 import { createReports } from "./modules/reports/index.js";
+import type { WhatsAppModule } from "./modules/whatsapp/index.js";
 
-export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv }) {
+export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv; whatsapp?: WhatsAppModule }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
+  // OpenWA posts without a browser origin or session and signs the raw body, so its webhook comes before the JSON parser and origin guard.
+  if (options?.whatsapp) app.use("/whatsapp", (_request, response, next) => { response.set("Cache-Control", "no-store"); next(); }, options.whatsapp.router);
   app.use(express.json());
 
   if (options?.auth) {

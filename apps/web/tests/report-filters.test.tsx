@@ -51,11 +51,12 @@ describe("report filters", () => {
   });
 
   it("labels the date basis, range, and named filters for screen and print", () => {
-    renderReport("admin", `?dateBasis=created_date&from=2026-10-01&to=2026-10-31&branchId=${branchId}&employeeId=${employeeId}&source=ai`);
+    renderReport("admin", `?dateBasis=created_date&from=2026-10-01&to=2026-10-31&branchId=${branchId}&employeeId=${employeeId}&source=manual`);
     expect(screen.getByRole("heading", { name: "Report Barbers" })).toBeInTheDocument();
     const scope = screen.getByText(/By Reservation creation date/);
     expect(scope).toHaveTextContent("Kuwait time");
-    expect(scope).toHaveTextContent("Barber: أحمد, Source: Via WhatsApp");
+    expect(scope).toHaveTextContent("Barber: أحمد");
+    expect(scope).not.toHaveTextContent("Source");
     expect(scope).not.toHaveTextContent("Branch");
   });
 
@@ -63,6 +64,7 @@ describe("report filters", () => {
     renderReport("admin");
     expect(screen.queryByText("Branch")).not.toBeInTheDocument();
     expect(screen.getByText("Barber")).toBeInTheDocument();
+    expect(screen.queryByText("Source")).not.toBeInTheDocument();
   });
 
   it("offers barbers no branch or barber filters and states their own-record scope", () => {

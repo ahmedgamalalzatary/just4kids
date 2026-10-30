@@ -8,7 +8,6 @@ import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { hashPassword } from "../src/lib/password.js";
-import { createVisitService } from "../src/modules/bookings/visit.service.js";
 
 const origin = "http://localhost:3000";
 const env = apiEnvSchema.parse({ NODE_ENV: "test", DATABASE_URL: process.env.DATABASE_URL, ADMIN_PHONE: "+96555551234", ADMIN_PASSWORD: "admin1234", AUTH_SECRET: "a".repeat(64), APP_ORIGIN: origin });
@@ -165,21 +164,6 @@ describe("employee visit actions and history", () => {
     expect(results.map(result => result.status).sort()).toEqual([200, 409]);
     expect((await history()).body.events).toHaveLength(3);
   });
-  it("permits client cancellation only for the authenticated sender's future booked visit", async () => {
-    const visits = createVisitService(connection);
-    await expect(visits.cancelForClient(booking.id, 0, randomUUID())).rejects.toMatchObject({ status: 403 });
-    const cancelled = await visits.cancelForClient(booking.id, 0, clientId);
-    expect(cancelled).toMatchObject({ visitStatus: "cancelled" });
-    expect((await history()).body.events[1]).toMatchObject({ actorType: "client", actorAccountId: null, actorClientId: clientId });
-    await expect(visits.cancelForClient(booking.id, 1, clientId)).rejects.toMatchObject({ code: "CLIENT_CANCELLATION_NOT_ALLOWED" });
-  });
-  it("denies client cancellation at the start time or after arrival", async () => {
-    const visits = createVisitService(connection);
-    at("09:00"); await expect(visits.cancelForClient(booking.id, 0, clientId)).rejects.toMatchObject({ code: "CLIENT_CANCELLATION_NOT_ALLOWED" });
-    expect((await transition("arrived")).status).toBe(200);
-    // Administrator corrections can change state, but the client cannot cancel an arrived visit even if the clock is earlier.
-    at("08:59"); await expect(visits.cancelForClient(booking.id, 1, clientId)).rejects.toMatchObject({ code: "CLIENT_CANCELLATION_NOT_ALLOWED" });
-  });
   it("serializes reopening against a new booking for the released window", async () => {
     expect((await transition("cancelled")).status).toBe(200);
     const [reopened, created] = await Promise.all([correction("booked", 1), write("/bookings", body(), admin)]);
@@ -192,7 +176,8 @@ describe("employee visit actions and history", () => {
     expect((await detail())).toMatchObject({ visitStatus: "completed", visitVersion: 0 });
     const recorded = await history();
     expect(recorded.body.events).toHaveLength(1);
-    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, actorClientId: null, fromStatus: null, toStatus: "completed" });
+    expect(recorded.body.events[0]).toMatchObject({ actorType: "system", actorAccountId: null, fromStatus: null, toStatus: "completed" });
+    expect(recorded.body.events[0]).not.toHaveProperty("actorClientId");
   });
 });
 

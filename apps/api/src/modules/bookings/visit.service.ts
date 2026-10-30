@@ -9,23 +9,21 @@ import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } 
 import { isWindowAvailable } from "../availability/availability.service.js";
 import { serializeBooking } from "./booking.service.js";
 
-type VisitActor = { kind: "account"; account: Account } | { kind: "client"; clientId: string };
 const blocking = new Set<VisitStatus>(["booked", "arrived", "completed"]);
 const allowed: Partial<Record<VisitStatus, VisitStatus[]>> = { booked: ["arrived", "cancelled", "no_show"], arrived: ["completed", "cancelled", "no_show"] };
-// Older bookings may predate visit events; creation is still recoverable from their source, actor and timestamp.
-export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect, "id" | "source" | "createdBy" | "clientId" | "createdAt">, rows: (typeof bookingVisitEvents.$inferSelect)[]) {
+// Older bookings may predate visit events; creation is still recoverable from their creator and timestamp.
+export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect, "id" | "createdBy" | "createdAt">, rows: (typeof bookingVisitEvents.$inferSelect)[]) {
   const events = rows.map(event => visitEventResponseSchema.parse({ ...event, occurredAt: event.occurredAt.toISOString() }));
   if (!events.some(event => event.fromStatus === null)) events.unshift(visitEventResponseSchema.parse({
     id: booking.id, bookingId: booking.id, version: 0, fromStatus: null, toStatus: "booked",
-    actorType: booking.source === "ai" ? "client" : "admin", actorAccountId: booking.source === "ai" ? null : booking.createdBy,
-    actorClientId: booking.source === "ai" ? booking.clientId : null, reason: null, correction: false,
+    actorType: "admin", actorAccountId: booking.createdBy, reason: null, correction: false,
     occurredAt: booking.createdAt.toISOString(),
   }));
   return events;
 }
 export function createVisitService(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
-  async function change(id: string, input: VisitTransition | VisitCorrection, actor: VisitActor, correction: boolean) {
+  async function change(id: string, input: VisitTransition | VisitCorrection, account: Account, correction: boolean) {
     const [identity] = await db.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id));
     if (!identity) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
     return db.transaction(async transaction => {
@@ -34,15 +32,10 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
       const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("update");
       if (!barber || !booking) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
       if (booking.employeeId !== identity.employeeId) throw new HttpError(409, "VISIT_CONFLICT", "The reservation changed. Reload it");
-      if (actor.kind === "client") {
-        if (correction || actor.clientId !== booking.clientId || input.status !== "cancelled") throw new ForbiddenError();
-      } else {
-        const [currentActor] = await transaction.select({ role: accounts.role }).from(accounts).where(and(eq(accounts.id, actor.account.id), eq(accounts.enabled, true)));
-        if (!currentActor || currentActor.role !== actor.account.role || (actor.account.role === "employee" && actor.account.id !== booking.employeeId) || (correction && actor.account.role !== "admin")) throw new ForbiddenError();
-      }
+      const [currentActor] = await transaction.select({ role: accounts.role }).from(accounts).where(and(eq(accounts.id, account.id), eq(accounts.enabled, true)));
+      if (!currentActor || currentActor.role !== account.role || (account.role === "employee" && account.id !== booking.employeeId) || (correction && account.role !== "admin")) throw new ForbiddenError();
       if (booking.visitVersion !== input.expectedVersion) throw new HttpError(409, "VISIT_CONFLICT", "The visit status changed. Reload the reservation");
       const now = Date.now(), start = Date.parse(`${booking.date}T${booking.startTime}:00+03:00`), end = Date.parse(`${booking.date}T${booking.endTime}:00+03:00`);
-      if (actor.kind === "client" && (booking.visitStatus !== "booked" || start <= now)) throw new HttpError(409, "CLIENT_CANCELLATION_NOT_ALLOWED", "Only a future visit that has not started can be cancelled");
       if (booking.visitStatus === input.status || (!correction && !allowed[booking.visitStatus]?.includes(input.status))) throw new HttpError(409, "INVALID_VISIT_TRANSITION", "Visit status change is not allowed");
       if (!correction && ((["arrived", "completed"].includes(input.status) && now < start) || (input.status === "no_show" && now < end))) throw new HttpError(409, "VISIT_TOO_EARLY", "It is too early to record this status");
       if (correction && blocking.has(input.status)) {
@@ -55,16 +48,14 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
       const version = booking.visitVersion + 1;
       await transaction.update(bookings).set({ visitStatus: input.status, visitVersion: version }).where(eq(bookings.id, id));
       await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version, fromStatus: booking.visitStatus, toStatus: input.status,
-        actorType: actor.kind === "client" ? "client" : actor.account.role, actorAccountId: actor.kind === "account" ? actor.account.id : null, actorClientId: actor.kind === "client" ? actor.clientId : null,
+        actorType: account.role, actorAccountId: account.id,
         reason: input.reason ?? null, correction, occurredAt: new Date(now) });
       return serializeBooking({ ...booking, visitStatus: input.status, visitVersion: version });
     });
   }
   return {
-    transition: (id: string, body: unknown, account: Account) => change(id, visitTransitionSchema.parse(body), { kind: "account", account }, false),
-    correct: (id: string, body: unknown, account: Account) => change(id, visitCorrectionSchema.parse(body), { kind: "account", account }, true),
-    // The caller must derive clientId from an authenticated WhatsApp sender. No public client-login/action endpoint exists.
-    cancelForClient: (id: string, expectedVersion: number, clientId: string, reason?: string) => change(id, visitTransitionSchema.parse({ status: "cancelled", expectedVersion, ...(reason === undefined ? {} : { reason }) }), { kind: "client", clientId }, false),
+    transition: (id: string, body: unknown, account: Account) => change(id, visitTransitionSchema.parse(body), account, false),
+    correct: (id: string, body: unknown, account: Account) => change(id, visitCorrectionSchema.parse(body), account, true),
     async history(id: string, account: Account) {
       return db.transaction(async transaction => {
         const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, id)).for("share");

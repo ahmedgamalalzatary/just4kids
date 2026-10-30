@@ -6,7 +6,7 @@ import { CalendarDays } from "lucide-react";
 import { EmptyState, ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { Pagination } from "@/components/pagination";
 import { useReportFilters } from "@/components/reports";
-import { SourceLabel, VisitStatusBadge } from "@/components/status";
+import { VisitStatusBadge } from "@/components/status";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReservationReport } from "@/lib/api/hooks";
 import type { ReservationReport } from "@/lib/api/types";
@@ -35,7 +35,6 @@ function BookingRow({ booking, showBarber }: { booking: ReservationReport["booki
             {booking.address.area}, {haircuts(booking)}{showBarber ? `, with ${booking.employee.displayName}` : ""}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <SourceLabel source={booking.source} />
             <span className="text-xs text-muted-foreground">Created {formatDateTime(booking.createdAt)}</span>
             {booking.editCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.editCount} Edit</span> : null}
             {booking.correctionCount ? <span className="text-xs text-muted-foreground" data-numeric>{booking.correctionCount} Status correction</span> : null}

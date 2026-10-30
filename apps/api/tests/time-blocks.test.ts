@@ -129,7 +129,7 @@ describe("manual half-hour locks", () => {
     expect(counts).toMatchObject([{ n: 0 }]);
     for (const [startTime, endTime] of [["12:30", "13:00"], ["13:30", "14:00"]]) expect((await write("post", "/bookings", { ...booking(), startTime, endTime })).status).toBe(201);
     const service = createBookingService(createBookingRepository(connection));
-    await expect(service.create({ ...booking(), startTime: "13:00", endTime: "13:30" }, { kind: "whatsapp", accountId: admin.id, clientId })).rejects.toMatchObject({ code: "BARBER_UNAVAILABLE" });
+    await expect(service.create({ ...booking(), startTime: "13:00", endTime: "13:30" }, admin.id)).rejects.toMatchObject({ code: "BARBER_UNAVAILABLE" });
     expect((await write("delete", `${base}/${block.id}`)).status).toBe(204);
     expect((await write("post", "/bookings", { ...booking(), startTime: "13:00", endTime: "13:30" })).status).toBe(201);
   });

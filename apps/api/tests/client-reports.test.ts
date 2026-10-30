@@ -55,7 +55,7 @@ beforeAll(async () => {
     const client = fixture.clientId === clientOne ? { phone: "+96555000004" } : { phone: "+96555000005" };
     await connection.db.insert(bookings).values({
       id, reference: references[index]!, clientId: fixture.clientId, addressId: fixture.clientId === clientOne ? addressOne : addressTwo, employeeId: fixture.employeeId, createdBy: adminAccount!.id,
-      date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, source: "manual", visitStatus: fixture.status, visitVersion: 3,
+      date: fixture.date, startTime: "10:00", endTime: "11:00", adultCount: fixture.adult, childCount: fixture.child, visitStatus: fixture.status, visitVersion: 3,
       clientSnapshot: client, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
       employeeSnapshot: { id: fixture.employeeId, displayName: "اسم قديم" }, createdAt: new Date(`2098-04-2${index}T08:00:00Z`),
     });

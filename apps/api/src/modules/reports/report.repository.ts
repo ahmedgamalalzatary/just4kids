@@ -82,7 +82,6 @@ function filter(query: HaircutReportQuery) {
     query.from ? gte(day, query.from) : undefined, query.to ? lte(day, query.to) : undefined,
     query.employeeId ? eq(bookings.employeeId, query.employeeId) : undefined,
     query.clientId ? eq(bookings.clientId, query.clientId) : undefined, query.status ? eq(bookings.visitStatus, query.status) : undefined,
-    query.source ? eq(bookings.source, query.source) : undefined,
     query.q ? or(
       sql`${bookings.reference} LIKE ${pattern} ESCAPE '!'`,
       sql`JSON_UNQUOTE(JSON_EXTRACT(${bookings.clientSnapshot}, '$.phone')) LIKE ${pattern} ESCAPE '!'`,
@@ -98,15 +97,13 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
         const rows = await transaction.select({ booking: bookings }).from(bookings)
           .where(filter({ ...query, dateBasis: "visit_date", q: "" })).orderBy(desc(bookings.date), desc(bookings.startTime), desc(bookings.id));
         const ids = rows.map(row => row.booking.id);
-        if (!ids.length) return { rows, visits: [], revisions: [], messages: [], actors: [], clients: [] };
+        if (!ids.length) return { rows, visits: [], revisions: [], messages: [], actors: [] };
         const visits = await transaction.select().from(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, ids)).orderBy(asc(bookingVisitEvents.version));
         const revisions = await transaction.select().from(bookingRevisions).where(inArray(bookingRevisions.bookingId, ids));
         const messages = await transaction.select().from(bookingMessages).where(inArray(bookingMessages.bookingId, ids));
         const actorIds = [...new Set([...rows.map(row => row.booking.createdBy), ...visits.flatMap(event => event.actorAccountId ? [event.actorAccountId] : []), ...revisions.map(event => event.actorAccountId), ...messages.map(event => event.actorAccountId)])];
         const actors = await transaction.select({ id: accounts.id, role: accounts.role, name: employees.displayName }).from(accounts).leftJoin(employees, eq(employees.accountId, accounts.id)).where(inArray(accounts.id, actorIds));
-        const clientIds = [...new Set([...rows.map(row => row.booking.clientId), ...visits.flatMap(event => event.actorClientId ? [event.actorClientId] : [])])];
-        const people = await transaction.select({ id: clients.id, phone: clients.phone }).from(clients).where(inArray(clients.id, clientIds));
-        return { rows, visits, revisions, messages, actors, clients: people };
+        return { rows, visits, revisions, messages, actors };
       });
     },
     async reservations(query: ReservationReportQuery) {
@@ -114,7 +111,6 @@ export function createReportRepository(connection: ReturnType<typeof createDatab
       const status = (value: string) => total(sql`${bookings.visitStatus} = ${value}`);
       const [summary] = await db.select({
         bookings: count(), booked: status("booked"), arrived: status("arrived"), completed: status("completed"), cancelled: status("cancelled"), noShow: status("no_show"),
-        manual: total(sql`${bookings.source} = 'manual'`), ai: total(sql`${bookings.source} = 'ai'`),
         editedBookings: total(sql`${editCount} > 0`), edits: total(editCount), correctedBookings: total(sql`${correctionCount} > 0`), corrections: total(correctionCount),
       }).from(bookings).where(where);
       const order = query.dateBasis === "visit_date" ? [desc(bookings.date), desc(bookings.startTime), desc(bookings.id)] : [desc(bookings.createdAt), desc(bookings.id)];

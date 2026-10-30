@@ -79,7 +79,8 @@ describe("manual bookings", () => {
     const response = await post(input);
     expect(response.status).toBe(201);
     bookingId = response.body.id;
-    expect(response.body).toMatchObject({ source: "manual", visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0 });
+    expect(response.body).not.toHaveProperty("source");
+    expect(response.body).toMatchObject({ visitStatus: "booked", timeZone: "Asia/Kuwait", adultCount: 3, childCount: 0 });
     expect(response.body.reference).toMatch(/^J4K-/);
   });
   it("scopes booking list/detail reads to the assigned employee", async () => {
@@ -156,12 +157,11 @@ describe("manual bookings", () => {
     expect((await post({ ...input, date: exceptionDate, startTime: "06:00", endTime: "06:20" })).status).toBe(201);
     expect((await schedule("delete", `/schedules/${employeeId}/exceptions/${exceptionDate}`)).status).toBe(409);
   });
-  it("enforces trusted AI source and sender-scoped client identity in the shared creation service", async () => {
+  it("lets only the enabled administrator create through the shared creation service", async () => {
     const service = createBookingService(createBookingRepository(connection));
-    await expect(service.create(input, { kind: "whatsapp", accountId: admin.accountId, clientId: randomUUID() })).rejects.toMatchObject({ status: 403 });
-    await expect(service.create(input, { kind: "administrator", accountId: employeeId })).rejects.toMatchObject({ status: 403 });
-    const created = await service.create({ ...input, startTime: "11:00", endTime: "11:20" }, { kind: "whatsapp", accountId: admin.accountId, clientId });
-    expect(created.source).toBe("ai");
+    await expect(service.create(input, employeeId)).rejects.toMatchObject({ status: 403 });
+    const created = await service.create({ ...input, startTime: "11:00", endTime: "11:20" }, admin.accountId);
+    expect(created).not.toHaveProperty("source");
   });
   it("protects a booking racing with a closure using the same employee lock", async () => {
     const raceDate = "2099-01-08";

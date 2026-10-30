@@ -50,7 +50,7 @@ beforeAll(async () => {
     await connection.db.insert(bookings).values({
       id, reference: `J4K-${id.slice(0, 8)}`, employeeId, clientId, addressId: clientId === clientA ? addressA : addressB, createdBy: adminId,
       date: index === 3 ? "2096-04-12" : index === 0 ? "2096-04-10" : "2096-04-11", startTime: index === 1 ? "12:00" : "10:00", endTime: "13:00",
-      adultCount: 1, childCount: 2, specialChildCount: 1, visitStatus: "completed", visitVersion: 8, source: "manual", createdAt: at(8),
+      adultCount: 1, childCount: 2, specialChildCount: 1, visitStatus: "completed", visitVersion: 8, createdAt: at(8),
       clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: employeeId, displayName: "اسم الحلاق وقت الحجز" },
       addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
     });
@@ -58,7 +58,7 @@ beforeAll(async () => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuwait" }).format(now);
   await connection.db.insert(bookings).values({
     id: thisWeek, reference: `J4K-${thisWeek.slice(0, 8)}`, employeeId: barberA, clientId: clientA, addressId: addressA, createdBy: adminId,
-    date: today, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1, specialChildCount: 0, visitStatus: "booked", visitVersion: 0, source: "manual", createdAt: now,
+    date: today, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1, specialChildCount: 0, visitStatus: "booked", visitVersion: 0, createdAt: now,
     clientSnapshot: { phone: "+96555000001" }, employeeSnapshot: { id: barberA, displayName: "حلاق التتبع" },
     addressSnapshot: { area: "حولي", block: "1", street: "1", houseNumber: "1", buildingName: null, floor: null, apartment: null, mapsUrl: null },
   });
@@ -67,7 +67,7 @@ beforeAll(async () => {
     { id: randomUUID(), bookingId: ids[0]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: adminId, occurredAt: at(8) },
     { id: randomUUID(), bookingId: ids[0]!, version: 3, fromStatus: "booked", toStatus: "arrived", actorType: "employee", actorAccountId: barberA, reason: "وصل إلى العنوان", occurredAt: at(11) },
     { id: randomUUID(), bookingId: ids[0]!, version: 4, fromStatus: "arrived", toStatus: "completed", actorType: "admin", actorAccountId: adminId, correction: true, reason: "تصحيح الحالة", occurredAt: at(12) },
-    { id: randomUUID(), bookingId: ids[1]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "client", actorClientId: clientB, reason: "طلب العميل", occurredAt: at(9) },
+    { id: randomUUID(), bookingId: ids[1]!, version: 1, fromStatus: "booked", toStatus: "cancelled", actorType: "admin", actorAccountId: adminId, reason: "طلب العميل", occurredAt: at(9) },
     { id: randomUUID(), bookingId: ids[2]!, version: 0, fromStatus: null, toStatus: "booked", actorType: "system", occurredAt: at(8) },
   ]);
   await connection.db.insert(bookingMessages).values({ id: randomUUID(), bookingId: ids[0]!, kind: "sent_to_barber", actorAccountId: adminId, occurredAt: at(9) });
@@ -108,7 +108,8 @@ describe("booking tracking report", () => {
     expect(events[2].revision).toMatchObject({ reason: "تعديل الملاحظات", before: { notes: null }, after: { notes: "جرس الباب" } });
     expect(events[3]).toMatchObject({ actor: { id: barberA, name: "حلاق التتبع", role: "employee" }, event: { reason: "وصل إلى العنوان" } });
     expect(events[4]).toMatchObject({ actor: { id: adminId, name: "Administrator", role: "admin" }, event: { correction: true, reason: "تصحيح الحالة" } });
-    expect(result.body.bookings[0].events[1]).toMatchObject({ actor: { id: clientB, name: expect.stringMatching(/^\+965[0-9]{8}$/), role: "client" } });
+    expect(result.body.bookings[0].events[1]).toMatchObject({ actor: { id: adminId, name: "Administrator", role: "admin" } });
+    expect(result.body.bookings[0].events[1].event).not.toHaveProperty("actorClientId");
     expect(result.body.bookings[1].events[0]).toMatchObject({ actor: { id: null, name: "System", role: "system" } });
   });
   it("applies barber, client and inclusive visit-day filters together", async () => {

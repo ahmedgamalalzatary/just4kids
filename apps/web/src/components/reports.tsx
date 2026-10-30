@@ -21,7 +21,6 @@ import { paymentMethodOptions } from "@/lib/payments";
 import { emptyReportFilters, rangeError, readReportFilters, reportSearch, trackingFilters, trackingRangeError, withTrackingPeriod, type ReportFilters } from "@/lib/reports";
 
 export const dateBasisLabels = { visit_date: "Visit date", created_date: "Reservation creation date" } as const;
-export const sourceLabels = { manual: "Manual reservation", ai: "Via WhatsApp" } as const;
 
 /** The current report filters from the address; the barber filter applies to the administrator only. */
 export function useReportFilters() {
@@ -140,10 +139,6 @@ function FilterForm({ filters, isAdmin }: { filters: ReportFilters; isAdmin: boo
             <Field label="Visit status">
               <OptionSelect value={draft.status} onChange={value => set("status")(value as VisitStatus | "")} all="All statuses"
                 options={Object.entries(visitStatusLabels).map(([value, label]) => ({ value, label }))} />
-            </Field>
-            <Field label="Source">
-              <OptionSelect value={draft.source} onChange={value => set("source")(value as ReportFilters["source"])} all="All sources"
-                options={Object.entries(sourceLabels).map(([value, label]) => ({ value, label }))} />
             </Field>
           </div>
           {isAdmin && filters.clientId ? (
@@ -283,7 +278,6 @@ export function ReportScope() {
     filters.employeeId ? `Barber: ${employees.data?.find(employee => employee.id === filters.employeeId)?.displayName ?? "…"}` : null,
     filters.clientId ? `Client: ${client.data?.phone ?? "…"}` : null,
     filters.status ? `Status: ${visitStatusLabels[filters.status]}` : null,
-    filters.source ? `Source: ${sourceLabels[filters.source]}` : null,
     filters.q ? `Search: ${filters.q}` : null,
   ].filter(Boolean);
   return (

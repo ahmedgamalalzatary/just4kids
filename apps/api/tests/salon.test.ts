@@ -46,7 +46,7 @@ beforeAll(async () => {
   const [adminAccount] = await connection.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.role, "admin"));
   await connection.db.insert(bookings).values({
     id: bookingId, reference: `J4K-SALON${randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`, clientId, addressId, employeeId, createdBy: adminAccount!.id,
-    date: "2099-06-01", startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, source: "manual", visitStatus: "completed", visitVersion: 2,
+    date: "2099-06-01", startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1, visitStatus: "completed", visitVersion: 2,
     clientSnapshot: { phone: "+96555000006" }, addressSnapshot: { area: "حولي", block: "1", street: "شارع 1", houseNumber: "1", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null },
     employeeSnapshot: { id: employeeId, displayName: "حلاق الصالون" }, createdAt: now,
   });

@@ -11,8 +11,6 @@ import { verifyAddressArea } from "../areas/area.repository.js";
 import type { Transaction } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 
-// Only trusted server code constructs this context. WhatsApp client identity must come from the authenticated sender, never model arguments.
-export type BookingActor = { kind: "administrator"; accountId: string } | { kind: "whatsapp"; accountId: string; clientId: string };
 export function fils(price: string) { return BigInt(price.replace(".", "")); }
 export function money(value: bigint) { return `${value / 1000n}.${(value % 1000n).toString().padStart(3, "0")}`; }
 export function assertFutureStart(input: Pick<BookingCreate, "date" | "startTime">) {
@@ -24,8 +22,8 @@ export function createBookingRepository(connection: ReturnType<typeof createData
     const [row] = await db.select().from(bookings).where(eq(bookings.id, id));
     return row;
   }
-  async function save(input: BookingCreate, actor: BookingActor, transaction: Transaction, newClient?: BookingWithClientCreate["client"]) {
-    const [creator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, actor.accountId), eq(accounts.role, "admin"), eq(accounts.enabled, true)));
+  async function save(input: BookingCreate, accountId: string, transaction: Transaction, newClient?: BookingWithClientCreate["client"]) {
+    const [creator] = await transaction.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, accountId), eq(accounts.role, "admin"), eq(accounts.enabled, true)));
     if (!creator) throw new ForbiddenError();
     const barber = await lockEmployee(transaction, input.employeeId);
     if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Employee not found");
@@ -50,12 +48,12 @@ export function createBookingRepository(connection: ReturnType<typeof createData
     const reference = `J4K-${id.replaceAll("-", "").toUpperCase()}`;
     const addressFields = { area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate, blueNumber: address.blueNumber, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl };
     const booking = {
-      id, reference, ...input, notes: input.notes ?? null, seenByBarberAt: null, createdBy: actor.accountId, source: actor.kind === "administrator" ? "manual" as const : "ai" as const, visitStatus: "booked" as const, visitVersion: 0,
+      id, reference, ...input, notes: input.notes ?? null, seenByBarberAt: null, createdBy: accountId, visitStatus: "booked" as const, visitVersion: 0,
       clientSnapshot: { phone: client.phone }, addressSnapshot: bookingAddressSnapshotSchema.parse(addressFields),
       employeeSnapshot: { id: input.employeeId, displayName: barber.employee.displayName }, createdAt: now,
     };
     await transaction.insert(bookings).values(booking);
-    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: actor.kind === "administrator" ? "admin" : "client", actorAccountId: actor.kind === "administrator" ? actor.accountId : null, actorClientId: actor.kind === "whatsapp" ? actor.clientId : null, reason: null, correction: false, occurredAt: now });
+    await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version: 0, fromStatus: null, toStatus: "booked", actorType: "admin", actorAccountId: accountId, reason: null, correction: false, occurredAt: now });
     return booking;
   }
   return {
@@ -74,14 +72,13 @@ export function createBookingRepository(connection: ReturnType<typeof createData
       const [total] = await db.select({ n: count() }).from(bookings).where(filter);
       return { rows, total: total?.n ?? 0 };
     },
-    async create(input: BookingCreate, actor: BookingActor) {
-      if (actor.kind === "whatsapp" && actor.clientId !== input.clientId) throw new ForbiddenError();
-      return db.transaction(transaction => save(input, actor, transaction));
+    async create(input: BookingCreate, accountId: string) {
+      return db.transaction(transaction => save(input, accountId, transaction));
     },
     async createWithClient(input: BookingWithClientCreate, accountId: string) {
       const { client, ...details } = input;
       const bookingInput = { ...details, clientId: randomUUID(), addressId: randomUUID() };
-      return db.transaction(transaction => save(bookingInput, { kind: "administrator", accountId }, transaction, client));
+      return db.transaction(transaction => save(bookingInput, accountId, transaction, client));
     },
   };
 }

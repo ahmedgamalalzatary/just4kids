@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const phoneSchema = z.string().regex(/^\+[1-9][0-9]{7,14}$/, "استخدم رقم الهاتف بالصيغة الدولية");
+export const phoneSchema = z.string().regex(/^\+[1-9][0-9]{7,14}$/, "Enter an international number, e.g. +96550000000");
 export const passwordSchema = z.string().min(8).max(128);
 export const loginRequestSchema = z.strictObject({ phone: phoneSchema, password: z.string().min(1).max(128) });
 export const accountSchema = z.strictObject({ id: z.uuid(), phone: phoneSchema, role: z.enum(["admin", "employee"]) });

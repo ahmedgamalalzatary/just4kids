@@ -49,4 +49,44 @@ describe("password storage", () => {
     expect(await verifyPassword("admin12345", first)).toBe(false);
     expect(await verifyPassword("admin1234", "broken")).toBe(false);
   });
+
+  describe("WhatsApp intake settings", () => {
+    const whatsapp = {
+      OPENWA_BASE_URL: "http://openwa:2785", OPENWA_API_KEY: "openwa-key", OPENWA_SESSION_ID: "8f3c2b1a-9d4e-4c7a-8b2f-1e6d5a4c3b2a", OPENWA_WEBHOOK_SECRET: "s".repeat(32),
+      STAFF_WHATSAPP_NUMBER: "+96550000000", AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "ai-key", AI_MODEL: "model-1",
+    };
+
+    it("leaves the intake off when every setting is unset or empty", () => {
+      expect(apiEnvSchema.parse(credentials).whatsapp).toBeNull();
+      expect(apiEnvSchema.parse({ ...credentials, ...Object.fromEntries(Object.keys(whatsapp).map(key => [key, ""])) }).whatsapp).toBeNull();
+    });
+
+    it("groups the complete settings and drops a trailing slash from base URLs", () => {
+      expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, OPENWA_BASE_URL: "http://openwa:2785/", AI_BASE_URL: "https://ai.example.com/v1/" }).whatsapp).toEqual({
+        openwa: { baseUrl: "http://openwa:2785", apiKey: "openwa-key", sessionId: "8f3c2b1a-9d4e-4c7a-8b2f-1e6d5a4c3b2a", webhookSecret: "s".repeat(32) },
+        staffPhone: "+96550000000",
+        ai: { baseUrl: "https://ai.example.com/v1", apiKey: "ai-key", model: "model-1" },
+      });
+    });
+
+    it("treats the thinking setting as optional and passes it with the AI settings", () => {
+      expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, AI_THINKING: "" }).whatsapp?.ai.thinking).toBeUndefined();
+      expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, AI_THINKING: "disabled" }).whatsapp?.ai.thinking).toBe("disabled");
+      expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, AI_THINKING: "off" }).success).toBe(false);
+      expect(apiEnvSchema.parse({ ...credentials, AI_THINKING: "disabled" }).whatsapp).toBeNull();
+    });
+
+    it.each(Object.keys(whatsapp))("refuses startup when only %s is missing", key => {
+      expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, [key]: "" }).success).toBe(false);
+    });
+
+    it.each([{ OPENWA_BASE_URL: "openwa" }, { OPENWA_SESSION_ID: "business" }, { AI_BASE_URL: "ftp://ai.example.com" }, { STAFF_WHATSAPP_NUMBER: "50000000" }, { OPENWA_WEBHOOK_SECRET: "short" }])("rejects invalid setting %j", value => {
+      expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, ...value }).success).toBe(false);
+    });
+
+    it("never echoes a secret in a validation message", () => {
+      const result = apiEnvSchema.safeParse({ ...credentials, ...whatsapp, AI_API_KEY: "" , OPENWA_WEBHOOK_SECRET: "leaky" });
+      expect(JSON.stringify(result.error?.issues)).not.toContain("leaky");
+    });
+  });
 });
