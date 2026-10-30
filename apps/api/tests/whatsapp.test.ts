@@ -401,6 +401,36 @@ describe("staff takeover", () => {
     expect(h.sent).toHaveLength(1);
   });
 
+  it("keeps answering when OpenWA reports the AI's own replies as sent", async () => {
+    const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    expect((await deliver(h.app, ownMessage(phone, h.sent.at(-1)!.text))).status).toBe(200);
+    const { conversation, messages } = await stored(phone);
+    expect(conversation!.aiPaused).toBe(false);
+    expect(messages.filter(message => message.direction === "outbound")).toHaveLength(1);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "2")); await h.whatsapp.idle();
+    expect(h.sent).toHaveLength(1);
+  });
+
+  it("does not pause when the report arrives before the send has finished", async () => {
+    const { phone } = client();
+    let reply = "";
+    h.failSends(message => { reply = message.text; return { status: 503 }; });
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    await deliver(h.app, ownMessage(phone, reply));
+    expect((await stored(phone)).conversation!.aiPaused).toBe(false);
+  });
+
+  it("still pauses when staff type the AI's words themselves later", async () => {
+    const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    const reply = h.sent.at(-1)!.text;
+    h.advance(16 * 60_000);
+    await deliver(h.app, ownMessage(phone, reply));
+    expect((await stored(phone)).conversation!.aiPaused).toBe(true);
+  });
+
   it("starts paused when staff message a client first, and ignores a message to the staff number", async () => {
     const { phone } = client();
     await deliver(h.app, ownMessage(phone, "مرحبا من الموظف"));

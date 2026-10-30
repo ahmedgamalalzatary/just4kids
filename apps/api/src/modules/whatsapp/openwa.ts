@@ -46,7 +46,7 @@ export function parseInbound(payload: unknown, sessionId: string): Inbound | nul
   return phone ? { key: idempotencyKey, phone, chatId: data.chatId, text } : null;
 }
 
-/** A message typed on the linked phone. OpenWA does not report the sends the API makes through it. */
+/** A message sent from the linked number: typed on the phone, or the system's own send, which the repository tells apart. */
 export function parseOwnMessage(payload: unknown, sessionId: string): OwnMessage | null {
   const parsed = z.object({ ...inboundSchema.shape, event: z.literal("message.sent") }).safeParse(payload);
   if (!parsed.success) return null;

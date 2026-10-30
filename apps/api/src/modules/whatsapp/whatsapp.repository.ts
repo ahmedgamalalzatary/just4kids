@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { TransactionRollbackError, and, asc, desc, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, areas, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import type { WhatsAppStaffAction } from "@just4kids/db/schema";
@@ -7,6 +7,10 @@ import type { Transaction } from "../availability/availability.repository.js";
 import type { Inbound, OwnMessage } from "./openwa.js";
 import type { Turn } from "./flow.js";
 import { staffMessage } from "./messages.js";
+
+// Messages the system queues carry this key prefix; a message typed on the phone keeps OpenWA's key.
+const OUR_KEY = "j4k-";
+const OWN_SEND_REPORT_MS = 15 * 60_000;
 
 function isDuplicate(error: unknown) {
   const underlying = typeof error === "object" && error !== null && "cause" in error ? error.cause : error;
@@ -143,6 +147,14 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       const [known] = await db.select().from(whatsappConversations).where(own.phone ? or(eq(whatsappConversations.chatId, own.chatId), eq(whatsappConversations.phone, own.phone)) : eq(whatsappConversations.chatId, own.chatId));
       if (!known && !own.phone) return;
       const id = known?.id ?? randomUUID();
+      // OpenWA reports the system's own sends too, sometimes before the send call returns, so its message id may not be stored yet.
+      if (known) {
+        const ours = await db.select({ body: whatsappMessages.body }).from(whatsappMessages).where(and(
+          eq(whatsappMessages.conversationId, known.id), eq(whatsappMessages.direction, "outbound"), like(whatsappMessages.idempotencyKey, `${OUR_KEY}%`),
+          or(eq(whatsappMessages.status, "pending"), gte(whatsappMessages.completedAt, new Date(now.getTime() - OWN_SEND_REPORT_MS))),
+        ));
+        if (ours.some(row => row.body.trim() === own.text)) return;
+      }
       if (known) await db.update(whatsappConversations).set({ aiPaused: true, updatedAt: now }).where(eq(whatsappConversations.id, id));
       else await db.insert(whatsappConversations).values({ id, phone: own.phone!, chatId: own.chatId, aiPaused: true, createdAt: now, updatedAt: now });
       try {
