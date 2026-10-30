@@ -1,8 +1,9 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { parseInbound, verifySignature, createOpenWa } from "../src/modules/whatsapp/openwa.js";
-import { AiRefusedError, createAi, parseDecision } from "../src/modules/whatsapp/ai.js";
-import { aiFailureMessage, staffMessage, technicalPrompt } from "../src/modules/whatsapp/messages.js";
+import { parseInbound, parseOwnMessage, verifySignature, createOpenWa } from "../src/modules/whatsapp/openwa.js";
+import { AiRefusedError, createAi, parseInterpretation } from "../src/modules/whatsapp/ai.js";
+import { aiFailureMessage, parseStaffCommand, staffMessage } from "../src/modules/whatsapp/messages.js";
+import { NOT_PROVIDED } from "../src/modules/whatsapp/flow.js";
 import { readOwnerPrompt } from "../src/modules/whatsapp/index.js";
 import apiPackage from "../package.json" with { type: "json" };
 
@@ -41,12 +42,28 @@ describe("OpenWA inbound messages", () => {
     ["a status broadcast", message({ kind: "status" })],
     ["a voice note", message({ type: "voice", body: "" })],
     ["an image", message({ type: "image" })],
-    ["a location", message({ type: "location" })],
+    ["a location without coordinates", message({ type: "location" })],
     ["an empty text", message({ body: "   " })],
     ["an unresolved privacy id", message({ from: "123@lid", chatId: "123@lid", senderPhone: null })],
     ["a malformed payload", { event: "message.received", sessionId: "business" }],
   ])("ignores %s", (_name, payload) => {
     expect(parseInbound(payload, "business")).toBeNull();
+  });
+  it("turns a shared location into a Google Maps link", () => {
+    expect(parseInbound(message({ type: "location", body: "", location: { latitude: 29.3, longitude: 48.05 } }), "business")).toMatchObject({ text: "https://www.google.com/maps?q=29.3,48.05" });
+  });
+});
+
+describe("messages typed on the linked phone", () => {
+  const own = (data: Record<string, unknown> = {}) => message({ fromMe: true, from: "96590000000@c.us", to: "96550000001@c.us", ...data }, { event: "message.sent" });
+  it("reads the client's number from the recipient", () => {
+    expect(parseOwnMessage(own(), "business")).toEqual({ key: "msg_business_ABC", phone: "+96550000001", chatId: "96550000001@c.us", text: "أبي موعد" });
+  });
+  it("still reports a non-text reply", () => {
+    expect(parseOwnMessage(own({ type: "image", body: "" }), "business")).toMatchObject({ text: "[image]" });
+  });
+  it.each([["another session", message({ fromMe: true }, { event: "message.sent", sessionId: "other" })], ["a group", own({ isGroup: true })], ["a received message", message()]])("ignores %s", (_name, payload) => {
+    expect(parseOwnMessage(payload, "business")).toBeNull();
   });
 });
 
@@ -77,90 +94,72 @@ describe("OpenWA send-text", () => {
   });
 });
 
-describe("AI decisions", () => {
-  const request = { type: "new_request", adults: 2, children: 1, address: "حولي، قطعة 3، شارع 5، منزل 12", date: "2026-10-25", window: "4–6 pm" };
-  it.each([
-    { reply: "حياك الله، كم عدد الأشخاص؟", action: null },
-    { reply: "تم، بنبلغ الموظفين", action: request },
-    { reply: "تم، بنبلغ الموظفين بالتعديل", action: { type: "update_request", requestNumber: 3, change: "Cancel the visit" } },
-    { reply: "بنبلغ الموظفين", action: { type: "forward", summary: "Asks whether request #3 is confirmed" } },
-  ])("accepts %j", decision => {
-    expect(parseDecision(JSON.stringify(decision))).toEqual(decision);
+describe("AI answers", () => {
+  it("reads a JSON answer, also inside a code fence, and defaults the optional parts", () => {
+    expect(parseInterpretation(JSON.stringify({ reply: "أهلا", value: null, forward: null }))).toEqual({ reply: "أهلا", value: null, forward: null });
+    expect(parseInterpretation("```json\n{\"value\":{\"count\":2}}\n```")).toEqual({ reply: "", value: { count: 2 } });
   });
-  it("reads a JSON answer wrapped in a code fence", () => {
-    expect(parseDecision("```json\n{\"reply\":\"أهلا\",\"action\":null}\n```")).toEqual({ reply: "أهلا", action: null });
+  it.each(["not json", JSON.stringify({ reply: 3 }), JSON.stringify({ value: "x" })])("rejects %s", content => {
+    expect(() => parseInterpretation(content)).toThrow();
   });
-  it.each([
-    "not json", "{}", JSON.stringify({ reply: "", action: null }), JSON.stringify({ reply: "x", action: { ...request, adults: 0, children: 0 } }),
-    JSON.stringify({ reply: "x", action: { ...request, address: "" } }), JSON.stringify({ reply: "x", action: { type: "book_now" } }),
-    JSON.stringify({ reply: "x", action: { type: "update_request", requestNumber: 0, change: "x" } }),
-  ])("rejects %s", content => {
-    expect(() => parseDecision(content)).toThrow();
-  });
-  it("calls the OpenAI-compatible chat completions endpoint and returns the decision", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: JSON.stringify({ reply: "أهلا", action: null }) } }] }), { status: 200 }));
-    const ai = createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "ai-key", model: "model-1" }, fetcher);
-    expect(await ai.decide([{ role: "system", content: "rules" }, { role: "user", content: "السلام عليكم" }])).toEqual({ reply: "أهلا", action: null });
+  const ok = () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply: "أهلا", value: null, forward: null }) } }] }), { status: 200 });
+  it("calls the OpenAI-compatible chat completions endpoint", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => ok());
+    await createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "ai-key", model: "model-1" }, fetcher).interpret([{ role: "user", content: "السلام عليكم" }]);
     const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe("https://ai.example.com/v1/chat/completions");
     expect(init).toMatchObject({ method: "POST", headers: { Authorization: "Bearer ai-key", "Content-Type": "application/json" } });
-    expect(JSON.parse(String(init?.body))).toEqual({ model: "model-1", messages: [{ role: "system", content: "rules" }, { role: "user", content: "السلام عليكم" }], response_format: { type: "json_object" }, max_completion_tokens: 2000, temperature: 0.3 });
+    expect(JSON.parse(String(init?.body))).toEqual({ model: "model-1", messages: [{ role: "user", content: "السلام عليكم" }], response_format: { type: "json_object" }, max_completion_tokens: 2000, temperature: 0.3 });
   });
   it("sends the thinking setting only when it is configured", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply: "أهلا", action: null }) } }] }), { status: 200 }));
-    await createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m", thinking: "disabled" }, fetcher).decide([]);
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => ok());
+    await createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m", thinking: "disabled" }, fetcher).interpret([]);
     expect(JSON.parse(String(fetcher.mock.calls[0]![1]?.body)).thinking).toEqual({ type: "disabled" });
   });
   it.each([400, 401, 402, 403, 404, 421])("marks a %i answer as a refusal that a retry cannot fix", async status => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status }));
-    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).decide([])).rejects.toBeInstanceOf(AiRefusedError);
+    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).interpret([])).rejects.toBeInstanceOf(AiRefusedError);
   });
   it.each([429, 500, 503])("treats a %i answer as temporary", async status => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status }));
-    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).decide([])).rejects.not.toBeInstanceOf(AiRefusedError);
+    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "k", model: "m" }, fetcher).interpret([])).rejects.not.toBeInstanceOf(AiRefusedError);
   });
   it("fails without exposing the API key when the provider refuses", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{\"error\":\"bad key\"}", { status: 401 }));
-    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "secret-ai-key", model: "m" }, fetcher).decide([])).rejects.toThrow(/401/);
-    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "secret-ai-key", model: "m" }, fetcher).decide([])).rejects.not.toThrow(/secret-ai-key/);
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => new Response("{}", { status: 401 }));
+    await expect(createAi({ baseUrl: "https://ai.example.com/v1", apiKey: "secret-ai-key", model: "m" }, fetcher).interpret([])).rejects.not.toThrow(/secret-ai-key/);
   });
 });
 
 describe("staff messages", () => {
-  it("summarizes a new request in English with the client's text as written", () => {
-    expect(staffMessage({ type: "new_request", requestNumber: 12, adults: 2, children: 1, address: "حولي، شارع 5", date: "2026-10-25", window: "4–6 pm" }, "+96550000001")).toBe([
-      "New WhatsApp request #12", "Client: +96550000001", "Adults: 2", "Children: 1", "Address: حولي، شارع 5", "Date: 2026-10-25", "Time window: 4–6 pm",
+  const address = { block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null };
+  const details = { adults: 1, children: 2, specialChildren: 1, barberId: "b1", barberName: "Lenny", date: "2026-11-01", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address };
+  it("sends the full request and how to answer it", () => {
+    expect(staffMessage({ type: "new_request", details }, "+96550000001", 12)).toBe([
+      "New WhatsApp request #12", "Client: +96550000001", "Adults: 1", "Children: 2", "Special needs: 1", "Barber: Lenny", "Date: 2026-11-01", "Time: 16:00 - 18:00", "Area: Hawally", "Address: Block 3, Street 5, House 12",
+      "", "Approve: yes 12", "Reject: no 12 <reason>", "Or create it in the dashboard, then reject it here.",
     ].join("\n"));
   });
-  it("names the earlier request in an update", () => {
-    expect(staffMessage({ type: "update_request", requestNumber: 12, change: "Cancel the visit" }, "+96550000001")).toBe(["Update to WhatsApp request #12", "Client: +96550000001", "Change: Cancel the visit"].join("\n"));
+  it("asks staff to name a barber and shows only the link for a link-only address", () => {
+    const text = staffMessage({ type: "new_request", details: { ...details, barberId: null, barberName: null, address: { ...address, block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED, mapsUrl: "https://maps.app.goo.gl/x" } } }, "+96550000001", 12);
+    expect(text).toContain("Barber: Any barber (staff choose)");
+    expect(text).toContain("Approve: yes 12 <barber name>");
+    expect(text).toContain("Location: https://maps.app.goo.gl/x");
+    expect(text).not.toContain("Address:");
   });
-  it("forwards anything else for staff to handle", () => {
-    expect(staffMessage({ type: "forward", summary: "Asks whether the visit is confirmed" }, "+96550000001")).toBe(["WhatsApp message for staff", "Client: +96550000001", "Asks whether the visit is confirmed"].join("\n"));
+  it("copies a change request as written, and alerts when the AI fails", () => {
+    expect(staffMessage({ type: "change", text: "ألغ الأحد" }, "+96550000001", null, [7])).toBe(["Client wants to change or cancel", "Client: +96550000001", "Requests: #7", "Message: ألغ الأحد"].join("\n"));
+    expect(aiFailureMessage("+96550000001", "the AI account has no credit", ["أبي موعد", "بكرة"])).toBe(["WhatsApp AI could not answer", "Client: +96550000001", "Reason: the AI account has no credit", "The client got no reply. Please contact them.", "Client's messages:", "أبي موعد", "بكرة"].join("\n"));
   });
 });
 
-describe("AI failure alert", () => {
-  it("tells staff who got no reply, why, and what the client wrote", () => {
-    expect(aiFailureMessage("+96550000001", "the AI account has no credit", ["أبي موعد", "بكرة"])).toBe([
-      "WhatsApp AI could not answer", "Client: +96550000001", "Reason: the AI account has no credit", "The client got no reply. Please contact them.", "Client's messages:", "أبي موعد", "بكرة",
-    ].join("\n"));
-  });
-});
-
-describe("technical prompt", () => {
-  it("states today's Kuwait date, the answer shape, and only this client's earlier requests", () => {
-    const prompt = technicalPrompt(new Date("2026-10-24T22:30:00.000Z"), [{ number: 12, details: { adults: 2, children: 1, address: "حولي", date: "2026-10-25", window: "4–6 pm" } }]);
-    expect(prompt).toContain("2026-10-25");
-    expect(prompt).toContain("#12");
-    expect(prompt).toContain("\"new_request\"");
-    expect(prompt).toContain("\"update_request\"");
-    expect(prompt).toContain("\"forward\"");
-  });
-  it("requires an action whenever the reply promises a person, and dates its example from tomorrow in Kuwait", () => {
-    const prompt = technicalPrompt(new Date("2026-10-24T22:30:00.000Z"), []);
-    expect(prompt).toContain("\"action\" MUST NOT be null");
-    expect(prompt).toContain("\"date\": \"2026-10-26\"");
+describe("staff commands", () => {
+  it.each([
+    ["yes 12", { type: "approve", number: 12, barber: null }], ["YES #12 Lenny", { type: "approve", number: 12, barber: "Lenny" }], ["yes ١٢", { type: "approve", number: 12, barber: null }],
+    ["no 12", { type: "reject", number: 12, reason: null }], ["no 12 barber is busy", { type: "reject", number: 12, reason: "barber is busy" }],
+    ["ai on +96550000001", { type: "resume", phone: "+96550000001" }], ["AI ON 96550000001", { type: "resume", phone: "+96550000001" }],
+    ["hello", { type: "help" }], ["yes", { type: "help" }],
+  ])("reads %s", (text, command) => {
+    expect(parseStaffCommand(text)).toEqual(command);
   });
 });
 

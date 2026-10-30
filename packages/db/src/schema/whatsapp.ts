@@ -1,11 +1,30 @@
-import { bigint, datetime, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
-// WhatsApp intake data is kept indefinitely and is not linked to client records.
-export type WhatsAppRequestDetails = { adults: number; children: number; address: string; date: string; window: string };
+// WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
+export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
+export type WhatsAppRequestDetails = {
+  adults: number; children: number; specialChildren: number;
+  // Null when the client chose "any barber": staff name one when approving.
+  barberId: string | null; barberName: string | null;
+  date: string; startTime: string; endTime: string; areaId: string; area: string; address: WhatsAppAddress;
+};
 export type WhatsAppStaffAction =
   | ({ type: "new_request"; requestNumber: number } & WhatsAppRequestDetails)
-  | { type: "update_request"; requestNumber: number; change: string }
+  | { type: "change"; text: string }
+  | { type: "talk" }
   | { type: "forward"; summary: string };
+// Where one client is in the numbered menus.
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "area" | "address" | "confirm" | "change";
+export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
+export type WhatsAppFlow = {
+  step: WhatsAppFlowStep; language: "en" | "ar" | null;
+  // The step to return to after the client changes language in the middle of a booking.
+  resume?: WhatsAppFlowStep;
+  who?: WhatsAppWho; adults?: number; children?: number;
+  barber?: { id: string; name: string } | null;
+  date?: string; startTime?: string; endTime?: string;
+  area?: { id: string; name: string }; address?: WhatsAppAddress;
+};
 
 export const whatsappConversations = mysqlTable("whatsapp_conversations", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -16,6 +35,9 @@ export const whatsappConversations = mysqlTable("whatsapp_conversations", {
   leaseUntil: datetime("lease_until", { mode: "date", fsp: 3 }),
   retryAt: datetime("retry_at", { mode: "date", fsp: 3 }),
   failures: int("failures").notNull().default(0),
+  flow: json("flow").$type<WhatsAppFlow>(),
+  // Staff took over from the business phone; the AI stays silent until staff send "ai on".
+  aiPaused: boolean("ai_paused").notNull().default(false),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { mode: "date", fsp: 3 }).notNull(),
 }, table => [uniqueIndex("whatsapp_conversations_phone_unique").on(table.phone)]);
@@ -25,6 +47,9 @@ export const whatsappRequests = mysqlTable("whatsapp_requests", {
   number: int("number").autoincrement().primaryKey(),
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
   details: json("details").$type<WhatsAppRequestDetails>().notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  bookingId: varchar("booking_id", { length: 36 }),
+  decidedAt: datetime("decided_at", { mode: "date", fsp: 3 }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
 }, table => [
   index("whatsapp_requests_conversation_index").on(table.conversationId),
@@ -38,7 +63,7 @@ export const whatsappMessages = mysqlTable("whatsapp_messages", {
   direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
   audience: mysqlEnum("audience", ["client", "staff"]).notNull(),
   body: text("body").notNull(),
-  // inbound: pending until the AI has answered; outbound: pending until OpenWA accepted it.
+  // inbound: pending until it has been answered; outbound: pending until OpenWA accepted it.
   status: mysqlEnum("status", ["pending", "done", "failed"]).notNull(),
   // inbound: OpenWA's X-OpenWA-Idempotency-Key; outbound: the Idempotency-Key sent with every attempt.
   idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),

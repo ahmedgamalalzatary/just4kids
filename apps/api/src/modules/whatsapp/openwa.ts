@@ -14,22 +14,45 @@ export function verifySignature(raw: Buffer, header: string | undefined, secret:
 const inboundSchema = z.object({
   event: z.literal("message.received"), sessionId: z.string(), idempotencyKey: z.string().min(1).max(255),
   data: z.object({
-    from: z.string(), chatId: z.string().min(1).max(255), body: z.string(), type: z.string(), fromMe: z.boolean(), isGroup: z.boolean(), kind: z.string(),
+    from: z.string(), to: z.string().nullish(), chatId: z.string().min(1).max(255), body: z.string().nullish(), type: z.string(), fromMe: z.boolean(), isGroup: z.boolean(), kind: z.string(),
     // Present only for @lid senders when OpenWA runs with RESOLVE_LID_TO_PHONE=true; null when it cannot be resolved.
     senderPhone: z.string().nullish(),
+    location: z.object({ latitude: z.number(), longitude: z.number() }).nullish(),
   }),
 });
 export type Inbound = { key: string; phone: string; chatId: string; text: string };
+export type OwnMessage = { key: string; phone: string | null; chatId: string; text: string };
 
-/** The client text message to answer, or null for every event the intake ignores. */
+const individualText = (data: z.infer<typeof inboundSchema>["data"]) => {
+  if (data.isGroup || data.kind !== "individual") return null;
+  // A shared location reaches the flow as the Google Maps link staff receive.
+  if (data.type === "location" && data.location) return `https://www.google.com/maps?q=${data.location.latitude},${data.location.longitude}`;
+  return data.type === "text" && data.body?.trim() ? data.body.trim() : null;
+};
+const phoneOf = (address: string | null | undefined) => {
+  const digits = address?.endsWith("@c.us") ? address.slice(0, -"@c.us".length) : "";
+  const phone = phoneSchema.safeParse(`+${digits}`);
+  return phone.success ? phone.data : null;
+};
+
+/** The client message to answer, or null for every event the intake ignores. */
 export function parseInbound(payload: unknown, sessionId: string): Inbound | null {
   const parsed = inboundSchema.safeParse(payload);
   if (!parsed.success) return null;
   const { data, sessionId: session, idempotencyKey } = parsed.data;
-  if (session !== sessionId || data.fromMe || data.isGroup || data.kind !== "individual" || data.type !== "text" || !data.body.trim()) return null;
-  const digits = data.from.endsWith("@lid") ? data.senderPhone : data.from.endsWith("@c.us") ? data.from.slice(0, -"@c.us".length) : null;
-  const phone = phoneSchema.safeParse(`+${digits ?? ""}`);
-  return phone.success ? { key: idempotencyKey, phone: phone.data, chatId: data.chatId, text: data.body.trim() } : null;
+  const text = individualText(data);
+  if (session !== sessionId || data.fromMe || !text) return null;
+  const phone = data.from.endsWith("@lid") ? phoneSchema.safeParse(`+${data.senderPhone ?? ""}`).data ?? null : phoneOf(data.from);
+  return phone ? { key: idempotencyKey, phone, chatId: data.chatId, text } : null;
+}
+
+/** A message typed on the linked phone. OpenWA does not report the sends the API makes through it. */
+export function parseOwnMessage(payload: unknown, sessionId: string): OwnMessage | null {
+  const parsed = z.object({ ...inboundSchema.shape, event: z.literal("message.sent") }).safeParse(payload);
+  if (!parsed.success) return null;
+  const { data, sessionId: session, idempotencyKey } = parsed.data;
+  if (session !== sessionId || !data.fromMe || data.isGroup || data.kind !== "individual") return null;
+  return { key: idempotencyKey, phone: phoneOf(data.to) ?? phoneOf(data.chatId), chatId: data.chatId, text: data.body?.trim() || `[${data.type}]` };
 }
 
 export type SendResult = { status: "sent"; messageId: string | null } | { status: "retry"; error: string } | { status: "failed"; error: string };

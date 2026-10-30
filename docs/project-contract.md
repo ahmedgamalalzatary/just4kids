@@ -10,7 +10,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Home-visit haircut CRM/operations system, mainly for Kuwait. Barbers travel to clients.
 - Adults and children are supported. Haircut is the only service.
 - English-only, left-to-right web application, responsive on computers, tablets, and phones.
-- Arabic WhatsApp AI, built as part of the project, using one number for the entire business. It collects booking requests and hands them to staff; it does not create reservations.
+- English and Arabic WhatsApp AI, built as part of the project, using one number for the entire business. It collects booking requests and sends them to staff; a staff approval creates the reservation.
 - TypeScript, Next.js, Express, pnpm, Turborepo, Tailwind CSS, Zod, MySQL, Drizzle, and Vitest.
 - Hosting target: the owner's Hostinger KVM1 VPS, deployed with Docker. Initial currency: KWD.
 
@@ -36,7 +36,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Administrator controls employee working days, working hours, and available times.
 - Clients choose a barber, not a branch.
 - Administrator can create manual bookings and hand a booking to another available barber.
-- Availability is enforced for manual bookings, rescheduling, and reassignment. The WhatsApp AI does not check availability or book.
+- Availability is enforced for manual bookings, rescheduling, reassignment, and staff approval of a WhatsApp request. The WhatsApp AI itself does not check availability or book.
 - Working hours repeat weekly and may contain separate shifts on a day. An administrator can replace one day's hours or close it using a dated exception. Shifts and booking windows stay within one Kuwait calendar day.
 - Confirmed 2026-10-16: each weekday has an administrator-controlled active/inactive switch per barber, separate from its shifts. An inactive day keeps its stored shifts but accepts no bookings or locks; a dated exception still opens that specific date with its shifts. An active day with no shifts is still closed. Turning a day off is refused (same conflict as a changed shift) while the barber has a future booking on that weekday. Only the administrator changes the switch; barbers see it read-only.
 - Confirmed 2026-10-13 (S3), flexible length 2026-10-16: the administrator can lock/unlock a future window directly from the booking pills, in half-hour steps (a start pill and an end pill), with an optional reason. A lock must fit working hours and cannot overlap a blocking booking or another lock. It holds no client or price, but blocks the whole overlapping window for booking creation, edits/reassignment, and visit restoration. Unlocking removes only the manual lock; weekly hours and dated exceptions still apply. Barbers cannot create or remove locks.
@@ -62,7 +62,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - One reservation = one client, one barber, one address, and one shared window.
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
-- The client requests a date and time window through the WhatsApp AI; the administrator sets the actual window when creating the booking and can change it later.
+- The client requests a date and time window through WhatsApp; approving keeps that window, and the administrator can set another in the dashboard.
 - Confirmed 2026-10-13 (S8): the administrator's new-booking screen preselects a 30-minute visit. The administrator can change the length per booking; selecting a free time pill uses the chosen length and blocks the full reserved window.
 - Confirmed on 2026-10-02: new reservations must start strictly in the future in Kuwait, with no additional lead-time cutoff. This does not decide later WhatsApp rescheduling/cancellation policy.
 - Minimum window: **20 minutes**. Maximum window: **4 hours**. Both bounds are inclusive.
@@ -84,45 +84,47 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 Confirmed 2026-10-21. This replaces the earlier plan in which the AI booked, rescheduled and cancelled visits without administrator approval.
 
 ```text
-Client WhatsApp ─► OpenWA ─webhook─► API ─► AI collects request details (Arabic)
+Client WhatsApp ─► OpenWA ─webhook─► API ─► numbered menus (code) + free text (AI)
                                       │
-                    ┌─────────────────┴──────────────────┐
-                    ▼                                    ▼
-   client: "we will let a human know"    staff number: request summary
-                                                         ▼
-                                    staff create the booking in the dashboard
+                       client confirms the summary
+                                      ▼
+                  staff number: full request ─► "yes 12" / "no 12 reason"
+                                      ▼
+              system creates the reservation ─► client is told
 ```
 
-1. A client messages the business number; the AI talks with them in Arabic.
-2. The AI collects: adult and child counts, the service address, and the requested date and time window. The client's phone comes from the sender identity.
-3. Once all details are collected, the AI tells the client that a person will follow up ("we will let a human know").
-4. The system sends one request summary to the staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`): the client's phone, adult/child counts, address, and requested date and window.
-5. Staff create the reservation manually in the dashboard and contact the client themselves.
+Decided 2026-10-30 (replaces the intake-only decision of 2026-10-21): the AI talks with clients and answers their questions, a complete request goes to staff for approval, and approval creates the reservation.
 
-Later messages from the same client (confirmed 2026-10-24). The AI keeps reading the whole conversation and decides per message:
+1. A client messages the business number and chooses English or Arabic. The code sends every menu word for word; the AI only reads what a client types outside the menus.
+2. Main menu: book, cancel or change a request, talk to staff. Booking collects: who it is for and the counts, the barber (from the dashboard, or any barber), the date, the client's own start and end time, the area (from the dashboard), and a location, Google Maps link, or block, street and house or building. The client's phone comes from the sender identity.
+3. The client confirms a summary, and the full request goes to the staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`).
+4. Staff answer from that number: `yes 12`, `yes 12 <barber>` (required when the client chose any barber, or to change the barber), or `no 12 <reason>`. Staff may instead create the reservation manually in the dashboard.
+5. Approval creates a normal reservation through the same rules as the dashboard (availability, future start, enabled barber and client), then tells the client. If the rules refuse it, nothing is saved, staff are told why, and the request stays open.
 
-| Client asks for | AI does |
+Other rules:
+
+| Situation | What happens |
 | --- | --- |
-| A new booking | Collects it like the first one, then a new request summary goes to staff |
-| A change to or cancellation of a request already sent | Collects the change, then an update naming the earlier request goes to staff |
-| Anything else (confirmation, status, other questions) | Replies "we will let a human know" and forwards the message to staff |
+| A client asks to change or cancel | The AI's menu sends their message to staff as written; staff make the change in the dashboard |
+| A question the service text does not answer (prices, status, arrival time, complaints) | The AI says staff will be told and forwards a summary |
+| Staff reply from the phone holding the business number | The AI stops for that client until staff send `ai on +<number>` from the staff number |
 
-- The AI does not save reservations, clients or addresses, check availability, choose barbers, or send booking confirmations.
+- A location-only address is saved with the area and the link; the other required address parts show "—" for staff to complete in the dashboard.
 - The client reply about a handoff is sent only after the staff message was accepted by OpenWA, so the client is never told staff know when they do not.
-- Staff messages are in English; the address and other client text are copied as written. The AI talks with clients in Arabic.
-- The AI has no database or administrator access and must not promise a booking, time or barber.
-- The AI answers text messages only; other message types (voice notes, images, stickers, files, locations) get no reply.
+- Staff messages are in English; the address and other client text are copied as written.
+- The AI cannot create or change anything: the code validates everything it reads, and only a staff `yes` creates a reservation. It must not promise a booking, time or barber.
+- Text messages and shared locations are read; other message types (voice notes, images, stickers, files) get no reply.
 - When the AI cannot answer (decided 2026-10-30), staff get one alert with the client's number and messages so they can contact the client; the client gets no automatic reply.
 - Duplicate or retried webhooks must not produce duplicate replies or duplicate staff messages.
 - Conversation messages are kept indefinitely.
-- No other automated confirmations, reminders, notifications, or campaigns. Staff request summaries, updates and forwards are the only automatic messages besides the conversational replies.
+- No other automated reminders, notifications, or campaigns. Staff requests, forwards and alerts and the client's approval or rejection message are the only automatic messages besides the conversational replies.
 
 ### Integrations
 
-- WhatsApp gateway: [OpenWA](https://github.com/rmyndharis/OpenWA) v0.25.0 (self-hosted, pinned). It receives messages through a signed `message.received` webhook (`X-OpenWA-Signature: sha256=<hex>`, HMAC-SHA256 over the raw body; deduplicate on `X-OpenWA-Idempotency-Key`, which stays the same across retries; delivery is at-least-once) and sends text with `POST /api/sessions/{sessionId}/messages/send-text` (`{ chatId, text }`, `X-API-Key`, optional `Idempotency-Key` held for 24 hours). A `201` means accepted, not delivered. Only individual-chat messages of type `text` that are not `fromMe` are answered; replies go to the message's `chatId`. Run OpenWA with `RESOLVE_LID_TO_PHONE=true` so senders hidden behind WhatsApp privacy IDs (`@lid`) carry a `senderPhone`. It runs as the opt-in compose service `openwa` (`ghcr.io/rmyndharis/openwa:0.25.0`); `OPENWA_SESSION_ID` is the session's UUID.
+- WhatsApp gateway: [OpenWA](https://github.com/rmyndharis/OpenWA) v0.25.0 (self-hosted, pinned). It receives messages through a signed webhook for `message.received` and `message.sent` (the latter reports only messages typed on the linked phone, which start a staff takeover) (`X-OpenWA-Signature: sha256=<hex>`, HMAC-SHA256 over the raw body; deduplicate on `X-OpenWA-Idempotency-Key`, which stays the same across retries; delivery is at-least-once) and sends text with `POST /api/sessions/{sessionId}/messages/send-text` (`{ chatId, text }`, `X-API-Key`, optional `Idempotency-Key` held for 24 hours). A `201` means accepted, not delivered. Only individual-chat `text` and `location` messages that are not `fromMe` are answered; replies go to the message's `chatId`. Run OpenWA with `RESOLVE_LID_TO_PHONE=true` so senders hidden behind WhatsApp privacy IDs (`@lid`) carry a `senderPhone`. It runs as the opt-in compose service `openwa` (`ghcr.io/rmyndharis/openwa:0.25.0`); `OPENWA_SESSION_ID` is the session's UUID.
 - OpenWA is unofficial and connects like WhatsApp Web, so WhatsApp may restrict or ban the connected number. The owner accepted this risk for the business number on 2026-10-21.
 - AI (decided 2026-10-24): any provider with an OpenAI-compatible Chat Completions API (`POST {AI_BASE_URL}/chat/completions`, bearer `AI_API_KEY`, `AI_MODEL`, optional `AI_THINKING`). Chosen 2026-10-24: Xiaomi MiMo-V2.6-Flash. The provider and model can change by settings only.
-- AI prompt (decided 2026-10-24): the owner writes the AI's behaviour and scenarios (the table above) in `apps/api/prompts/whatsapp-ai.md`, versioned in Git and shipped in the API image. The code appends only a fixed technical part that defines the AI's answer shape (reply text plus new request, update or forward with its details).
+- AI prompt (decided 2026-10-24): the owner writes the AI's behaviour in `apps/api/prompts/whatsapp-ai.md`, versioned in Git and shipped in the API image. The code appends only a fixed technical part: today's date, the client's current step and the answer shape.
 - Settings, in the root `.env` (development) and `.env.production` (Docker), with matching examples: `OPENWA_BASE_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`, `OPENWA_WEBHOOK_SECRET`, `STAFF_WHATSAPP_NUMBER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`; `AI_THINKING` is optional.
 
 ## Prices, collections, and cash
@@ -175,7 +177,7 @@ packages/config     Shared TypeScript and lint configuration
 docs/project-contract.md
 ```
 
-- Keep domain rules in backend services. The WhatsApp AI only collects requests and does not call booking services.
+- Keep domain rules in backend services. The WhatsApp AI gets no tools; only a staff approval calls the booking repository.
 - Keep MySQL/server-only dependencies out of browser code. Store money exactly, not with binary floating-point totals.
 - Pin compatible dependencies, keep the pnpm lockfile, and provide build, lint, typecheck, and test commands.
 - Provide individual and combined lint/typecheck/test commands and a tests folder for every workspace. Use separate web/API Dockerfiles, Compose, a Docker ignore file, and one root environment file for the existing MySQL instance on port 3306.
@@ -187,7 +189,7 @@ docs/project-contract.md
 
 The following are implementation proposals or unresolved policies, not additional confirmed scope:
 
-- Client rescheduling and cancellation through WhatsApp are no longer planned (2026-10-21); staff make all changes in the dashboard. Normal visit transitions/timing and administrator-only corrections are confirmed above.
+- Client change and cancellation requests through WhatsApp go to staff (2026-10-30); staff make all changes in the dashboard. Normal visit transitions/timing and administrator-only corrections are confirmed above.
 - Same-branch/different-branch pricing, cash-recording timing, mistaken-entry undo, and exact extra-cash/refund reconciliation during paid edits were removed with reservation money (feature batch P8) and no longer apply.
 - Decided 2026-10-21: the WhatsApp gateway is OpenWA, conversations are kept indefinitely, and the AI hands requests to staff, so automatic barber selection and client rescheduling through WhatsApp no longer apply. Decided 2026-10-24: the AI uses the OpenAI-compatible Chat Completions format. Chosen 2026-10-24: Xiaomi MiMo-V2.6-Flash on Xiaomi's pay-as-you-go API (account, thinking-off setting and live tests done 2026-10-30). Decided 2026-10-30: staff are alerted when the AI cannot answer. Still to be chosen: the owner's final prompt, OpenWA onboarding (which number, the engine), and production deployment/backup tooling. The open decisions are tracked in [backend-phases.md](backend-phases.md#phase-12--arabic-whatsapp-booking-request-intake). No-tax behavior is confirmed above.
 - Decided 2026-10-21, extended 2026-10-24: remove the unused AI-source creation path, the internal client-cancellation service, and the reservation `source` field entirely (contracts, database column, report filter and summary count, dashboard labels), since every reservation is now made by staff. This is part of phase 12.

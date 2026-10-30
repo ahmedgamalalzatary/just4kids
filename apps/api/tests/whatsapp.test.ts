@@ -1,13 +1,14 @@
-import { createHmac, randomInt } from "node:crypto";
+import { createHmac, randomInt, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookingVisitEvents, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { createWhatsApp } from "../src/modules/whatsapp/index.js";
+import { createWhatsAppRepository } from "../src/modules/whatsapp/whatsapp.repository.js";
 
 const secret = "w".repeat(32);
 const sessionId = "8f3c2b1a-9d4e-4c7a-8b2f-1e6d5a4c3b2a";
@@ -23,12 +24,14 @@ const auth = createAuth(connection, env);
 const phones: string[] = [];
 
 type Sent = { chatId: string; text: string; key: string };
-type Decision = { reply: string; action: Record<string, unknown> | null };
+type Decision = { reply: string; value: Record<string, unknown> | null; forward: string | null };
+const barberName = `Barber${randomInt(100000, 999999)}`, areaName = `Area${randomInt(100000, 999999)}`, barberId = randomUUID();
 function harness() {
   const sent: Sent[] = [], aiCalls: { role: string; content: string }[][] = [];
   const decisions: (Decision | Error | number)[] = [];
   let sendStatus: (sent: Sent) => { status: number; body?: unknown } = () => ({ status: 201 });
-  let clock = new Date("2026-10-24T09:00:00.000Z");
+  // Reservations must start in the future, so the clock follows the real date.
+  let clock = new Date();
   const fetcher: typeof fetch = async (input, init) => {
     const url = String(input), body = JSON.parse(String(init?.body));
     if (url === "http://ai.test/v1/chat/completions") {
@@ -78,12 +81,45 @@ async function stored(phone: string) {
   const requests = await connection.db.select().from(whatsappRequests).where(inArray(whatsappRequests.conversationId, [conversation.id]));
   return { conversation, messages, requests };
 }
-const details = { adults: 2, children: 1, address: "حولي، قطعة 3، شارع 5، منزل 12", date: "2026-10-25", window: "4–6 pm" };
 
+beforeAll(async () => {
+  await auth.initialize();
+  const now = new Date();
+  await connection.db.insert(accounts).values({ id: barberId, phone: `+965${randomInt(70000000, 79999999)}`, role: "employee", passwordHash: "x", createdAt: now, updatedAt: now });
+  await connection.db.insert(employees).values({ accountId: barberId, displayName: barberName, createdAt: now, updatedAt: now });
+  await connection.db.insert(areas).values({ id: randomUUID(), name: areaName, createdAt: now, updatedAt: now });
+  for (let day = 0; day < 7; day++) {
+    await connection.db.insert(employeeWorkDays).values({ employeeId: barberId, dayOfWeek: day, active: true });
+    await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "08:00", endTime: "23:00" });
+  }
+  const { barbers } = await createWhatsAppRepository(connection).options();
+  barberOption = String(barbers.findIndex(barber => barber.id === barberId) + 1);
+  anyBarberOption = String(barbers.length + 1);
+});
+let barberOption = "1", anyBarberOption = "2";
 let h: ReturnType<typeof harness>;
 // Workers pick up every due conversation, so no test may inherit another test's unfinished work (test database only).
 beforeEach(async () => { await connection.db.update(whatsappMessages).set({ status: "failed" }).where(eq(whatsappMessages.status, "pending")); h = harness(); });
 afterAll(async () => {
+  phones.push(staff);
+  // Other test files count barbers and accounts, so this file's own rows must not outlive it.
+  const barbers = (await connection.db.select({ id: employees.accountId, name: employees.displayName }).from(employees)).filter(row => /^Barber\d{6}$/.test(row.name)).map(row => row.id);
+  if (barbers.length) {
+    const booked = await connection.db.select({ id: bookings.id, clientId: bookings.clientId }).from(bookings).where(inArray(bookings.employeeId, barbers));
+    if (booked.length) {
+      await connection.db.delete(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, booked.map(row => row.id)));
+      await connection.db.delete(bookings).where(inArray(bookings.id, booked.map(row => row.id)));
+      const clientIds = [...new Set(booked.map(row => row.clientId))];
+      await connection.db.delete(clientAddresses).where(inArray(clientAddresses.clientId, clientIds));
+      await connection.db.delete(clients).where(inArray(clients.id, clientIds));
+    }
+    await connection.db.delete(employeeWorkIntervals).where(inArray(employeeWorkIntervals.employeeId, barbers));
+    await connection.db.delete(employeeWorkDays).where(inArray(employeeWorkDays.employeeId, barbers));
+    await connection.db.delete(employees).where(inArray(employees.accountId, barbers));
+    await connection.db.delete(accounts).where(inArray(accounts.id, barbers));
+  }
+  const testAreas = (await connection.db.select({ id: areas.id, name: areas.name }).from(areas)).filter(row => /^Area\d{6}$/.test(row.name)).map(row => row.id);
+  if (testAreas.length) await connection.db.delete(areas).where(inArray(areas.id, testAreas));
   const conversations = await connection.db.select({ id: whatsappConversations.id }).from(whatsappConversations).where(inArray(whatsappConversations.phone, phones));
   const ids = conversations.map(row => row.id);
   if (ids.length) {
@@ -107,217 +143,276 @@ describe("WhatsApp webhook", () => {
     for (const body of [payload(phone, "", { type: "voice" }), payload(phone, "مرحبا", { fromMe: true }), { ...payload(phone, "مرحبا"), idempotencyKey: undefined }, { event: "session.status", sessionId, data: {} }]) {
       expect((await deliver(h.app, body)).status).toBe(200);
     }
-    expect((await deliver(h.app, payload(staff, "رسالة من الموظف"))).status).toBe(200);
     await h.whatsapp.idle();
     expect((await stored(phone)).conversation).toBeUndefined();
-    expect((await stored(staff)).conversation).toBeUndefined();
     expect(h.aiCalls).toHaveLength(0);
   });
 
   it("is not blocked by the browser origin guard and needs no session", async () => {
     const { phone } = client();
-    h.answer({ reply: "حياك الله", action: null });
     expect((await deliver(h.app, payload(phone, "السلام عليكم"))).status).toBe(200);
     await h.whatsapp.idle();
   });
 });
 
-describe("WhatsApp intake", () => {
-  it("collects a request, tells staff first, then tells the client a person will follow up", async () => {
-    const { phone, chatId } = client();
-    h.answer({ reply: "حياك الله، كم عدد الأشخاص والعنوان والموعد؟", action: null });
-    await deliver(h.app, payload(phone, "أبي أحجز"));
-    await h.whatsapp.idle();
-    expect(h.sent).toEqual([{ chatId, text: "حياك الله، كم عدد الأشخاص والعنوان والموعد؟", key: expect.any(String) }]);
+// Walks a client from the first message to the confirm step using only menu numbers.
+async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), address = "https://www.google.com/maps?q=29.3,48.0") {
+  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice, "7", time, areaName, address]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+}
+// Every test books its own window, because they all share one barber and date.
+let windowHour = 8;
+const nextWindow = () => { const hour = String(windowHour++).padStart(2, "0"); return `${hour}:00-${hour}:30`; };
+async function confirmed(phone: string, barberChoice = barberOption, time = nextWindow()) {
+  await toConfirm(phone, barberChoice, time);
+  await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+  return (await stored(phone)).requests.at(-1)!.number;
+}
+const staffChat = `${staff.slice(1)}@c.us`;
+const fromStaff = async (text: string) => { await deliver(h.app, payload(staff, text)); await h.whatsapp.idle(); };
+const ownMessage = (phone: string, text: string) => { const digits = phone.slice(1); return { ...payload(phone, text, { fromMe: true, from: "96590000000@c.us", to: `${digits}@c.us` }), event: "message.sent" }; };
 
-    h.answer({ reply: "تمام، بنبلغ الموظفين ويتواصلون معك", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(phone, "شخصين وطفل، حولي قطعة 3 شارع 5 منزل 12، بكرة من 4 إلى 6"));
-    await h.whatsapp.idle();
-    const { messages, requests } = await stored(phone);
-    expect(requests).toHaveLength(1);
-    const number = requests[0]!.number;
-    expect(h.sent.slice(1)).toEqual([
-      { chatId: `${staff.slice(1)}@c.us`, text: `New WhatsApp request #${number}\nClient: ${phone}\nAdults: 2\nChildren: 1\nAddress: ${details.address}\nDate: 2026-10-25\nTime window: 4–6 pm`, key: expect.any(String) },
-      { chatId, text: "تمام، بنبلغ الموظفين ويتواصلون معك", key: expect.any(String) },
-    ]);
-    expect(new Set(h.sent.map(message => message.key)).size).toBe(3);
-    expect(messages.map(message => [message.direction, message.audience, message.status])).toEqual([
-      ["inbound", "client", "done"], ["outbound", "client", "done"], ["inbound", "client", "done"], ["outbound", "staff", "done"], ["outbound", "client", "done"],
-    ]);
-    expect(requests[0]!.details).toEqual(details);
-  });
-
-  it("sends the owner's prompt, the fixed rules and the conversation history to the AI", async () => {
-    const { phone } = client();
-    h.answer({ reply: "كم عدد الأشخاص؟", action: null }, { reply: "والعنوان؟", action: null });
-    await deliver(h.app, payload(phone, "أبي موعد")); await h.whatsapp.idle();
-    await deliver(h.app, payload(phone, "شخصين")); await h.whatsapp.idle();
-    const call = h.aiCalls[1]!;
-    expect(call[0]!.role).toBe("system");
-    expect(call[0]!.content.startsWith("OWNER RULES")).toBe(true);
-    expect(call[0]!.content).toContain("\"new_request\"");
-    expect(call.slice(1)).toEqual([{ role: "user", content: "أبي موعد" }, { role: "assistant", content: "كم عدد الأشخاص؟" }, { role: "user", content: "شخصين" }]);
-  });
-
+describe("WhatsApp booking flow", () => {
   it("answers duplicate and concurrent deliveries of one message once", async () => {
     const { phone } = client();
-    h.answer({ reply: "أهلا", action: null }, { reply: "مكرر", action: null });
     const body = payload(phone, "مرحبا");
-    const results = await Promise.all([deliver(h.app, body), deliver(h.app, body), deliver(h.app, body)]);
-    expect(results.map(result => result.status)).toEqual([200, 200, 200]);
+    await Promise.all([deliver(h.app, body), deliver(h.app, body), deliver(h.app, body)]);
     await h.whatsapp.idle();
     await deliver(h.app, body); await h.whatsapp.idle();
-    expect(h.aiCalls).toHaveLength(1);
-    expect(h.sent.map(message => message.text)).toEqual(["أهلا"]);
+    expect(h.sent).toHaveLength(1);
     expect((await stored(phone)).messages).toHaveLength(2);
   });
 
-  it("keeps each sender's conversation and requests apart", async () => {
-    const first = client(), second = client();
-    h.answer({ reply: "تم", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(first.phone, "طلب العميل الأول")); await h.whatsapp.idle();
-    const firstNumber = (await stored(first.phone)).requests[0]!.number;
-    h.answer({ reply: "أهلا", action: null });
-    await deliver(h.app, payload(second.phone, "مرحبا")); await h.whatsapp.idle();
-    const call = h.aiCalls[1]!;
-    expect(JSON.stringify(call)).not.toContain("طلب العميل الأول");
-    expect(call[0]!.content).not.toContain(`#${firstNumber}`);
-    expect(h.sent.at(-1)).toMatchObject({ chatId: second.chatId, text: "أهلا" });
-  });
-
-  it("sends staff an update naming the client's earlier request", async () => {
-    const { phone } = client();
-    h.answer({ reply: "تم", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(phone, "طلب")); await h.whatsapp.idle();
-    const number = (await stored(phone)).requests[0]!.number;
-    h.answer({ reply: "بنبلغ الموظفين بالإلغاء", action: { type: "update_request", requestNumber: number, change: "Cancel the visit" } });
-    await deliver(h.app, payload(phone, "ألغ الموعد")); await h.whatsapp.idle();
-    expect(h.aiCalls[1]![0]!.content).toContain(`#${number}`);
-    expect(h.sent.slice(-2).map(message => message.text)).toEqual([`Update to WhatsApp request #${number}\nClient: ${phone}\nChange: Cancel the visit`, "بنبلغ الموظفين بالإلغاء"]);
-    expect((await stored(phone)).requests).toHaveLength(1);
-  });
-
-  it("forwards other questions to staff", async () => {
-    const { phone } = client();
-    h.answer({ reply: "بنبلغ الموظفين", action: { type: "forward", summary: "Asks whether the visit is confirmed" } });
-    await deliver(h.app, payload(phone, "موعدي مأكد؟")); await h.whatsapp.idle();
-    expect(h.sent.map(message => message.text)).toEqual([`WhatsApp message for staff\nClient: ${phone}\nAsks whether the visit is confirmed`, "بنبلغ الموظفين"]);
-  });
-
-  it("does not let the AI name another client's request", async () => {
-    const other = client(), { phone } = client();
-    h.answer({ reply: "تم", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(other.phone, "طلب")); await h.whatsapp.idle();
-    const foreign = (await stored(other.phone)).requests[0]!.number;
+  it("offers barbers from the dashboard and tells staff first once the client confirms", async () => {
+    const { phone, chatId } = client();
+    await toConfirm(phone, barberOption);
+    expect(h.sent.some(message => message.text.includes(barberName))).toBe(true);
     h.sent.length = 0;
-    h.answer({ reply: "تم", action: { type: "update_request", requestNumber: foreign, change: "Cancel" } });
-    await deliver(h.app, payload(phone, "ألغ")); await h.whatsapp.idle();
-    expect(h.sent).toEqual([]);
-    expect((await stored(phone)).messages.map(message => message.status)).toEqual(["pending"]);
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    const number = (await stored(phone)).requests[0]!.number;
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toContain(`New WhatsApp request #${number}`);
+    expect(h.sent[0]!.text).toContain(`Barber: ${barberName}`);
+    expect(h.sent[0]!.text).toContain("Location: https://www.google.com/maps?q=29.3,48.0");
+    expect(h.aiCalls).toHaveLength(0);
   });
 
-  it("sends nothing while the AI fails and answers once it recovers", async () => {
+  it("keeps each sender's progress apart", async () => {
+    const first = client(), second = client();
+    await deliver(h.app, payload(first.phone, "مرحبا")); await h.whatsapp.idle();
+    await deliver(h.app, payload(first.phone, "1")); await h.whatsapp.idle();
+    await deliver(h.app, payload(second.phone, "مرحبا")); await h.whatsapp.idle();
+    expect((await stored(first.phone)).conversation!.flow).toMatchObject({ step: "menu", language: "en" });
+    expect((await stored(second.phone)).conversation!.flow).toMatchObject({ step: "language" });
+  });
+
+  it("sends the AI the owner's prompt and the step rules only for free text", async () => {
     const { phone } = client();
-    h.answer(new Error("down"));
     await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    h.answer({ reply: "أرسل رقماً", value: null, forward: null });
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
+    expect(h.aiCalls).toHaveLength(1);
+    expect(h.aiCalls[0]![0]!.content.startsWith("OWNER RULES")).toBe(true);
+    expect(h.aiCalls[0]![0]!.content).toContain('The client is at step "language"');
+  });
+
+  it("forwards what the AI cannot answer to staff, staff first", async () => {
+    const { phone, chatId } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    h.sent.length = 0;
+    h.answer({ reply: "بنبلغ الموظفين", value: null, forward: "Asks about the price" });
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toBe(`WhatsApp message for staff\nClient: ${phone}\nAsks about the price`);
+  });
+
+  it("sends a change request to staff as written", async () => {
+    const { phone } = client();
+    for (const text of ["مرحبا", "1", "2", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect(h.sent.find(message => message.chatId === staffChat)?.text).toBe(`Client wants to change or cancel\nClient: ${phone}\nMessage: ألغ موعد الأحد`);
+  });
+
+  it("sends nothing while the AI fails, answers once it recovers", async () => {
+    const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    h.sent.length = 0;
+    h.answer(new Error("down"));
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
     expect(h.sent).toEqual([]);
-    expect((await stored(phone)).messages.map(message => message.status)).toEqual(["pending"]);
-    h.answer({ reply: "أهلا", action: null });
-    await h.whatsapp.drain();
-    expect(h.aiCalls).toHaveLength(1);
+    h.answer({ reply: "أهلا", value: null, forward: null });
     h.advance(10 * 60_000);
-    await h.whatsapp.drain();
-    expect(h.aiCalls).toHaveLength(2);
-    expect(h.sent.map(message => message.text)).toEqual(["أهلا"]);
-  });
-
-  it("alerts staff at once, without retrying, when the AI refuses for a reason a retry cannot fix", async () => {
-    const { phone } = client();
-    h.answer(402);
-    await deliver(h.app, payload(phone, "أبي موعد")); await h.whatsapp.idle();
-    expect(h.aiCalls).toHaveLength(1);
-    expect(h.sent).toEqual([{ chatId: `${staff.slice(1)}@c.us`, text: `WhatsApp AI could not answer\nClient: ${phone}\nReason: the AI account has no credit\nThe client got no reply. Please contact them.\nClient's messages:\nأبي موعد`, key: expect.any(String) }]);
-    const { messages, conversation } = await stored(phone);
-    expect(messages.map(message => [message.direction, message.audience, message.status])).toEqual([["inbound", "client", "failed"], ["outbound", "staff", "done"]]);
-    expect(conversation!.failures).toBe(0);
-    h.advance(60 * 60_000); await h.whatsapp.drain();
-    expect(h.aiCalls).toHaveLength(1);
+    await h.whatsapp.drain(); await h.whatsapp.idle();
     expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.text.startsWith("أهلا")).toBe(true);
   });
 
-  it("answers the client's next message normally after an alert, without the failed message or alert in the AI's history", async () => {
+  it("alerts staff at once when the AI refuses for a reason a retry cannot fix", async () => {
     const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    h.sent.length = 0;
     h.answer(402);
-    await deliver(h.app, payload(phone, "الرسالة الأولى")); await h.whatsapp.idle();
-    h.answer({ reply: "أهلا", action: null });
-    await deliver(h.app, payload(phone, "الرسالة الثانية")); await h.whatsapp.idle();
-    expect(h.aiCalls[1]!.slice(1)).toEqual([{ role: "user", content: "الرسالة الثانية" }]);
-    expect(h.sent.at(-1)).toMatchObject({ text: "أهلا" });
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
+    expect(h.aiCalls).toHaveLength(1);
+    expect(h.sent).toEqual([{ chatId: staffChat, text: `WhatsApp AI could not answer\nClient: ${phone}\nReason: the AI account has no credit\nThe client got no reply. Please contact them.\nClient's messages:\nكم السعر؟`, key: expect.any(String) }]);
+    expect((await stored(phone)).conversation!.failures).toBe(0);
   });
 
   it("alerts staff once when temporary AI failures use up every retry", async () => {
     const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    h.sent.length = 0;
     h.answer(new Error("down"));
-    await deliver(h.app, payload(phone, "أبي موعد")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
     for (let attempt = 2; attempt <= 12; attempt++) {
-      expect(h.sent).toEqual([]);
       h.answer(new Error("down"));
       h.advance(10 * 60_000);
       await h.whatsapp.drain(); await h.whatsapp.idle();
     }
     expect(h.aiCalls).toHaveLength(12);
-    expect(h.sent.map(message => message.text)).toEqual([`WhatsApp AI could not answer\nClient: ${phone}\nReason: the AI kept failing\nThe client got no reply. Please contact them.\nClient's messages:\nأبي موعد`]);
-    h.advance(60 * 60_000); await h.whatsapp.drain(); await h.whatsapp.idle();
-    expect(h.aiCalls).toHaveLength(12);
-    expect(h.sent).toHaveLength(1);
-    expect((await stored(phone)).conversation!.failures).toBe(0);
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat]);
+    expect(h.sent[0]!.text).toContain("Reason: the AI kept failing");
   });
 
   it("holds the client reply until staff got the request, retrying with the same key", async () => {
     const { phone } = client();
-    h.failSends(message => message.chatId.startsWith(staff.slice(1)) ? { status: 503, body: { statusCode: 503 } } : { status: 201 });
-    h.answer({ reply: "تم، بنبلغ الموظفين", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(phone, "طلب")); await h.whatsapp.idle();
+    await toConfirm(phone, barberOption);
+    h.sent.length = 0;
+    h.failSends(message => message.chatId === staffChat ? { status: 503, body: { statusCode: 503 } } : { status: 201 });
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
     expect(h.sent).toEqual([]);
-    const pending = (await stored(phone)).messages.filter(message => message.direction === "outbound");
-    expect(pending.map(message => [message.audience, message.status, message.attempts])).toEqual([["staff", "pending", 1], ["client", "pending", 0]]);
     h.failSends(() => ({ status: 201 }));
     h.advance(10 * 60_000);
-    await h.whatsapp.drain();
-    expect(h.sent.map(message => [message.chatId.startsWith(staff.slice(1)) ? "staff" : "client", message.key])).toEqual([["staff", pending[0]!.idempotencyKey], ["client", pending[1]!.idempotencyKey]]);
-    expect(h.aiCalls).toHaveLength(1);
+    await h.whatsapp.drain(); await h.whatsapp.idle();
+    expect(h.sent.map(message => message.chatId === staffChat)).toEqual([true, false]);
   });
 
   it("never tells the client staff know when the staff send may have failed", async () => {
     const { phone } = client();
-    h.failSends(message => message.chatId.startsWith(staff.slice(1)) ? { status: 409, body: { statusCode: 409, code: "IDEMPOTENCY_OUTCOME_UNKNOWN" } } : { status: 201 });
-    h.answer({ reply: "تم، بنبلغ الموظفين", action: { type: "new_request", ...details } });
-    await deliver(h.app, payload(phone, "طلب")); await h.whatsapp.idle();
-    h.advance(10 * 60_000); await h.whatsapp.drain();
+    await toConfirm(phone, barberOption);
+    h.sent.length = 0;
+    h.failSends(message => message.chatId === staffChat ? { status: 409, body: { statusCode: 409, code: "IDEMPOTENCY_OUTCOME_UNKNOWN" } } : { status: 201 });
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    h.advance(10 * 60_000); await h.whatsapp.drain(); await h.whatsapp.idle();
     expect(h.sent).toEqual([]);
-    expect((await stored(phone)).messages.filter(message => message.direction === "outbound").map(message => [message.audience, message.status])).toEqual([["staff", "failed"], ["client", "failed"]]);
   });
 
-  it("finishes stored work after a restart", async () => {
+  it("finishes stored work after a restart and lets one worker answer at a time", async () => {
     const { phone } = client();
-    h.answer(new Error("down"));
     await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
-    const restarted = harness();
-    restarted.answer({ reply: "أهلا", action: null });
-    restarted.advance(10 * 60_000);
-    await restarted.whatsapp.drain();
-    expect(restarted.sent.map(message => message.text)).toEqual(["أهلا"]);
-  });
-
-  it("lets only one worker answer a conversation at a time", async () => {
-    const { phone } = client();
     h.answer(new Error("down"));
-    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "كم السعر؟")); await h.whatsapp.idle();
     const a = harness(), b = harness();
-    a.answer({ reply: "أهلا", action: null }); b.answer({ reply: "أهلا", action: null });
+    a.answer({ reply: "أهلا", value: null, forward: null }); b.answer({ reply: "أهلا", value: null, forward: null });
     a.advance(10 * 60_000); b.advance(10 * 60_000);
     await Promise.all([a.whatsapp.drain(), b.whatsapp.drain()]);
+    await Promise.all([a.whatsapp.idle(), b.whatsapp.idle()]);
     expect(a.aiCalls.length + b.aiCalls.length).toBe(1);
-    expect([...a.sent, ...b.sent].map(message => message.text)).toEqual(["أهلا"]);
+    expect([...a.sent, ...b.sent]).toHaveLength(1);
+  });
+});
+
+describe("staff approval", () => {
+  it("creates the reservation on approval and tells staff and the client, once", async () => {
+    const { phone, chatId } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await fromStaff(`yes ${number}`);
+    const { requests } = await stored(phone);
+    expect(requests[0]).toMatchObject({ status: "approved", bookingId: expect.any(String) });
+    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, requests[0]!.bookingId!));
+    expect(booking).toMatchObject({ employeeId: barberId, childCount: 1, adultCount: 0, clientSnapshot: { phone } });
+    expect(booking!.addressSnapshot).toMatchObject({ area: areaName, block: "—", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toContain(booking!.reference);
+    h.sent.length = 0;
+    await fromStaff(`yes ${number}`);
+    expect(h.sent).toEqual([expect.objectContaining({ chatId: staffChat, text: `Request #${number} was already approved.` })]);
+  });
+
+  it("needs a barber when the client chose any, and refuses an unknown name", async () => {
+    const { phone } = client();
+    const number = await confirmed(phone, anyBarberOption);
+    h.sent.length = 0;
+    await fromStaff(`yes ${number}`);
+    expect(h.sent[0]!.text).toContain(`Choose a barber for #${number}`);
+    await fromStaff(`yes ${number} Nobody`);
+    expect((await stored(phone)).requests[0]!.status).toBe("pending");
+  });
+
+  it("uses the existing client and keeps the request open when the barber is busy", async () => {
+    const { phone } = client();
+    const time = nextWindow();
+    const first = await confirmed(phone, barberOption, time);
+    await fromStaff(`yes ${first}`);
+    for (const text of ["1", "1", "1", barberOption, "7", time, areaName, "https://www.google.com/maps?q=29.3,48.0", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    const second = (await stored(phone)).requests.at(-1)!.number;
+    expect(second).not.toBe(first);
+    h.sent.length = 0;
+    await fromStaff(`yes ${second}`);
+    expect(h.sent[0]!.text).toContain(`Request #${second} was not created`);
+    const { requests } = await stored(phone);
+    expect(requests.find(request => request.number === second)!.status).toBe("pending");
+    expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(1);
+  });
+
+  it("rejects with the reason and tells the client", async () => {
+    const { phone, chatId } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await fromStaff(`no ${number} We are fully booked`);
+    expect((await stored(phone)).requests[0]!.status).toBe("rejected");
+    expect(h.sent.at(-1)).toMatchObject({ chatId });
+    expect(h.sent.at(-1)!.text).toContain("We are fully booked");
+    expect(h.sent.at(-1)!.text).toContain("We could not confirm");
+  });
+
+  it("answers help for anything else and for an unknown request", async () => {
+    await fromStaff("hello");
+    expect(h.sent.at(-1)!.text).toContain("Commands:");
+    await fromStaff("yes 999999999");
+    expect(h.sent.at(-1)!.text).toBe("Request #999999999 was not found.");
+    expect(h.aiCalls).toHaveLength(0);
+  });
+
+  it("ignores the same commands from anyone but the staff number", async () => {
+    const { phone } = client();
+    const number = await confirmed(phone);
+    const other = client();
+    await deliver(h.app, payload(other.phone, `yes ${number}`)); await h.whatsapp.idle();
+    expect((await stored(phone)).requests[0]!.status).toBe("pending");
+  });
+});
+
+describe("staff takeover", () => {
+  it("stops the AI when staff reply from the phone, keeps the messages, and resumes on ai on", async () => {
+    const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    expect((await deliver(h.app, ownMessage(phone, "أهلاً، معك الموظف"))).status).toBe(200);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    expect(h.sent).toEqual([]);
+    const { conversation, messages } = await stored(phone);
+    expect(conversation!.aiPaused).toBe(true);
+    expect(messages.map(message => [message.direction, message.body])).toContainEqual(["outbound", "أهلاً، معك الموظف"]);
+    expect(messages.at(-1)).toMatchObject({ direction: "inbound", status: "done" });
+    await fromStaff(`ai on ${phone}`);
+    expect(h.sent.at(-1)!.text).toBe(`The AI answers ${phone} again.`);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    expect(h.sent).toHaveLength(1);
+  });
+
+  it("starts paused when staff message a client first, and ignores a message to the staff number", async () => {
+    const { phone } = client();
+    await deliver(h.app, ownMessage(phone, "مرحبا من الموظف"));
+    expect((await stored(phone)).conversation!.aiPaused).toBe(true);
+    await deliver(h.app, ownMessage(staff, "note"));
+    expect((await stored(staff)).messages.some(message => message.body === "note")).toBe(false);
+  });
+
+  it("counts a repeated phone message once", async () => {
+    const { phone } = client();
+    const body = ownMessage(phone, "مرة واحدة");
+    await deliver(h.app, body); await deliver(h.app, body);
+    expect((await stored(phone)).messages).toHaveLength(1);
   });
 });

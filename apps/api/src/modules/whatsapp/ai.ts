@@ -1,22 +1,18 @@
 import { z } from "zod";
 import type { WhatsAppSettings } from "../../configs/env.js";
 
-const text = (max: number) => z.string().trim().min(1).max(max);
-const count = z.number().int().min(0).max(50);
-export const decisionSchema = z.strictObject({
-  // The Arabic reply sent to the client.
-  reply: text(2000),
-  action: z.discriminatedUnion("type", [
-    z.strictObject({ type: z.literal("new_request"), adults: count, children: count, address: text(500), date: text(60), window: text(60) })
-      .refine(request => request.adults + request.children > 0, "A request needs at least one haircut"),
-    z.strictObject({ type: z.literal("update_request"), requestNumber: z.number().int().min(1), change: text(1000) }),
-    z.strictObject({ type: z.literal("forward"), summary: text(1000) }),
-  ]).nullable(),
+export const interpretationSchema = z.object({
+  // The text sent to the client before the menu is repeated; empty when the message answered the step.
+  reply: z.string().trim().max(2000).default(""),
+  // What the message answers for the current step; the flow validates it.
+  value: z.record(z.string(), z.unknown()).nullish(),
+  // A summary for staff when the client needs a person.
+  forward: z.string().trim().min(1).max(1000).nullish(),
 });
-export type Decision = z.infer<typeof decisionSchema>;
+export type Interpretation = z.infer<typeof interpretationSchema>;
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
-// Enough for the longest allowed reply and action; also caps the cost of one runaway answer.
+// Enough for the longest allowed reply; also caps the cost of one runaway answer.
 const MAX_ANSWER_TOKENS = 2000;
 // Low, so the model follows the answer rules consistently.
 const TEMPERATURE = 0.3;
@@ -36,15 +32,15 @@ export class AiRefusedError extends Error {
 }
 
 /** Reads the model's JSON answer; some providers wrap it in a Markdown code fence. */
-export function parseDecision(content: string): Decision {
+export function parseInterpretation(content: string): Interpretation {
   const unfenced = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, "$1");
-  return decisionSchema.parse(JSON.parse(unfenced));
+  return interpretationSchema.parse(JSON.parse(unfenced));
 }
 
-/** Any provider with an OpenAI-compatible Chat Completions API. The model gets no tools and no data access. */
+/** Any provider with an OpenAI-compatible Chat Completions API. The model gets no tools; the code acts on its answer. */
 export function createAi(settings: WhatsAppSettings["ai"], fetcher: typeof fetch = fetch) {
   return {
-    async decide(messages: ChatMessage[]): Promise<Decision> {
+    async interpret(messages: ChatMessage[]): Promise<Interpretation> {
       const response = await fetcher(`${settings.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${settings.apiKey}`, "Content-Type": "application/json" },
@@ -57,7 +53,7 @@ export function createAi(settings: WhatsAppSettings["ai"], fetcher: typeof fetch
       const body = await response.json() as { choices?: { message?: { content?: unknown } }[] };
       const content = body.choices?.[0]?.message?.content;
       if (typeof content !== "string") throw new Error("AI provider returned no message");
-      return parseDecision(content);
+      return parseInterpretation(content);
     },
   };
 }

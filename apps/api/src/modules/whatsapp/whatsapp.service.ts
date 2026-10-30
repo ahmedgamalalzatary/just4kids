@@ -1,19 +1,23 @@
 import type { WhatsAppSettings } from "../../configs/env.js";
+import { HttpError } from "../../lib/http-error.js";
+import type { BookingRepository } from "../bookings/booking.repository.js";
 import { AiRefusedError } from "./ai.js";
-import type { Ai, ChatMessage, Decision } from "./ai.js";
-import { aiFailureMessage, technicalPrompt } from "./messages.js";
+import type { Ai, ChatMessage } from "./ai.js";
+import { advance, clientApproved, clientRejected, stepInstructions } from "./flow.js";
+import type { FlowContext } from "./flow.js";
+import { aiFailureMessage, parseStaffCommand, staffHelp } from "./messages.js";
 import type { OpenWa } from "./openwa.js";
 import type { WhatsAppRepository } from "./whatsapp.repository.js";
 
 const LEASE_MS = 5 * 60_000;
 // The AI reads at most this many recent client messages and replies; everything stays stored.
-const HISTORY_LIMIT = 40;
+const HISTORY_LIMIT = 12;
 // Consecutive failures before giving up: about 1.5 hours of retries with the back-off below.
 const MAX_AI_FAILURES = 12;
 const MAX_SEND_ATTEMPTS = 12;
 const backoff = (failures: number) => Math.min(30_000 * 2 ** (failures - 1), 10 * 60_000);
 
-export function createWhatsAppService(repository: WhatsAppRepository, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, now: () => Date) {
+export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, now: () => Date) {
   const staffChatId = `${settings.staffPhone.slice(1)}@c.us`;
   const retryAt = (failures: number) => new Date(now().getTime() + backoff(failures));
 
@@ -40,28 +44,87 @@ export function createWhatsAppService(repository: WhatsAppRepository, openwa: Op
     await repository.giveUp(id, inbound.map(message => message.id), `No AI answer: ${reason}`, aiFailureMessage(conversation.phone, reason, inbound.map(message => message.body)), staffChatId, now());
   }
 
-  /** One AI answer for every waiting client message; false when a retry is needed later. */
+  /** Runs one command from the staff number; approving creates the reservation and tells the client. */
+  async function staffTurn(staff: { id: string; chatId: string }, message: { id: number; body: string }) {
+    const command = parseStaffCommand(message.body);
+    if (command.type === "help") { await repository.answerPlainly(staff, message.id, staffHelp(), now()); return; }
+    if (command.type === "resume") {
+      await repository.answerPlainly(staff, message.id, await repository.resume(command.phone, now()) ? `The AI answers ${command.phone} again.` : `No conversation found for ${command.phone}.`, now());
+      return;
+    }
+    const found = await repository.requestForDecision(command.number);
+    if (!found) { await repository.answerPlainly(staff, message.id, `Request #${command.number} was not found.`, now()); return; }
+    const { request, conversation: client } = found;
+    if (request.status !== "pending") { await repository.answerPlainly(staff, message.id, `Request #${command.number} was already ${request.status}.`, now()); return; }
+    const language = client.flow?.language ?? null;
+    if (command.type === "reject") {
+      await repository.reject(command.number, client, clientRejected(language, command.reason), staff, message.id, `Request #${command.number} rejected. The client was told.`, now());
+      await sendPending(staff.id);
+      await process(client.id, false);
+      return;
+    }
+    const { barbers } = await repository.options();
+    const details = request.details;
+    const barber = command.barber ? barbers.find(item => item.name.toLowerCase() === command.barber!.toLowerCase()) : barbers.find(item => item.id === details.barberId);
+    if (!barber) {
+      await repository.answerPlainly(staff, message.id, `Choose a barber for #${command.number}: yes ${command.number} <name>\nBarbers: ${barbers.map(item => item.name).join(", ")}`, now());
+      return;
+    }
+    const administrator = await repository.administrator();
+    if (!administrator) { await repository.answerPlainly(staff, message.id, "No enabled administrator account exists. Create the reservation in the dashboard.", now()); return; }
+    const { address } = details;
+    try {
+      await bookings.createForPhone(
+        { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren },
+        { phone: client.phone, address: { areaId: details.areaId, area: details.area, ...address } },
+        administrator,
+        (transaction, booking) => repository.settleApproval(transaction, command.number, booking.id, client, clientApproved(language, details, barber.name), staff, message.id, `Request #${command.number} approved. Reservation ${booking.reference} created with ${barber.name}. The client was told.`, now()),
+      );
+    } catch (error) {
+      // The reservation rules refused it, for example the barber is busy: nothing was saved, so staff can decide again. A decision that came first rolled it back too.
+      if (!(error instanceof HttpError)) throw error;
+      await repository.answerPlainly(staff, message.id, `Request #${command.number} was not created: ${error.message}. Reply with another barber, or create it in the dashboard.`, now());
+      return;
+    }
+    await sendPending(staff.id);
+    await process(client.id, false);
+  }
+
+  /** Answers each waiting message in order; false when a retry is needed later. */
   async function answerPending(id: string) {
     const inbound = await repository.pending(id, "inbound");
     if (!inbound.length) return true;
     const conversation = (await repository.conversation(id))!;
-    const requests = await repository.requests(id);
-    const history = await repository.history(id, HISTORY_LIMIT);
-    const messages: ChatMessage[] = [
-      { role: "system", content: `${prompt}\n\n${technicalPrompt(now(), requests)}` },
-      ...history.map(message => ({ role: message.direction === "inbound" ? "user" as const : "assistant" as const, content: message.body })),
-    ];
-    let decision: Decision;
-    try {
-      decision = await ai.decide(messages);
-      // The model may only name this client's own requests.
-      if (decision.action?.type === "update_request" && !requests.some(request => request.number === (decision.action as { requestNumber: number }).requestNumber)) throw new Error("AI named a request this client does not have");
-    } catch (error) {
-      console.error(`WhatsApp AI answer failed for conversation ${id}: ${error instanceof Error ? error.message : "unknown error"}`);
-      if (error instanceof AiRefusedError) { await giveUp(id, error.reason); return true; }
-      return false;
+    if (conversation.phone === settings.staffPhone) {
+      for (const message of inbound) await staffTurn(conversation, message);
+      return true;
     }
-    await repository.commitTurn(conversation, inbound.map(message => message.id), decision, staffChatId, now());
+    if (conversation.aiPaused) {
+      // Staff are handling this chat: its messages stay stored but the AI does not answer.
+      for (const message of inbound) await repository.answerPlainly(conversation, message.id, null, now());
+      return true;
+    }
+    const context: FlowContext = { ...await repository.options(), now: now() };
+    const requests = (await repository.requests(id)).map(request => request.number);
+    let flow = conversation.flow;
+    for (const message of inbound) {
+      try {
+        const turn = await advance(flow, message.body, context, async state => {
+          const history = await repository.history(id, HISTORY_LIMIT);
+          const messages: ChatMessage[] = [
+            { role: "system", content: `${prompt}\n\n${stepInstructions(state, context)}` },
+            ...history.map(item => ({ role: item.direction === "inbound" ? "user" as const : "assistant" as const, content: item.body })),
+          ];
+          return ai.interpret(messages);
+        });
+        await repository.commitTurn(conversation, message.id, turn, staffChatId, requests, now());
+        flow = turn.state;
+      } catch (error) {
+        console.error(`WhatsApp AI answer failed for conversation ${id}: ${error instanceof Error ? error.message : "unknown error"}`);
+        if (error instanceof AiRefusedError) { await giveUp(id, error.reason); return true; }
+        return false;
+      }
+    }
     return true;
   }
 

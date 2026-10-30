@@ -435,7 +435,9 @@ Acceptance:
 
 Depends on: phase 4 (client phone format). Decided 2026-10-21: OpenWA gateway, intake-only AI with staff handoff, conversations kept indefinitely; the owner accepts OpenWA's number-ban risk. Decided 2026-10-24: OpenAI-compatible Chat Completions AI format, follow-up handling (new request, change/cancellation update, forward), English staff messages, and removal of the reservation `source` field. Decision gate still open: the AI provider and model, and OpenWA onboarding (session and number linking).
 
-Outcome: a client sends a booking request to the business's single WhatsApp number in Arabic; the AI collects the details, tells the client a person will follow up, and sends one request summary to the staff WhatsApp number. Later messages produce a new summary, an update to an earlier request, or a forward. Staff create and change reservations manually in the dashboard. Product rules: [project-contract.md](project-contract.md#whatsapp-journey).
+**Replaced 2026-10-30:** the owner widened the scope. Numbered English/Arabic menus are sent by the code, the AI reads free text, a confirmed request goes to staff, and a staff `yes` creates the reservation. Staff replies from the business phone pause the AI for that client until `ai on`. The checklist below records the original intake build; the current rules are in [project-contract.md](project-contract.md#whatsapp-journey).
+
+Outcome: a client books through the business's single WhatsApp number; staff approve from the staff number and the reservation is created.
 
 Processing design:
 

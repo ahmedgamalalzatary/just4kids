@@ -80,6 +80,21 @@ export function createBookingRepository(connection: ReturnType<typeof createData
       const bookingInput = { ...details, clientId: randomUUID(), addressId: randomUUID() };
       return db.transaction(transaction => save(bookingInput, accountId, transaction, client));
     },
+    /** Finds or creates the client by phone, adds the address, and saves the reservation; `after` commits in the same transaction. */
+    async createForPhone(input: Omit<BookingCreate, "clientId" | "addressId">, client: BookingWithClientCreate["client"], accountId: string, after: (transaction: Transaction, booking: { id: string; reference: string }) => Promise<void>) {
+      return db.transaction(async transaction => {
+        const [existing] = await transaction.select({ id: clients.id }).from(clients).where(eq(clients.phone, client.phone)).for("update");
+        const addressId = randomUUID();
+        if (existing) {
+          await verifyAddressArea(transaction, client.address);
+          const now = new Date();
+          await transaction.insert(clientAddresses).values({ id: addressId, clientId: existing.id, ...addressValues(client.address), createdAt: now, updatedAt: now });
+        }
+        const booking = await save({ ...input, clientId: existing?.id ?? randomUUID(), addressId }, accountId, transaction, existing ? undefined : client);
+        await after(transaction, booking);
+        return booking;
+      });
+    },
   };
 }
 export type BookingRepository = ReturnType<typeof createBookingRepository>;
