@@ -46,7 +46,7 @@ describe("WhatsApp flow", () => {
     ["barber", { who: "boy", children: 1 }, "5", "children"],
     ["barber", { who: "adults", adults: 1 }, "5", "adults"],
     ["barber", { who: "family", adults: 1, children: 1 }, "5", "children"],
-    ["date", {}, "9", "barber"],
+    ["date", {}, "6", "barber"],
   ] as const)("goes back from %s", async (step, extra, choice, previous) => {
     const turn = await advance({ step, language: "en", ...extra }, choice, context, noAi);
     expect(turn.state.step).toBe(previous);
@@ -131,6 +131,14 @@ describe("WhatsApp flow", () => {
   it("no longer offers adults in the who list", () => {
     expect(render({ step: "who", language: "en" }, context)).toBe("👶 Who is this for?\n\n1. Boy\n2. Girl\n3. Baby\n4. Special needs\n5. Both (Girl & Boy)\n6. Change language / تغيير اللغة\n7. Back to the previous step");
     expect(render({ step: "who", language: "ar" }, context)).not.toContain("كبار");
+  });
+
+  it("offers only the next 4 days, and refuses a later date the AI read", async () => {
+    expect(render({ step: "date", language: "en" }, context).split("\n").filter(line => /^\d\. /.test(line))).toHaveLength(6);
+    const later = vi.fn(async () => ({ reply: "", value: { date: "2026-11-03" } }));
+    expect((await advance({ step: "date", language: "en" }, "next Tuesday", context, later)).state.step).toBe("date");
+    const last = vi.fn(async () => ({ reply: "", value: { date: "2026-11-02" } }));
+    expect((await advance({ step: "date", language: "en" }, "Monday", context, last)).state).toMatchObject({ step: "time", date: "2026-11-02" });
   });
 
   it("asks which barber the client chooses", () => {

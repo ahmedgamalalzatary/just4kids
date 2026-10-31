@@ -62,7 +62,7 @@ const whoValues: WhatsAppWho[] = ["boy", "girl", "baby", "special", "both"];
 const numbered = (options: readonly string[]) => options.map((option, index) => `${index + 1}. ${option}`).join("\n");
 const westernDigits = (text: string) => text.replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 const kuwaitDate = (now: Date, offset = 0) => new Date(now.getTime() + 3 * 3_600_000 + offset * 86_400_000).toISOString().slice(0, 10);
-const days = (now: Date) => Array.from({ length: 7 }, (_, offset) => kuwaitDate(now, offset));
+const days = (now: Date) => Array.from({ length: 4 }, (_, offset) => kuwaitDate(now, offset));
 const dateLabel = (date: string, language: Language) => new Date(`${date}T12:00:00.000Z`).toLocaleDateString(language === "ar" ? "ar-KW" : "en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 export function clientApproved(language: Language | null, details: { date: string; startTime: string; endTime: string }, barber: string) {
@@ -271,7 +271,7 @@ function applyValue(state: WhatsAppFlow, value: Record<string, unknown>, context
   }
   if (state.step === "date") {
     const parsed = valueSchemas.date.safeParse(value);
-    if (parsed.success) return parsed.data.date >= kuwaitDate(context.now) ? move({ ...state, date: parsed.data.date }, "time", context) : stay(state, context, copy[state.language ?? "ar"].timeInvalid);
+    if (parsed.success) return days(context.now).includes(parsed.data.date) ? move({ ...state, date: parsed.data.date }, "time", context) : stay(state, context, copy[state.language ?? "ar"].invalid);
   }
   const parsed = valueSchemas.choice.safeParse(value);
   return parsed.success ? applyChoice(state, parsed.data.choice, context) : null;

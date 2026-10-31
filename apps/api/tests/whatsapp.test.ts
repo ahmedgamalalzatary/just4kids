@@ -161,7 +161,7 @@ describe("WhatsApp webhook", () => {
 
 // Walks a client from the first message to the confirm step using only menu numbers.
 async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), address = "https://www.google.com/maps?q=29.3,48.0") {
-  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice, "7", time, areaName, address]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice, "4", time, areaName, address]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
 }
 // Every test books its own window, because they all share one barber and date.
 let windowHour = 8;
@@ -347,7 +347,7 @@ describe("staff approval", () => {
     const time = nextWindow();
     const first = await confirmed(phone, barberOption, time);
     await fromStaff(`yes ${first}`);
-    for (const text of ["مرحبا", "1", "1", "1", "1", barberOption, "7", time, areaName, "https://www.google.com/maps?q=29.3,48.0", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    for (const text of ["مرحبا", "1", "1", "1", "1", barberOption, "4", time, areaName, "https://www.google.com/maps?q=29.3,48.0", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     const second = (await stored(phone)).requests.at(-1)!.number;
     expect(second).not.toBe(first);
     h.sent.length = 0;
