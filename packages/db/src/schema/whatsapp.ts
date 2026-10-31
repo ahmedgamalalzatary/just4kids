@@ -4,6 +4,8 @@ import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mys
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
 export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
 export type WhatsAppRequestDetails = {
+  // The language of this request, for the client's approval or rejection; the chat's language restarts after each request. Older requests have none.
+  language?: "en" | "ar" | null;
   // Null when the flow has no answer; requests saved before this field have none either.
   who?: WhatsAppWho | null;
   adults: number; children: number; specialChildren: number;

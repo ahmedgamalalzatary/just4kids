@@ -85,8 +85,23 @@ describe("WhatsApp flow", () => {
     expect(atConfirm.reply).toContain("This is a request — our team will confirm the exact time.");
     state = atConfirm.state;
     const sent = await advance(state, "1", context, noAi);
-    expect(sent.staff).toMatchObject({ type: "new_request", details: { who: "boy", adults: 0, children: 2, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12" } } });
-    expect(sent.state).toEqual({ step: "menu", language: "en" });
+    expect(sent.staff).toMatchObject({ type: "new_request", details: { language: "en", who: "boy", adults: 0, children: 2, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12" } } });
+    expect(sent.reply).not.toContain("Select your language");
+  });
+
+  it("opens the whole flow again with the language list after a finished request", async () => {
+    const address = { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null };
+    const sent = await advance({ step: "confirm", language: "ar", children: 1, date: "2026-10-30", startTime: "16:00", endTime: "18:00", area: context.areas[0]!, address }, "1", context, noAi);
+    const next = await advance(sent.state, "Good evening", context, noAi);
+    expect(next.state).toEqual({ step: "language", language: null });
+    expect(next.reply).toContain("1. English\n2. العربية");
+    expect(next.reply).not.toContain("الرجوع");
+    expect((await advance(next.state, "1", context, noAi)).state).toEqual({ step: "menu", language: "en" });
+  });
+
+  it("opens the language list again after a change request", async () => {
+    const sent = await advance({ step: "change", language: "en" }, "Cancel Sunday please", context, noAi);
+    expect((await advance(sent.state, "Hello", context, noAi)).state).toEqual({ step: "language", language: null });
   });
 
   it("accepts a location link alone and leaves the other address parts for staff", async () => {
@@ -135,8 +150,8 @@ describe("WhatsApp flow", () => {
     expect(back.state.resume).toBeUndefined();
   });
 
-  it("restarts from the confirm step and from the word menu", async () => {
-    expect((await walk({ step: "confirm", language: "en", date: "2026-10-30", area: context.areas[0]!, address: { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null }, startTime: "16:00", endTime: "18:00" }, "2")).state).toEqual({ step: "menu", language: "en" });
+  it("starts over at the language list from the confirm step, and returns to the menu from the word menu", async () => {
+    expect((await walk({ step: "confirm", language: "en", date: "2026-10-30", area: context.areas[0]!, address: { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null }, startTime: "16:00", endTime: "18:00" }, "2")).state).toEqual({ step: "language", language: null });
     expect((await walk({ step: "date", language: "ar", who: "boy" }, "القائمة")).state).toEqual({ step: "menu", language: "ar" });
   });
 

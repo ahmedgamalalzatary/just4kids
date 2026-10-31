@@ -56,7 +56,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     if (!found) { await repository.answerPlainly(staff, message.id, `Request #${command.number} was not found.`, now()); return; }
     const { request, conversation: client } = found;
     if (request.status !== "pending") { await repository.answerPlainly(staff, message.id, `Request #${command.number} was already ${request.status}.`, now()); return; }
-    const language = client.flow?.language ?? null;
+    const language = request.details.language ?? client.flow?.language ?? null;
     if (command.type === "reject") {
       await repository.reject(command.number, client, clientRejected(language, command.reason), staff, message.id, `Request #${command.number} rejected. The client was told.`, now());
       await sendPending(staff.id);

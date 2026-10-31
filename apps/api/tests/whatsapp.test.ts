@@ -343,7 +343,7 @@ describe("staff approval", () => {
     const time = nextWindow();
     const first = await confirmed(phone, barberOption, time);
     await fromStaff(`yes ${first}`);
-    for (const text of ["1", "1", "1", barberOption, "7", time, areaName, "https://www.google.com/maps?q=29.3,48.0", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    for (const text of ["مرحبا", "1", "1", "1", "1", barberOption, "7", time, areaName, "https://www.google.com/maps?q=29.3,48.0", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     const second = (await stored(phone)).requests.at(-1)!.number;
     expect(second).not.toBe(first);
     h.sent.length = 0;

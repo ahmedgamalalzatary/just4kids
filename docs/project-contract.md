@@ -95,7 +95,7 @@ Client WhatsApp ─► OpenWA ─webhook─► API ─► numbered menus (code) 
 
 Decided 2026-10-30 (replaces the intake-only decision of 2026-10-21): the AI talks with clients and answers their questions, a complete request goes to staff for approval, and approval creates the reservation.
 
-1. A client messages the business number and chooses English or Arabic. The code sends every menu word for word; the AI only reads what a client types outside the menus.
+1. A client messages the business number and chooses English or Arabic; every new reservation starts again from this choice, after a request is sent, a change request is sent, or the client starts over. The code sends every menu word for word; the AI only reads what a client types outside the menus.
 2. Main menu: book, cancel or change a request. A client who asks for a person in their own words is forwarded to staff. Booking collects: who it is for and the counts, the barber (from the dashboard, or any barber), the date, the client's own start and end time, the area (from the dashboard), and a location, Google Maps link, or block, street and house or building. The client's phone comes from the sender identity.
 3. The client confirms a summary, and the full request goes to the staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`).
 4. Staff answer from that number: `yes 12`, `yes 12 <barber>` (required when the client chose any barber, or to change the barber), or `no 12 <reason>`. Staff may instead create the reservation manually in the dashboard.

@@ -118,10 +118,12 @@ function move(state: WhatsAppFlow, step: WhatsAppFlowStep, context: FlowContext,
 }
 function stay(state: WhatsAppFlow, context: FlowContext, message: string, staff?: StaffNotice): Turn { return move(state, state.step, context, message, staff); }
 const freshBooking = (state: WhatsAppFlow): WhatsAppFlow => ({ step: "menu", language: state.language });
+// A finished request: with no language saved, the client's next message opens the language list, whatever it says.
+const finished: WhatsAppFlow = { step: "menu", language: null };
 
 function details(state: WhatsAppFlow): WhatsAppRequestDetails {
   return {
-    who: state.who ?? null, adults: state.adults ?? 0, children: state.children ?? 0, specialChildren: state.who === "special" ? state.children ?? 0 : 0,
+    language: state.language, who: state.who ?? null, adults: state.adults ?? 0, children: state.children ?? 0, specialChildren: state.who === "special" ? state.children ?? 0 : 0,
     barberId: state.barber?.id ?? null, barberName: state.barber?.name ?? null,
     date: state.date!, startTime: state.startTime!, endTime: state.endTime!, areaId: state.area!.id, area: state.area!.name, address: state.address!,
   };
@@ -173,8 +175,8 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     case "date":
       return move({ ...state, date: days(context.now)[choice - 1]! }, "time", context);
     case "confirm":
-      if (choice === 2) return move(freshBooking(state), "menu", context);
-      return { state: freshBooking(state), reply: copy[language].sent, staff: { type: "new_request", details: details(state) } };
+      if (choice === 2) return move({ step: "language", language: null }, "language", context);
+      return { state: finished, reply: copy[language].sent, staff: { type: "new_request", details: details(state) } };
     default:
       return null;
   }
@@ -209,7 +211,7 @@ function direct(state: WhatsAppFlow, raw: string, context: FlowContext): Turn | 
   const text = westernDigits(raw).trim();
   const language = state.language ?? "ar";
   const number = /^\d{1,3}$/.test(text) ? Number(text) : null;
-  if (state.step === "change") return { state: freshBooking(state), reply: copy[language].changeSent, staff: { type: "change", text: raw.trim() } };
+  if (state.step === "change") return { state: finished, reply: copy[language].changeSent, staff: { type: "change", text: raw.trim() } };
   if (number !== null) {
     if (state.step === "adults" || state.step === "children") return applyCount(state, number, context);
     if (options(state, context, language).length) return applyChoice(state, number, context) ?? stay(state, context, copy[language].invalid);
