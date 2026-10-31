@@ -1,0 +1,1 @@
+ALTER TABLE `whatsapp_messages` ADD `media` enum('price_list');

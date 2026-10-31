@@ -50,6 +50,8 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
   if (schedule.isError) return <ErrorState error={schedule.error} onRetry={() => schedule.refetch()} />;
   if (day.isError) return <ErrorState error={day.error} onRetry={() => day.refetch()} />;
   const slots = buildSlots({ date, schedule: schedule.data, bookings: day.data.bookings });
+  // A visit starts on the hour, so a free half hour is only offered for locks.
+  const shownSlots = managing ? slots : slots.filter(slot => slot.startTime.endsWith(":00") || slot.state === "booked" || slot.state === "locked");
   const action = slots.find(slot => slot.startTime === actionTime);
   const activeStart = pendingStart ?? selected;
   const endOptions = activeStart ? buildEndOptions({ date, schedule: schedule.data, bookings: day.data.bookings, startTime: activeStart }) : [];
@@ -85,7 +87,7 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
         {managing ? <p className="text-sm text-muted-foreground">Select the start of the closed window, then its end; or a closed slot to unlock.</p> : null}
       </div> : null}
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={managing ? "Lock time" : "Start time"}>
-        {slots.map(slot => {
+        {shownSlots.map(slot => {
           const isSelected = managing ? slot.startTime === actionTime : (slot.startTime === selected || slot.startTime === pendingStart) && slot.state === "free";
           const label = slot.state === "booked" ? `${formatTime(slot.startTime)}, booked`
             : slot.state === "free" ? formatTime(slot.startTime)

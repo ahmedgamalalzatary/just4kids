@@ -93,12 +93,12 @@ describe("client active/stopped status", () => {
   it("blocks new bookings for a stopped client while leaving existing bookings untouched", async () => {
     const client = await createClient(`+965${randomInt(62000000, 62999999)}`);
     const addressId = (await request(app).get(`/clients/${client.id}`).set("Cookie", admin.cookie)).body.addresses[0].id;
-    const booking = { clientId: client.id, addressId, employeeId, date: "2099-03-10", startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 0 };
+    const booking = { clientId: client.id, addressId, employeeId, date: "2099-03-10", startTime: "09:00", endTime: "10:00", adultCount: 1, childCount: 0 };
     const created = await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(booking);
     expect(created.status).toBe(201);
 
     expect((await setStatus(client.id, { enabled: false, reason: "موقوف" })).status).toBe(200);
-    const blocked = await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ ...booking, startTime: "10:00", endTime: "10:20" });
+    const blocked = await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ ...booking, startTime: "10:00", endTime: "11:00" });
     expect(blocked.status).toBe(409);
     expect(blocked.body.error.code).toBe("CLIENT_DISABLED");
     expect((await request(app).get(`/bookings/${created.body.id}`).set("Cookie", admin.cookie)).status).toBe(200);

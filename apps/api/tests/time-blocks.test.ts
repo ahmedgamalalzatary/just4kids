@@ -22,7 +22,7 @@ const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session, employee: Session;
 const base = `/schedules/${employeeId}/blocks`;
-const booking = (visitDate = date) => ({ clientId, addressId, employeeId, date: visitDate, startTime: "12:30", endTime: "13:30", childCount: 1, adultCount: 0 });
+const booking = (visitDate = date) => ({ clientId, addressId, employeeId, date: visitDate, startTime: "13:00", endTime: "14:00", childCount: 1, adultCount: 0 });
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -103,7 +103,7 @@ describe("manual half-hour locks", () => {
     const created = await write("post", base, { date: visitDate, startTime: "13:00", endTime: "15:00", reason: "ظهيرة" });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ startTime: "13:00", endTime: "15:00", reason: "ظهيرة" });
-    for (const [startTime, endTime] of [["13:00", "14:00"], ["14:30", "15:00"]]) expect((await write("post", "/bookings", { ...booking(visitDate), startTime, endTime })).status).toBe(409);
+    for (const [startTime, endTime] of [["13:00", "14:00"], ["14:00", "15:00"]]) expect((await write("post", "/bookings", { ...booking(visitDate), startTime, endTime })).status).toBe(409);
     expect((await write("post", "/bookings", { ...booking(visitDate), startTime: "12:00", endTime: "13:00" })).status).toBe(201);
     expect((await write("post", base, { date: visitDate, startTime: "14:00", endTime: "16:00" })).status).toBe(409);
     expect((await write("post", base, { date: visitDate, startTime: "15:00", endTime: "16:00" })).status).toBe(201);
@@ -127,24 +127,24 @@ describe("manual half-hour locks", () => {
     expect(denied.body.error.code).toBe("BARBER_UNAVAILABLE");
     const [counts] = await connection.pool.execute("SELECT COUNT(*) AS n FROM bookings WHERE employee_id = ? AND date = ?", [employeeId, date]);
     expect(counts).toMatchObject([{ n: 0 }]);
-    for (const [startTime, endTime] of [["12:30", "13:00"], ["13:30", "14:00"]]) expect((await write("post", "/bookings", { ...booking(), startTime, endTime })).status).toBe(201);
+    for (const [startTime, endTime] of [["12:00", "13:00"], ["14:00", "15:00"]]) expect((await write("post", "/bookings", { ...booking(), startTime, endTime })).status).toBe(201);
     const service = createBookingService(createBookingRepository(connection));
-    await expect(service.create({ ...booking(), startTime: "13:00", endTime: "13:30" }, admin.id)).rejects.toMatchObject({ code: "BARBER_UNAVAILABLE" });
+    await expect(service.create({ ...booking(), startTime: "13:00", endTime: "14:00" }, admin.id)).rejects.toMatchObject({ code: "BARBER_UNAVAILABLE" });
     expect((await write("delete", `${base}/${block.id}`)).status).toBe(204);
-    expect((await write("post", "/bookings", { ...booking(), startTime: "13:00", endTime: "13:30" })).status).toBe(201);
+    expect((await write("post", "/bookings", { ...booking(), startTime: "13:00", endTime: "14:00" })).status).toBe(201);
   });
   it("rejects locks over existing bookings and blocks edits, reassignment and cancelled-visit restoration", async () => {
     const visitDate = "2099-01-06";
-    const created = await write("post", "/bookings", { ...booking(visitDate), startTime: "09:00", endTime: "09:30" });
+    const created = await write("post", "/bookings", { ...booking(visitDate), startTime: "09:00", endTime: "10:00" });
     expect(created.status).toBe(201);
     expect((await write("post", base, { date: visitDate, startTime: "09:00", endTime: "09:30" })).status).toBe(409);
     const block = await lock(visitDate);
-    expect((await write("patch", `/bookings/${created.body.id}`, { expectedVersion: 0, startTime: "12:30", endTime: "13:30" })).body.error.code).toBe("BARBER_UNAVAILABLE");
+    expect((await write("patch", `/bookings/${created.body.id}`, { expectedVersion: 0, startTime: "13:00", endTime: "14:00" })).body.error.code).toBe("BARBER_UNAVAILABLE");
     const other = await write("post", "/bookings", { ...booking(visitDate), employeeId: otherId });
     expect(other.status).toBe(201);
     expect((await write("patch", `/bookings/${other.body.id}`, { expectedVersion: 0, employeeId })).body.error.code).toBe("BARBER_UNAVAILABLE");
     expect((await write("delete", `${base}/${block.id}`)).status).toBe(204);
-    const moved = await write("patch", `/bookings/${created.body.id}`, { expectedVersion: 0, startTime: "13:00", endTime: "13:30" });
+    const moved = await write("patch", `/bookings/${created.body.id}`, { expectedVersion: 0, startTime: "13:00", endTime: "14:00" });
     expect(moved.status).toBe(200);
     const cancelled = await write("post", `/bookings/${created.body.id}/visit`, { expectedVersion: moved.body.visitVersion, status: "cancelled" });
     expect(cancelled.status).toBe(200);

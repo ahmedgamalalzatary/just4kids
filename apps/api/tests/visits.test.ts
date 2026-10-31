@@ -29,7 +29,7 @@ function correction(status: string, version: number, reason = "تصحيح حال
 function at(time: string) { vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T${time}:00+03:00`)); }
 async function detail() { return (await request(app).get(`/bookings/${booking.id}`).set("Cookie", admin.cookie)).body; }
 async function history() { return request(app).get(`/bookings/${booking.id}/history`).set("Cookie", employee.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "10:00", adultCount: 1, childCount: 1 });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
@@ -83,7 +83,7 @@ describe("employee visit actions and history", () => {
     expect((await close()).status).toBe(409);
     vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T09:20:00+03:00`) - 1);
     expect((await close()).status).toBe(409);
-    at("09:20");
+    at("10:00");
     try {
       expect((await close()).status).toBe(200);
       expect((await detail()).visitStatus).toBe(status);
@@ -95,11 +95,11 @@ describe("employee visit actions and history", () => {
     at("09:00"); expect((await transition("arrived")).status).toBe(200);
     expect((await transition("completed", 1)).status).toBe(200);
     const current = await detail();
-    expect(current).toMatchObject({ visitStatus: "completed", visitVersion: 2, startTime: "09:00", endTime: "09:20" });
+    expect(current).toMatchObject({ visitStatus: "completed", visitVersion: 2, startTime: "09:00", endTime: "10:00" });
     const events = await history(); expect(events.status).toBe(200);
     expect(events.body.events.map((event: { toStatus: string }) => event.toStatus)).toEqual(["booked", "arrived", "completed"]);
     expect(events.body.events[1]).toMatchObject({ fromStatus: "booked", toStatus: "arrived", actorType: "employee", actorAccountId: employeeId, occurredAt: `${date}T06:00:00.000Z` });
-    const eligible = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=09:20`).set("Cookie", admin.cookie);
+    const eligible = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=10:00`).set("Cookie", admin.cookie);
     expect(eligible.body.barbers.some((barber: { id: string }) => barber.id === employeeId)).toBe(false);
     expect((await transition("cancelled", 2)).status).toBe(409);
   });
@@ -113,12 +113,12 @@ describe("employee visit actions and history", () => {
   it("rejects early arrival/completion/no-show and completion without arrival", async () => {
     at("08:59"); expect((await transition("arrived")).status).toBe(409); expect((await transition("no_show")).status).toBe(409);
     at("09:00"); expect((await transition("completed")).status).toBe(409); expect((await transition("no_show")).status).toBe(409);
-    at("09:20"); expect((await transition("no_show")).status).toBe(200);
+    at("10:00"); expect((await transition("no_show")).status).toBe(200);
     expect((await transition("arrived", 1)).status).toBe(409);
   });
   it("cancels the visit and releases availability", async () => {
     expect((await transition("cancelled")).status).toBe(200);
-    const eligible = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=09:20`).set("Cookie", admin.cookie);
+    const eligible = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=10:00`).set("Cookie", admin.cookie);
     expect(eligible.body.barbers.some((barber: { id: string }) => barber.id === employeeId)).toBe(true);
     expect((await detail()).visitStatus).toBe("cancelled");
   });
@@ -129,7 +129,7 @@ describe("employee visit actions and history", () => {
   });
   it.each(["cancelled", "no_show"])("allows %s after arrival", async status => {
     at("09:00"); expect((await transition("arrived")).status).toBe(200);
-    at("09:20"); expect((await transition(status!, 1)).status).toBe(200);
+    at("10:00"); expect((await transition(status!, 1)).status).toBe(200);
   });
   it("requires a correction reason and records administrator reopening", async () => {
     expect((await transition("cancelled")).status).toBe(200);

@@ -6,7 +6,7 @@ import { formatDate, formatWindow, kuwaitInstant, minuteOfDay } from "./kuwait-t
 
 export const SLOT_MINUTES = 30;
 /** The shortest and longest visit the API accepts, in minutes. */
-export const MIN_VISIT_MINUTES = 30;
+export const MIN_VISIT_MINUTES = 60;
 export const MAX_VISIT_MINUTES = 240;
 
 // Visits that still hold the barber's time, exactly as the API checks availability.
@@ -53,7 +53,7 @@ function covered(intervals: Interval[], startTime: string, endTime: string): boo
 /**
  * 30-minute pills across the barber's whole day. A pill is booked when a visit holds its half hour, past when it has
  * already started, locked (blue) when the half hour is outside the day's working intervals — a break between shifts
- * or a whole day off. The visit length is chosen afterwards with `buildEndOptions`; the server rechecks on save.
+ * or a whole day off. The visit length is chosen afterwards with `buildEndOptions`; the server rechecks on save. Half hours stay for locks and for showing older visits.
  */
 export function buildSlots<T extends Visit>({ date, schedule, bookings, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; now?: Date }): Slot<T>[] {
   const intervals = workingIntervals(schedule, date);
@@ -79,19 +79,20 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, now = ne
   });
 }
 
-/** The valid end times for a visit starting at `startTime`: half-hour steps until the shift ends, a visit, or a lock is hit. */
+/** The valid end times for a visit starting at `startTime`: whole hours until the shift ends, a visit, or a lock is hit. */
 export function buildEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
-  return endOptions(args, MAX_VISIT_MINUTES);
+  if (!args.startTime.endsWith(":00")) return [];
+  return endOptions(args, MAX_VISIT_MINUTES, MIN_VISIT_MINUTES);
 }
 
 /** The valid end times for locking from `startTime`: half-hour steps until the shift ends or a visit or another lock starts. */
 export function buildLockEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
-  return endOptions(args, Number.POSITIVE_INFINITY);
+  return endOptions(args, Number.POSITIVE_INFINITY, SLOT_MINUTES);
 }
 
 type EndOptionsArgs<T extends Visit> = { date: string; schedule: ScheduleLike; bookings: T[]; startTime: string; now?: Date };
 
-function endOptions<T extends Visit>({ date, schedule, bookings, startTime, now = new Date() }: EndOptionsArgs<T>, maxMinutes: number): string[] {
+function endOptions<T extends Visit>({ date, schedule, bookings, startTime, now = new Date() }: EndOptionsArgs<T>, maxMinutes: number, stepMinutes: number): string[] {
   if (kuwaitInstant(date, startTime) <= now) return [];
   const intervals = workingIntervals(schedule, date);
   if (!covered(intervals, startTime, timeOf(minuteOfDay(startTime) + SLOT_MINUTES))) return [];
@@ -104,7 +105,7 @@ function endOptions<T extends Visit>({ date, schedule, bookings, startTime, now 
   ].filter(minute => minute > startMinute);
   const boundary = busy.length > 0 ? Math.min(...busy) : endMinute;
   const options: string[] = [];
-  for (let minute = startMinute + SLOT_MINUTES; minute <= Math.min(endMinute, boundary); minute += SLOT_MINUTES) {
+  for (let minute = startMinute + stepMinutes; minute <= Math.min(endMinute, boundary); minute += stepMinutes) {
     const candidate = timeOf(minute);
     if (!covered(intervals, startTime, candidate)) break;
     options.push(candidate);

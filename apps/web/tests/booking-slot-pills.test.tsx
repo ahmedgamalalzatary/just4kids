@@ -110,6 +110,14 @@ describe("booking time lock controls", () => {
     expect(select).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status").textContent).toContain("Visit starts at 2:00 PM");
   });
+  it("offers only whole-hour starts and ends for a visit, and half hours for a lock", async () => {
+    await mount();
+    expect(screen.queryByRole("radio", { name: "1:30 PM" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
+    expect(screen.getAllByRole("radio", { name: /^End at/ }).map(end => end.getAttribute("aria-label"))).toEqual(["End at 2:00 PM", "End at 3:00 PM"]);
+    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    expect(screen.getByRole("radio", { name: "1:30 PM" })).toBeInTheDocument();
+  });
   it("picks a start and an end for a lock and stores the whole window", async () => {
     const { fetch, changed } = await mount();
     await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));

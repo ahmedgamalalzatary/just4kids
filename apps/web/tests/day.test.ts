@@ -91,19 +91,21 @@ describe("buildSlots", () => {
 describe("buildEndOptions", () => {
   const wide = { days: [{ dayOfWeek: 1, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [] };
 
-  it("lists half-hour ends from 30 minutes after the start up to the shift end", () => {
-    expect(buildEndOptions({ date, schedule, bookings: [], startTime: "09:00", now: early })).toEqual(["09:30", "10:00", "10:30", "11:00"]);
-    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: early })).toEqual([
-      "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00",
-    ]);
+  it("lists whole-hour ends from one hour after the start up to the shift end", () => {
+    expect(buildEndOptions({ date, schedule, bookings: [], startTime: "09:00", now: early })).toEqual(["10:00", "11:00"]);
+    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:00", now: early })).toEqual(["10:00", "11:00", "12:00", "13:00"]);
   });
 
   it("stops before the next booking or manual lock", () => {
     const blocks = [{ id: "manual", date, startTime: "10:00", endTime: "10:30", reason: null }];
-    const options = buildEndOptions({ date, schedule: { ...wide, blocks }, bookings: [visit("10:30", "11:00")], startTime: "09:30", now: early });
+    const options = buildEndOptions({ date, schedule: { ...wide, blocks }, bookings: [visit("10:30", "11:00")], startTime: "09:00", now: early });
     expect(options).toEqual(["10:00"]);
     const afterBooking = buildEndOptions({ date, schedule: wide, bookings: [visit("10:30", "11:00")], startTime: "11:00", now: early });
-    expect(afterBooking).toEqual(["11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00"]);
+    expect(afterBooking).toEqual(["12:00", "13:00", "14:00", "15:00"]);
+  });
+
+  it("offers no end for a start on the half hour", () => {
+    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:30", now: early })).toEqual([]);
   });
 
   it("returns no ends for a start outside the working hours", () => {

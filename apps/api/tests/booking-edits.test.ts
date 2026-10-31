@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "@just4kids/db";
-import { bookingCreateSchema } from "@just4kids/contracts";
-import { accounts, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
+import { bookingEditedSchema } from "@just4kids/contracts";
+import { accounts, bookings, employees, clients, clientAddresses, employeeWorkIntervals, employeeScheduleExceptions, loginAttempts } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -30,7 +30,7 @@ function write(method: "post" | "patch", path: string, body: object, session = a
 function edit(patch: object, version = 0, session = admin) { return write("patch", `/bookings/${booking.id}`, { expectedVersion: version, ...patch }, session); }
 function detail(session = admin) { return request(app).get(`/bookings/${booking.id}`).set("Cookie", session.cookie); }
 function revisions(session = admin) { return request(app).get(`/bookings/${booking.id}/revisions`).set("Cookie", session.cookie); }
-const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 1 });
+const body = () => ({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "10:00", adultCount: 1, childCount: 1 });
 beforeAll(async () => {
   await connection.db.delete(loginAttempts); await auth.initialize();
   const now = new Date(), passwordHash = await hashPassword("employee-password-123");
@@ -104,7 +104,7 @@ describe("reservation edits and revisions", () => {
     const service = createBookingService({
       ...repository,
       async markSeenByBarber(...args) {
-        const moved = await edit({ startTime: "10:00", endTime: "10:20" });
+        const moved = await edit({ startTime: "10:00", endTime: "11:00" });
         expect(moved.status).toBe(200);
         return repository.markSeenByBarber(...args);
       },
@@ -117,7 +117,7 @@ describe("reservation edits and revisions", () => {
   });
   it("moves the window/address while preserving identity and before/after history", async () => {
     const before = (await detail()).body;
-    const updated = await edit({ startTime: "10:00", endTime: "10:20", addressId: secondAddressId, reason: "requested move" });
+    const updated = await edit({ startTime: "10:00", endTime: "11:00", addressId: secondAddressId, reason: "requested move" });
     expect(updated.status).toBe(200);
     expect(updated.body).toMatchObject({ id: booking.id, reference: booking.reference, visitVersion: 1, startTime: "10:00", address: { street: "new street" } });
     const history = await revisions(); expect(history.status).toBe(200); expect(history.body.revisions).toHaveLength(1);
@@ -177,25 +177,25 @@ describe("reservation edits and revisions", () => {
     expect(history.body.revisions[0]).toMatchObject({ reason: "correct the count", before: { adultCount: 1 }, after: { adultCount: 2 } });
     expect(history.body.revisions[1]).toMatchObject({ reason: "miscounted children", before: { childCount: 1 }, after: { childCount: 3 } });
     // A correction still refuses a window that clashes with another visit for the same barber.
-    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "10:20" })).status).toBe(201);
-    const clash = await edit({ startTime: "10:00", endTime: "10:20", reason: "move it" }, 2);
+    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "11:00" })).status).toBe(201);
+    const clash = await edit({ startTime: "10:00", endTime: "11:00", reason: "move it" }, 2);
     expect(clash.status).toBe(409);
     expect(clash.body.error.code).toBe("BARBER_UNAVAILABLE");
   });
   it("rolls back a conflicting reschedule/reassignment and rejects disabled barbers", async () => {
     expect((await write("post", "/bookings", { ...body(), employeeId: otherId })).status).toBe(201);
-    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "10:20" })).status).toBe(201);
+    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "11:00" })).status).toBe(201);
     const before = (await detail()).body;
     expect((await edit({ employeeId: otherId })).status).toBe(409);
-    expect((await edit({ startTime: "10:00", endTime: "10:20" })).status).toBe(409);
+    expect((await edit({ startTime: "10:00", endTime: "11:00" })).status).toBe(409);
     await connection.db.update(accounts).set({ enabled: false }).where(eq(accounts.id, sameId));
     try { expect((await edit({ employeeId: sameId })).status).toBe(409); }
     finally { await connection.db.update(accounts).set({ enabled: true }).where(eq(accounts.id, sameId)); }
     expect((await detail()).body).toEqual(before); expect((await revisions()).body.revisions).toEqual([]);
   });
   it("accepts adjacent windows and the inclusive four-hour bound independently of counts", async () => {
-    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "10:20" })).status).toBe(201);
-    expect((await edit({ startTime: "10:20", endTime: "14:20", adultCount: 3 })).status).toBe(200);
+    expect((await write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "11:00" })).status).toBe(201);
+    expect((await edit({ startTime: "11:00", endTime: "15:00", adultCount: 3 })).status).toBe(200);
   });
   it("serializes competing edits and prevents stale visit actions after reassignment", async () => {
     const changed = await Promise.all([edit({ employeeId: otherId }), edit({ adultCount: 2 })]);
@@ -208,20 +208,33 @@ describe("reservation edits and revisions", () => {
     const results = await Promise.all([edit({ employeeId: otherId }), write("patch", `/bookings/${second.body.id}`, { expectedVersion: 0, employeeId })]);
     expect(results.map(result => result.status)).toEqual([409, 409]); expect((await detail()).body.employeeId).toBe(employeeId);
   });
+  it("keeps new reservation times on whole hours, without blocking older visits or corrections", async () => {
+    expect((await edit({ startTime: "09:30", endTime: "10:30" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
+    expect((await edit({ startTime: "09:00", endTime: "09:30" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
+    await connection.db.update(bookings).set({ endTime: "09:30" }).where(eq(bookings.id, booking.id));
+    const notes = await edit({ notes: "older half-hour visit" });
+    expect(notes.status).toBe(200);
+    expect(notes.body).toMatchObject({ startTime: "09:00", endTime: "09:30" });
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T12:00:00+03:00`));
+    const corrected = await edit({ startTime: "09:15", endTime: "09:45", reason: "the barber arrived late" }, notes.body.visitVersion);
+    clock.mockRestore();
+    expect(corrected.status).toBe(200);
+    expect(corrected.body).toMatchObject({ startTime: "09:15", endTime: "09:45" });
+  });
   it("rechecks the original start before saving if the clock advances during an edit", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse(`${date}T08:59:00+03:00`));
-    const parse = bookingCreateSchema.parse.bind(bookingCreateSchema);
+    const parse = bookingEditedSchema.parse.bind(bookingEditedSchema);
     // Keep real validation and MySQL; advance only the clock after the initial eligibility check.
-    vi.spyOn(bookingCreateSchema, "parse").mockImplementation((...args) => {
+    vi.spyOn(bookingEditedSchema, "parse").mockImplementation((...args) => {
       const result = parse(...args); clock.mockReturnValue(Date.parse(`${date}T09:00:00+03:00`)); return result;
     });
-    const changed = await edit({ startTime: "10:00", endTime: "10:20" });
+    const changed = await edit({ startTime: "10:00", endTime: "11:00" });
     expect(changed.status).toBe(409);
     expect(changed.body.error.code).toBe("BOOKING_EDIT_NOT_ALLOWED");
     expect((await detail()).body).toMatchObject({ startTime: "09:00", visitVersion: 0 });
   });
   it("protects a reschedule racing with a new reservation for the requested window", async () => {
-    const results = await Promise.all([edit({ startTime: "10:00", endTime: "10:20" }), write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "10:20" })]);
+    const results = await Promise.all([edit({ startTime: "10:00", endTime: "11:00" }), write("post", "/bookings", { ...body(), startTime: "10:00", endTime: "11:00" })]);
     expect([[200, 409], [409, 201]]).toContainEqual(results.map(result => result.status));
     expect((await detail()).body.startTime).toBe(results[0]!.status === 200 ? "10:00" : "09:00");
   });
@@ -252,7 +265,7 @@ describe("reservation edits and revisions", () => {
     } finally { await connection.pool.query(`DROP TRIGGER ${trigger}`); }
   });
   it("stores booking notes on create and edit, exposes them to the barber, and records before/after values", async () => {
-    const created = await write("post", "/bookings", { ...body(), startTime: "12:00", endTime: "12:20", notes: "  اتصل قبل الوصول  " });
+    const created = await write("post", "/bookings", { ...body(), startTime: "12:00", endTime: "13:00", notes: "  اتصل قبل الوصول  " });
     expect(created.status).toBe(201);
     expect(created.body.notes).toBe("اتصل قبل الوصول");
     const id = created.body.id;
@@ -280,7 +293,7 @@ describe("reservation edits and revisions", () => {
   it("clears the new-booking marker when the visit time changes or the booking is reassigned", async () => {
     await detail(employee);
     expect((await detail()).body.seenByBarberAt).not.toBeNull();
-    const moved = await edit({ startTime: "10:00", endTime: "10:20" });
+    const moved = await edit({ startTime: "10:00", endTime: "11:00" });
     expect(moved.status).toBe(200);
     expect(moved.body.seenByBarberAt).toBeNull();
     await detail(employee);

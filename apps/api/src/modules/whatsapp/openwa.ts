@@ -21,7 +21,7 @@ const inboundSchema = z.object({
   }),
 });
 export type Inbound = { key: string; phone: string; chatId: string; text: string };
-export type OwnMessage = { key: string; phone: string | null; chatId: string; text: string };
+export type OwnMessage = { key: string; phone: string | null; chatId: string; text: string; media: boolean };
 
 const individualText = (data: z.infer<typeof inboundSchema>["data"]) => {
   if (data.isGroup || data.kind !== "individual") return null;
@@ -52,34 +52,36 @@ export function parseOwnMessage(payload: unknown, sessionId: string): OwnMessage
   if (!parsed.success) return null;
   const { data, sessionId: session, idempotencyKey } = parsed.data;
   if (session !== sessionId || !data.fromMe || data.isGroup || data.kind !== "individual") return null;
-  return { key: idempotencyKey, phone: phoneOf(data.to) ?? phoneOf(data.chatId), chatId: data.chatId, text: data.body?.trim() || `[${data.type}]` };
+  return { key: idempotencyKey, phone: phoneOf(data.to) ?? phoneOf(data.chatId), chatId: data.chatId, text: data.body?.trim() || `[${data.type}]`, media: data.type !== "text" };
 }
 
 export type SendResult = { status: "sent"; messageId: string | null } | { status: "retry"; error: string } | { status: "failed"; error: string };
 
 export function createOpenWa(settings: WhatsAppSettings["openwa"], fetcher: typeof fetch = fetch) {
+  /** Sends once per key: OpenWA replays the first answer for a repeated Idempotency-Key for 24 hours. */
+  async function send(route: string, payload: Record<string, unknown>, key: string): Promise<SendResult> {
+    let response: Response;
+    try {
+      response = await fetcher(`${settings.baseUrl}/api/sessions/${encodeURIComponent(settings.sessionId)}/messages/${route}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": settings.apiKey, "Idempotency-Key": key },
+        body: JSON.stringify(payload),
+        // OpenWA pauses to simulate typing before a send.
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (error) {
+      return { status: "retry", error: `OpenWA unreachable: ${error instanceof Error ? error.name : "error"}` };
+    }
+    const body = await response.json().catch(() => null) as { messageId?: unknown; code?: unknown } | null;
+    if (response.ok) return { status: "sent", messageId: typeof body?.messageId === "string" ? body.messageId : null };
+    const code = typeof body?.code === "string" ? body.code : "";
+    // The first attempt may have gone out (or the key was reused), so another attempt could duplicate the message.
+    if (code === "IDEMPOTENCY_OUTCOME_UNKNOWN" || code === "IDEMPOTENCY_KEY_REUSED") return { status: "failed", error: `OpenWA ${response.status} ${code}` };
+    return { status: "retry", error: `OpenWA ${response.status}${code ? ` ${code}` : ""}` };
+  }
   return {
-    /** Sends once per key: OpenWA replays the first answer for a repeated Idempotency-Key for 24 hours. */
-    async sendText(chatId: string, text: string, key: string): Promise<SendResult> {
-      let response: Response;
-      try {
-        response = await fetcher(`${settings.baseUrl}/api/sessions/${encodeURIComponent(settings.sessionId)}/messages/send-text`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-API-Key": settings.apiKey, "Idempotency-Key": key },
-          body: JSON.stringify({ chatId, text, linkPreview: false }),
-          // OpenWA pauses to simulate typing before a send.
-          signal: AbortSignal.timeout(60_000),
-        });
-      } catch (error) {
-        return { status: "retry", error: `OpenWA unreachable: ${error instanceof Error ? error.name : "error"}` };
-      }
-      const body = await response.json().catch(() => null) as { messageId?: unknown; code?: unknown } | null;
-      if (response.ok) return { status: "sent", messageId: typeof body?.messageId === "string" ? body.messageId : null };
-      const code = typeof body?.code === "string" ? body.code : "";
-      // The first attempt may have gone out (or the key was reused), so another attempt could duplicate the message.
-      if (code === "IDEMPOTENCY_OUTCOME_UNKNOWN" || code === "IDEMPOTENCY_KEY_REUSED") return { status: "failed", error: `OpenWA ${response.status} ${code}` };
-      return { status: "retry", error: `OpenWA ${response.status}${code ? ` ${code}` : ""}` };
-    },
+    sendText: (chatId: string, text: string, key: string) => send("send-text", { chatId, text, linkPreview: false }, key),
+    sendImage: (chatId: string, image: Buffer, caption: string, key: string) => send("send-image", { chatId, base64: image.toString("base64"), mimetype: "image/jpeg", filename: "price-list.jpg", caption }, key),
   };
 }
 export type OpenWa = ReturnType<typeof createOpenWa>;

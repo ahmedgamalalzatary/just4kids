@@ -1,3 +1,4 @@
+import { isWholeHourWindow } from "@just4kids/contracts";
 import { kuwaitInstant, minuteOfDay } from "./kuwait-time";
 
 /** English description of why a booking window is not acceptable, or null. Mirrors the API's rules. */
@@ -8,6 +9,8 @@ export function windowProblem(window: { date: string; startTime: string; endTime
   if (minutes <= 0) return "The appointment must end after it starts on the same day";
   if (minutes < 20) return "Appointments must be at least 20 minutes";
   if (minutes > 240) return "Appointments cannot exceed 4 hours";
+  // A correction records what really happened, so only a future reservation must be whole hours.
+  if (requireFuture && !isWholeHourWindow(window)) return "Appointments must start on the hour and last whole hours";
   if (requireFuture && kuwaitInstant(window.date, window.startTime) <= now) return "The appointment must start after the current Kuwait time";
   return null;
 }

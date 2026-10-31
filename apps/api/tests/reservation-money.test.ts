@@ -17,7 +17,7 @@ const employeePhone = `+965${randomInt(40000000, 49999999)}`;
 const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; id: string };
 let admin: Session;
-const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 1, childCount: 0, specialChildCount: 0 };
+const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "10:00", adultCount: 1, childCount: 0, specialChildCount: 0 };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const login = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });

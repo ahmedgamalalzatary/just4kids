@@ -57,10 +57,10 @@ describe("OpenWA inbound messages", () => {
 describe("messages typed on the linked phone", () => {
   const own = (data: Record<string, unknown> = {}) => message({ fromMe: true, from: "96590000000@c.us", to: "96550000001@c.us", ...data }, { event: "message.sent" });
   it("reads the client's number from the recipient", () => {
-    expect(parseOwnMessage(own(), "business")).toEqual({ key: "msg_business_ABC", phone: "+96550000001", chatId: "96550000001@c.us", text: "أبي موعد" });
+    expect(parseOwnMessage(own(), "business")).toEqual({ key: "msg_business_ABC", phone: "+96550000001", chatId: "96550000001@c.us", text: "أبي موعد", media: false });
   });
   it("still reports a non-text reply", () => {
-    expect(parseOwnMessage(own({ type: "image", body: "" }), "business")).toMatchObject({ text: "[image]" });
+    expect(parseOwnMessage(own({ type: "image", body: "" }), "business")).toMatchObject({ text: "[image]", media: true });
   });
   it.each([["another session", message({ fromMe: true }, { event: "message.sent", sessionId: "other" })], ["a group", own({ isGroup: true })], ["a received message", message()]])("ignores %s", (_name, payload) => {
     expect(parseOwnMessage(payload, "business")).toBeNull();
@@ -84,6 +84,14 @@ describe("OpenWA send-text", () => {
     [400, { statusCode: 400, message: "Session not active" }], [503, { statusCode: 503 }], [500, {}],
   ])("retries later on %i", async (status, body) => {
     expect(await createOpenWa(settings, respond(status, body)).sendText("c", "t", "k")).toMatchObject({ status: "retry" });
+  });
+  it("sends a photo with its caption and the same retry key", async () => {
+    const fetcher = respond(201, { messageId: "true_x_2" });
+    expect(await createOpenWa(settings, fetcher).sendImage("96550000001@c.us", Buffer.from("photo"), "Prices", "j4k-key-2")).toEqual({ status: "sent", messageId: "true_x_2" });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe("http://openwa:2785/api/sessions/business%20session/messages/send-image");
+    expect(init).toMatchObject({ headers: { "Idempotency-Key": "j4k-key-2" } });
+    expect(JSON.parse(String(init!.body))).toEqual({ chatId: "96550000001@c.us", base64: Buffer.from("photo").toString("base64"), mimetype: "image/jpeg", filename: "price-list.jpg", caption: "Prices" });
   });
   it("retries later when OpenWA cannot be reached", async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("fetch failed"));

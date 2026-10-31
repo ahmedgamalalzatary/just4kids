@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibilityQuerySchema } from "./availability.js";
+import { eligibilityQuerySchema, isWholeHourWindow } from "./availability.js";
 import { addressCreateSchema, addressResponseSchema } from "./clients.js";
 import { phoneSchema } from "./auth.js";
 
@@ -34,10 +34,16 @@ function validateBooking(value: Pick<z.infer<typeof bookingFields>, "date" | "st
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
   if (value.specialChildCount > value.childCount) context.addIssue({ code: "custom", path: ["specialChildCount"], message: "Special-needs children cannot exceed the child count" });
 }
-export const bookingCreateSchema = bookingFields.superRefine(validateBooking);
+function validateNewBooking(value: Parameters<typeof validateBooking>[0], context: z.RefinementCtx) {
+  validateBooking(value, context);
+  if (!isWholeHourWindow(value)) context.addIssue({ code: "custom", message: "Reservations must start on the hour and last whole hours" });
+}
+export const bookingCreateSchema = bookingFields.superRefine(validateNewBooking);
+// What an edit re-checks: an older visit or a correction may keep a window that is not whole hours.
+export const bookingEditedSchema = bookingFields.superRefine(validateBooking);
 export const bookingWithClientCreateSchema = bookingFields.omit({ clientId: true, addressId: true }).extend({
   client: z.strictObject({ phone: phoneSchema, address: addressCreateSchema.safeExtend({ areaId: z.uuid() }) }),
-}).superRefine(validateBooking);
+}).superRefine(validateNewBooking);
 export type BookingWithClientCreate = z.infer<typeof bookingWithClientCreateSchema>;
 // Historical JSON snapshots predate these optional address details; current client-address responses stay strict.
 export const bookingAddressSnapshotSchema = addressResponseSchema.omit({ id: true, clientId: true, createdAt: true, updatedAt: true }).extend({

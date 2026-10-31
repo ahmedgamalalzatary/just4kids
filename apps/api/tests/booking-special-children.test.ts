@@ -28,7 +28,7 @@ async function signIn(phone: string, password: string): Promise<Session> {
   return { cookie: (response.headers["set-cookie"] as unknown as string[]).find(value => value.startsWith("j4k_session="))!.split(";")[0]!, csrf: response.body.csrfToken as string };
 }
 function postBooking(body: object) {
-  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", ...body });
+  return request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ clientId, addressId, employeeId, date, startTime: "09:00", endTime: "10:00", ...body });
 }
 function report(path: string, session: Session) {
   return request(app).get(path).set("Cookie", session.cookie);
@@ -61,18 +61,18 @@ afterAll(async () => {
 
 describe("special-needs children on bookings", () => {
   it("stores the special-needs child count", async () => {
-    const created = await postBooking({ startTime: "09:00", endTime: "09:20", adultCount: 0, childCount: 3, specialChildCount: 2 });
+    const created = await postBooking({ startTime: "09:00", endTime: "10:00", adultCount: 0, childCount: 3, specialChildCount: 2 });
     expect(created.status).toBe(201);
     bookingId = created.body.id;
     expect(created.body.specialChildCount).toBe(2);
   });
 
   it("defaults the count to zero and rejects counts outside 0..childCount", async () => {
-    const created = await postBooking({ startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 0 });
+    const created = await postBooking({ startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 0 });
     expect(created.status).toBe(201);
     expect(created.body.specialChildCount).toBe(0);
     for (const patch of [{ childCount: 1, specialChildCount: 2 }, { childCount: 2, specialChildCount: -1 }, { childCount: 2, specialChildCount: 1.5 }]) {
-      expect((await postBooking({ startTime: "11:00", endTime: "11:20", adultCount: 1, ...patch })).status).toBe(400);
+      expect((await postBooking({ startTime: "11:00", endTime: "12:00", adultCount: 1, ...patch })).status).toBe(400);
     }
   });
 

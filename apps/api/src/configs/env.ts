@@ -22,7 +22,8 @@ export const apiEnvSchema = z.object({
   OPENWA_SESSION_ID: optional(z.uuid("OPENWA_SESSION_ID must be the OpenWA session id (a UUID), not its name")),
   // OpenWA requires a webhook secret of at least 16 characters.
   OPENWA_WEBHOOK_SECRET: optional(z.string().min(16, "OPENWA_WEBHOOK_SECRET must contain at least 16 characters").max(255)),
-  STAFF_WHATSAPP_NUMBER: optional(phoneSchema),
+  // One or more numbers separated by commas; each receives the requests and can decide them.
+  STAFF_WHATSAPP_NUMBER: optional(z.string().transform(value => [...new Set(value.split(",").map(item => item.trim()))]).pipe(z.array(phoneSchema).min(1))),
   AI_BASE_URL: optional(baseUrl),
   AI_API_KEY: optional(z.string().trim().min(1)),
   AI_MODEL: optional(z.string().trim().min(1).max(200)),
@@ -40,7 +41,7 @@ export const apiEnvSchema = z.object({
   ...env,
   whatsapp: OPENWA_BASE_URL && OPENWA_API_KEY && OPENWA_SESSION_ID && OPENWA_WEBHOOK_SECRET && STAFF_WHATSAPP_NUMBER && AI_BASE_URL && AI_API_KEY && AI_MODEL ? {
     openwa: { baseUrl: OPENWA_BASE_URL, apiKey: OPENWA_API_KEY, sessionId: OPENWA_SESSION_ID, webhookSecret: OPENWA_WEBHOOK_SECRET },
-    staffPhone: STAFF_WHATSAPP_NUMBER,
+    staffPhones: STAFF_WHATSAPP_NUMBER,
     ai: { baseUrl: AI_BASE_URL, apiKey: AI_API_KEY, model: AI_MODEL, ...(AI_THINKING && { thinking: AI_THINKING }) },
   } : null,
 }));

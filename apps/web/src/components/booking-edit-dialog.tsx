@@ -106,8 +106,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
         </Field>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Date"><Input type="date" dir="ltr" min={correction ? undefined : kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
-          <Field label="From"><Input type="time" dir="ltr" value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
-          <Field label="To"><Input type="time" dir="ltr" value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
+          <Field label="From"><Input type="time" dir="ltr" step={correction ? undefined : 3600} value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
+          <Field label="To"><Input type="time" dir="ltr" step={correction ? undefined : 3600} value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Stepper label="Adults" value={adultCount} onChange={setAdultCount} />

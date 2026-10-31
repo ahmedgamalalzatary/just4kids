@@ -63,11 +63,11 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
 - The client requests a date and time window through WhatsApp; approving keeps that window, and the administrator can set another in the dashboard.
-- Confirmed 2026-10-13 (S8): the administrator's new-booking screen preselects a 30-minute visit. The administrator can change the length per booking; selecting a free time pill uses the chosen length and blocks the full reserved window.
+- Confirmed 2026-10-31: a new reservation, from WhatsApp or the dashboard, starts on the hour and lasts 1, 2, 3 or 4 whole hours. The new-booking screen offers only those starts and ends. Older visits keep their window, and a correction of a started or finished visit may record any time.
 - Confirmed on 2026-10-02: new reservations must start strictly in the future in Kuwait, with no additional lead-time cutoff. This does not decide later WhatsApp rescheduling/cancellation policy.
-- Minimum window: **20 minutes**. Maximum window: **4 hours**. Both bounds are inclusive.
+- Minimum new window: **1 hour**. Maximum window: **4 hours**. Both bounds are inclusive. Stored older visits and corrections keep the earlier 20-minute minimum.
 - The whole window includes outbound travel, all haircuts, and return travel and blocks the assigned barber.
-- Window bounds apply regardless of haircut counts or configured haircut durations. Three 20-minute haircuts may still be booked in an available 20-minute window under this rule.
+- Window bounds apply regardless of haircut counts or configured haircut durations.
 - Do not calculate maps-based travel time or add a travel buffer outside the selected window.
 - Bookings must fit the employee's working availability and cannot overlap another blocking booking.
 - Recheck availability at commit time and protect against simultaneous bookings of the same employee.
@@ -97,7 +97,8 @@ Decided 2026-10-30 (replaces the intake-only decision of 2026-10-21): the AI tal
 
 1. A client messages the business number and chooses English or Arabic; every new reservation starts again from this choice, after a request is sent, a change request is sent, or the client starts over. The code sends every menu word for word; the AI only reads what a client types outside the menus.
 2. Main menu: book, cancel or change a request. A client who asks for a person in their own words is forwarded to staff. Booking collects: who it is for and the counts, the barber (from the dashboard, or any barber), the date, the client's own start and end time, the area (from the dashboard), and a location, Google Maps link, or block, street and house or building. The client's phone comes from the sender identity.
-3. The client confirms a summary, and the full request goes to the staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`).
+3. The client confirms a summary, and the full request goes to every staff WhatsApp number (`STAFF_WHATSAPP_NUMBER`, one or more separated by commas). The first decision is final: the other numbers are told who decided and cannot change it.
+   - The main menu also offers: talk to an employee (staff are told and the AI stops for that client until `ai on +<number>`), the salon and home price lists (a photo), and the salon location. Every choice list ends with a way back, except the first language list, which has nothing before it. A price question typed as free text is answered by pointing to these options, not forwarded to staff.
 4. Staff answer from that number: `yes 12`, `yes 12 <barber>` (required when the client chose any barber, or to change the barber), or `no 12 <reason>`. Staff may instead create the reservation manually in the dashboard.
 5. Approval creates a normal reservation through the same rules as the dashboard (availability, future start, enabled barber and client), then tells the client. If the rules refuse it, nothing is saved, staff are told why, and the request stays open.
 
@@ -198,4 +199,4 @@ The following are implementation proposals or unresolved policies, not additiona
 
 No native mobile app, multiple barbers per reservation, child-profile module, extra service types, second administrator, payroll, inventory, commissions, expenses, accounting ledger, route optimization, GPS tracking, service-area enforcement, proactive messages, online payments, or extra exports are included.
 
-Acceptance requires role/ownership enforcement, conflict-safe booking, 20-minute-to-4-hour windows regardless of counts, accurate collection totals, Arabic responsive/print views, reports across all listed modules, and truthful/idempotent WhatsApp AI replies and staff handoffs. Production readiness additionally requires the selected integrations, deployment configuration, and verified backup restoration.
+Acceptance requires role/ownership enforcement, conflict-safe booking, whole-hour 1-to-4-hour windows regardless of counts, accurate collection totals, Arabic responsive/print views, reports across all listed modules, and truthful/idempotent WhatsApp AI replies and staff handoffs. Production readiness additionally requires the selected integrations, deployment configuration, and verified backup restoration.

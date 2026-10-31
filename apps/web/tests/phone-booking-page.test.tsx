@@ -14,7 +14,7 @@ function mount(options: { known?: boolean; failFirst?: boolean; createFails?: bo
   const { known = true, failFirst = false, createFails = false, sendFails = 0 } = options;
   let registered = known, posts = 0, sends = 0;
   const client = { id, phone: "+96550000001", enabled: true, createdAt: timestamp, updatedAt: timestamp, lastUsedAddressId: addressId, addresses: [{ ...address, id: addressId, clientId: id, createdAt: timestamp, updatedAt: timestamp }] };
-  const saved = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "13:30", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone: client.phone }, address, employee: { id, displayName: "سالم" } });
+  const saved = bookingResponseSchema.parse({ id, reference: "J4K-TEST", clientId: id, addressId, employeeId: id, date: "2099-01-05", startTime: "13:00", endTime: "14:00", timeZone: "Asia/Kuwait", adultCount: 0, childCount: 1, specialChildCount: 0, notes: null, visitStatus: "booked", visitVersion: 0, createdAt: timestamp, client: { phone: client.phone }, address, employee: { id, displayName: "سالم" } });
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/employees") return new Response(JSON.stringify({ employees: [{ id, displayName: "سالم", phone: "+96550000002", enabled: true, accessUntil: null, photoUpdatedAt: null, createdAt: timestamp, updatedAt: timestamp }] }));
@@ -46,7 +46,7 @@ afterEach(() => { vi.unstubAllGlobals(); navigation.push.mockClear(); navigation
 const popupWindow = () => ({ opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() });
 const pickWindow = async () => {
   await userEvent.click(await screen.findByRole("radio", { name: "1:00 PM" }));
-  await userEvent.click(await screen.findByRole("radio", { name: "End at 1:30 PM" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "End at 2:00 PM" }));
 };
 const fillForm = async () => {
   await userEvent.type(screen.getByLabelText("Client phone number"), "50000001");

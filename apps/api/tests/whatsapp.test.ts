@@ -23,10 +23,10 @@ const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const phones: string[] = [];
 
-type Sent = { chatId: string; text: string; key: string };
+type Sent = { chatId: string; text: string; key: string; image?: boolean };
 type Decision = { reply: string; value: Record<string, unknown> | null; forward: string | null };
 const barberName = `Barber${randomInt(100000, 999999)}`, areaName = `Area${randomInt(100000, 999999)}`, barberId = randomUUID();
-function harness() {
+function harness(whatsappSettings = settings) {
   const sent: Sent[] = [], aiCalls: { role: string; content: string }[][] = [];
   const decisions: (Decision | Error | number)[] = [];
   let sendStatus: (sent: Sent) => { status: number; body?: unknown } = () => ({ status: 201 });
@@ -47,9 +47,13 @@ function harness() {
       if (result.status === 201) sent.push(message);
       return Response.json(result.body ?? { messageId: `m-${sent.length}`, timestamp: 1 }, { status: result.status });
     }
+    if (url === `http://openwa.test/api/sessions/${sessionId}/messages/send-image`) {
+      sent.push({ chatId: body.chatId, text: body.caption, key: new Headers(init?.headers).get("Idempotency-Key")!, image: body.mimetype === "image/jpeg" && body.base64.length > 0 });
+      return Response.json({ messageId: `m-${sent.length}`, timestamp: 1 }, { status: 201 });
+    }
     throw new Error(`unexpected request to ${url}`);
   };
-  const whatsapp = createWhatsApp(connection, settings, { fetch: fetcher, prompt: "OWNER RULES", now: () => clock });
+  const whatsapp = createWhatsApp(connection, whatsappSettings, { fetch: fetcher, prompt: "OWNER RULES", now: () => clock });
   const app = createApp({ auth, connection, env, whatsapp });
   return {
     app, whatsapp, sent, aiCalls,
@@ -161,7 +165,7 @@ async function toConfirm(phone: string, barberChoice: string, time = nextWindow(
 }
 // Every test books its own window, because they all share one barber and date.
 let windowHour = 8;
-const nextWindow = () => { const hour = String(windowHour++).padStart(2, "0"); return `${hour}:00-${hour}:30`; };
+const nextWindow = () => { const hour = String(windowHour++).padStart(2, "0"); return `${hour}:00-${String(Number(hour) + 1).padStart(2, "0")}:00`; };
 async function confirmed(phone: string, barberChoice = barberOption, time = nextWindow()) {
   await toConfirm(phone, barberChoice, time);
   await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
@@ -169,7 +173,7 @@ async function confirmed(phone: string, barberChoice = barberOption, time = next
 }
 const staffChat = `${staff.slice(1)}@c.us`;
 const fromStaff = async (text: string) => { await deliver(h.app, payload(staff, text)); await h.whatsapp.idle(); };
-const ownMessage = (phone: string, text: string) => { const digits = phone.slice(1); return { ...payload(phone, text, { fromMe: true, from: "96590000000@c.us", to: `${digits}@c.us` }), event: "message.sent" }; };
+const ownMessage = (phone: string, text: string, extra: Record<string, unknown> = {}) => { const digits = phone.slice(1); return { ...payload(phone, text, { fromMe: true, from: "96590000000@c.us", to: `${digits}@c.us`, ...extra }), event: "message.sent" }; };
 
 describe("WhatsApp booking flow", () => {
   it("answers duplicate and concurrent deliveries of one message once", async () => {
@@ -379,6 +383,87 @@ describe("staff approval", () => {
     const other = client();
     await deliver(h.app, payload(other.phone, `yes ${number}`)); await h.whatsapp.idle();
     expect((await stored(phone)).requests[0]!.status).toBe("pending");
+  });
+});
+
+describe("main menu options", () => {
+  it("sends the price list photo, then the menu, and keeps answering when OpenWA reports the photo", async () => {
+    const { phone, chatId } = client();
+    for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "5")); await h.whatsapp.idle();
+    expect(h.sent.map(message => [message.chatId, message.image ?? false])).toEqual([[chatId, true], [chatId, false]]);
+    expect(h.sent[0]!.text).toBe("Salon price list");
+    expect(h.sent[1]!.text).toContain("1. Book an appointment");
+    await deliver(h.app, ownMessage(phone, "", { type: "image" }));
+    await deliver(h.app, ownMessage(phone, "Salon price list", { type: "image" }));
+    expect((await stored(phone)).conversation!.aiPaused).toBe(false);
+  });
+
+  it("stops the AI when the client asks for an employee until staff send ai on", async () => {
+    const { phone, chatId } = client();
+    for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toBe(`Client wants to talk to an employee\nClient: ${phone}\nThe AI is stopped for this client. To turn it back on: ai on ${phone}`);
+    expect((await stored(phone)).conversation!.aiPaused).toBe(true);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    expect(h.sent).toEqual([]);
+    await fromStaff(`ai on ${phone}`);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    expect(h.sent[0]!.text).toContain("1. English");
+  });
+});
+
+describe("two staff numbers", () => {
+  const second = `+20${randomInt(1000000000, 1099999999)}`, secondChat = `${second.slice(1)}@c.us`;
+  beforeEach(() => { phones.push(second); h = harness({ ...settings, staffPhones: [staff, second] }); });
+  const from = async (phone: string, text: string) => { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); };
+
+  it("sends a new request to both", async () => {
+    const { phone, chatId } = client();
+    await toConfirm(phone, barberOption);
+    h.sent.length = 0;
+    await from(phone, "1");
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, secondChat, chatId]);
+    expect(h.sent[1]!.text).toBe(h.sent[0]!.text);
+  });
+
+  it("tells the other number about an approval and refuses its later decision", async () => {
+    const { phone, chatId } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await from(second, `yes ${number}`);
+    expect(h.sent.map(message => message.chatId)).toEqual([secondChat, chatId, staffChat]);
+    expect(h.sent[2]!.text).toContain(`Request #${number} was approved by ${second}.`);
+    h.sent.length = 0;
+    await from(staff, `no ${number} Too late`);
+    expect(h.sent).toEqual([expect.objectContaining({ chatId: staffChat, text: `Request #${number} was already approved.` })]);
+    expect((await stored(phone)).requests[0]!.status).toBe("approved");
+  });
+
+  it("tells the other number about a rejection and refuses its later decision", async () => {
+    const { phone, chatId } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await from(staff, `no ${number} Fully booked`);
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId, secondChat]);
+    expect(h.sent[2]!.text).toContain(`Request #${number} was rejected by ${staff}: Fully booked`);
+    h.sent.length = 0;
+    await from(second, `yes ${number}`);
+    expect(h.sent).toEqual([expect.objectContaining({ chatId: secondChat, text: `Request #${number} was already rejected.` })]);
+    expect((await stored(phone)).requests[0]!.status).toBe("rejected");
+  });
+
+  it("never treats either number as a client", async () => {
+    await from(second, "hello");
+    expect(h.sent.at(-1)).toMatchObject({ chatId: secondChat });
+    expect(h.sent.at(-1)!.text).toContain("Commands:");
+    await deliver(h.app, ownMessage(second, "note"));
+    expect((await stored(second)).conversation!.aiPaused).toBe(false);
   });
 });
 

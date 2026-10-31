@@ -17,7 +17,7 @@ const employeePhone = `+965${randomInt(70000000, 79999999)}`;
 const phones: string[] = [];
 const newPhone = () => { const phone = `+965${randomInt(30000000, 39999999)}`; phones.push(phone); return phone; };
 const address = { areaId, area: `الفنطاس ${suffix}`, block: "1", street: "2", houseNumber: "3" };
-const booking = { employeeId, date: "2099-01-05", startTime: "09:00", endTime: "09:30", adultCount: 0, childCount: 1 };
+const booking = { employeeId, date: "2099-01-05", startTime: "09:00", endTime: "10:00", adultCount: 0, childCount: 1 };
 type Session = { cookie: string; csrf: string };
 let admin: Session, employee: Session;
 async function login(phone: string, password: string): Promise<Session> {
@@ -61,26 +61,26 @@ it("saves a phone-only client, address and booking together, and returns the las
   expect(extra.status).toBe(201);
   const lookup = await request(app).get(`/clients/lookup?phone=${encodeURIComponent(phone)}`).set("Cookie", admin.cookie);
   expect(lookup.body.lastUsedAddressId).toBe(created.body.addressId);
-  expect((await post({ ...booking, startTime: "10:00", endTime: "10:30", client: { phone, address } })).status).toBe(409);
+  expect((await post({ ...booking, startTime: "10:00", endTime: "11:00", client: { phone, address } })).status).toBe(409);
   const [stored] = await connection.db.select().from(clients).where(eq(clients.phone, phone));
   expect(stored?.phone).toBe(phone);
   await connection.db.update(clients).set({ enabled: false }).where(eq(clients.id, created.body.clientId));
   expect((await request(app).get(`/clients/lookup?phone=${encodeURIComponent(phone)}`).set("Cookie", admin.cookie)).body.enabled).toBe(false);
 });
 it("rolls back new client and address on an occupied time, invalid window or stopped area", async () => {
-  for (const change of [{}, { startTime: "09:00", endTime: "09:10" }, { startTime: "07:00", endTime: "07:30" }]) {
+  for (const change of [{}, { startTime: "09:00", endTime: "09:10" }, { startTime: "07:00", endTime: "08:00" }]) {
     const phone = newPhone(); const response = await post({ ...booking, ...change, client: { phone, address } });
     expect([400, 409]).toContain(response.status);
     expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(0);
   }
   await connection.db.update(areas).set({ enabled: false }).where(eq(areas.id, areaId));
   const phone = newPhone();
-  expect((await post({ ...booking, startTime: "12:00", endTime: "12:30", client: { phone, address } })).status).toBe(409);
+  expect((await post({ ...booking, startTime: "12:00", endTime: "13:00", client: { phone, address } })).status).toBe(409);
   expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(0);
   await connection.db.update(areas).set({ enabled: true }).where(eq(areas.id, areaId));
 });
 it("keeps simultaneous bookings for the same phone unique without orphan clients", async () => {
-  const phone = newPhone(), body = { ...booking, startTime: "13:00", endTime: "13:30", client: { phone, address } };
+  const phone = newPhone(), body = { ...booking, startTime: "13:00", endTime: "14:00", client: { phone, address } };
   const responses = await Promise.all([post(body), post(body)]);
   expect(responses.map(response => response.status).sort()).toEqual([201, 409]);
   expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(1);

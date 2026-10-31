@@ -86,13 +86,13 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       return admin?.id ?? null;
     },
     /** Saves one client message's outcome atomically: the flow, the request, the staff message (sent first), and the client reply. */
-    async commitTurn(conversation: { id: string; phone: string; chatId: string }, inboundId: number, turn: Turn, staffChatId: string, earlierRequests: number[], now: Date) {
+    async commitTurn(conversation: { id: string; phone: string; chatId: string }, inboundId: number, turn: Turn, staffChatIds: string[], earlierRequests: number[], now: Date) {
       return db.transaction(async transaction => {
         const answered = await transaction.update(whatsappMessages).set({ status: "done", completedAt: now })
           .where(and(eq(whatsappMessages.id, inboundId), eq(whatsappMessages.status, "pending")));
         // Another worker answered this message first.
         if (affected(answered) !== 1) transaction.rollback();
-        await transaction.update(whatsappConversations).set({ flow: turn.state, updatedAt: now }).where(eq(whatsappConversations.id, conversation.id));
+        await transaction.update(whatsappConversations).set({ flow: turn.state, updatedAt: now, ...(turn.pause ? { aiPaused: true } : {}) }).where(eq(whatsappConversations.id, conversation.id));
         const turnId = randomUUID();
         const outbound = { conversationId: conversation.id, direction: "outbound" as const, status: "pending" as const, turnId, createdAt: now };
         if (turn.staff) {
@@ -102,8 +102,9 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
             requestNumber = created!.number;
             action = { type: "new_request", requestNumber, ...turn.staff.details };
           } else action = turn.staff;
-          await transaction.insert(whatsappMessages).values({ ...outbound, audience: "staff", body: staffMessage(turn.staff, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId: staffChatId, action, requestNumber });
+          await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ ...outbound, audience: "staff" as const, body: staffMessage(turn.staff!, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId, action, requestNumber })));
         }
+        if (turn.image) await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.image, media: "price_list", idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
         await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.reply, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
@@ -120,7 +121,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       return row;
     },
     /** Inside the reservation's transaction: records the approval, tells the client, and finishes the staff message. An earlier decision rolls everything back. */
-    async settleApproval(transaction: Transaction, number: number, bookingId: string, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, now: Date) {
+    async settleApproval(transaction: Transaction, number: number, bookingId: string, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, others: { chatIds: string[]; text: string }, now: Date) {
       const updated = await transaction.update(whatsappRequests).set({ status: "approved", bookingId, decidedAt: now }).where(and(eq(whatsappRequests.number, number), eq(whatsappRequests.status, "pending")));
       if (affected(updated) !== 1) transaction.rollback();
       await transaction.update(whatsappMessages).set({ status: "done", completedAt: now }).where(eq(whatsappMessages.id, staffInboundId));
@@ -128,9 +129,10 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       await transaction.insert(whatsappMessages).values([
         { ...outbound, conversationId: staff.id, audience: "staff", turnId: randomUUID(), body: staffReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: staff.chatId },
         { ...outbound, conversationId: client.id, audience: "client", turnId: randomUUID(), body: clientReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: client.chatId, requestNumber: number },
+        ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, audience: "staff" as const, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
       ]);
     },
-    async reject(number: number, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, now: Date) {
+    async reject(number: number, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, others: { chatIds: string[]; text: string }, now: Date) {
       return db.transaction(async transaction => {
         const updated = await transaction.update(whatsappRequests).set({ status: "rejected", decidedAt: now }).where(and(eq(whatsappRequests.number, number), eq(whatsappRequests.status, "pending")));
         if (affected(updated) !== 1) transaction.rollback();
@@ -139,6 +141,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         await transaction.insert(whatsappMessages).values([
           { ...outbound, conversationId: staff.id, audience: "staff", turnId: randomUUID(), body: staffReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: staff.chatId },
           { ...outbound, conversationId: client.id, audience: "client", turnId: randomUUID(), body: clientReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: client.chatId, requestNumber: number },
+          ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, audience: "staff" as const, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
         ]);
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
@@ -149,11 +152,12 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       const id = known?.id ?? randomUUID();
       // OpenWA reports the system's own sends too, sometimes before the send call returns, so its message id may not be stored yet.
       if (known) {
-        const ours = await db.select({ body: whatsappMessages.body }).from(whatsappMessages).where(and(
+        const ours = await db.select({ body: whatsappMessages.body, media: whatsappMessages.media }).from(whatsappMessages).where(and(
           eq(whatsappMessages.conversationId, known.id), eq(whatsappMessages.direction, "outbound"), like(whatsappMessages.idempotencyKey, `${OUR_KEY}%`),
           or(eq(whatsappMessages.status, "pending"), gte(whatsappMessages.completedAt, new Date(now.getTime() - OWN_SEND_REPORT_MS))),
         ));
-        if (ours.some(row => row.body.trim() === own.text)) return;
+        // A photo may be reported without its caption, so any photo the system just sent counts as its own.
+        if (ours.some(row => row.body.trim() === own.text || (row.media && own.media))) return;
       }
       if (known) await db.update(whatsappConversations).set({ aiPaused: true, updatedAt: now }).where(eq(whatsappConversations.id, id));
       else await db.insert(whatsappConversations).values({ id, phone: own.phone!, chatId: own.chatId, aiPaused: true, createdAt: now, updatedAt: now });
@@ -181,13 +185,13 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         .where(and(eq(whatsappMessages.turnId, message.turnId), eq(whatsappMessages.status, "pending")));
     },
     /** Gives up on client messages the AI cannot answer and queues the staff alert, atomically so a retry cannot alert twice. */
-    async giveUp(conversationId: string, inboundIds: number[], error: string, alert: string, staffChatId: string, now: Date) {
+    async giveUp(conversationId: string, inboundIds: number[], error: string, alert: string, staffChatIds: string[], now: Date) {
       return db.transaction(async transaction => {
         const failed = await transaction.update(whatsappMessages).set({ status: "failed", error: error.slice(0, 500), completedAt: now })
           .where(and(inArray(whatsappMessages.id, inboundIds), eq(whatsappMessages.status, "pending")));
         // Another worker settled these messages first.
         if (affected(failed) !== inboundIds.length) transaction.rollback();
-        await transaction.insert(whatsappMessages).values({ conversationId, direction: "outbound", audience: "staff", body: alert, status: "pending", turnId: randomUUID(), idempotencyKey: `j4k-${randomUUID()}`, chatId: staffChatId, createdAt: now });
+        await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ conversationId, direction: "outbound" as const, audience: "staff" as const, body: alert, status: "pending" as const, turnId: randomUUID(), idempotencyKey: `j4k-${randomUUID()}`, chatId, createdAt: now })));
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
   };

@@ -1,61 +1,64 @@
 import { z } from "zod";
-import { addressCreateSchema, eligibilityQuerySchema } from "@just4kids/contracts";
+import { addressCreateSchema, eligibilityQuerySchema, isWholeHourWindow } from "@just4kids/contracts";
 import type { WhatsAppAddress, WhatsAppFlow, WhatsAppFlowStep, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import type { Interpretation } from "./ai.js";
 
 // Shown in the reservation when the client sent only a location link; staff can complete it in the dashboard.
 export const NOT_PROVIDED = "—";
+const SALON_LOCATION = "https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en";
 
 export type FlowContext = { barbers: { id: string; name: string }[]; areas: { id: string; name: string }[]; now: Date };
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "change"; text: string }
-  | { type: "forward"; summary: string };
-export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice };
+  | { type: "forward"; summary: string }
+  | { type: "talk" };
+// image: the caption of the price list photo, sent before the reply. pause: the AI stops for this client until staff send "ai on".
+export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: string; pause?: true };
 type Language = "en" | "ar";
 
 const copy = {
   en: {
     changeLanguage: "Change language / تغيير اللغة", back: "Back to the previous step", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", pick: "Send a number to choose.",
-    who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Adults", "Adults and kids"],
-    adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber would you like?", any: "Any barber", date: "📅 Preferred date:",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", talk: "Talk to an employee", salonPrices: "Salon price list", homePrices: "Home price list", salonLocation: "Salon location", pick: "Send a number to choose.",
+    who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)"],
+    adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ What time on ${date}? Send the start and end, for example 4 pm to 6 pm.`,
-    timeInvalid: "⚠️ The time must start in the future and last between 20 minutes and 4 hours.",
+    timeInvalid: "⚠️ The time must be in the future, start on the hour and last 1, 2, 3 or 4 whole hours. For example, 4 pm to 6 pm.",
     area: "📍 Which area in Kuwait?", areaInvalid: "⚠️ We could not find that area in Kuwait. Please send the area name again.",
-    address: "📍 Please share your location (tap 📎 → Location in WhatsApp), or send a Google Maps link, or type your address (block, street, house or building).",
-    addressInvalid: "⚠️ Please send a Google Maps link or location, or the block, street and house or building.",
+    address: "📍 Please write your address (block, street, house or building). If you can't, send a Google Maps link.",
+    addressInvalid: "⚠️ Please write the block, street and house or building. If you can't, send a Google Maps link.",
     confirmHead: "Please confirm your request:", service: "✂️ Hair Cut — Home Service",
     forLine: (adults: number, children: number) => `👶 Adults: ${adults} · Kids: ${children}`, barberLine: "💈 Barber:", addressLine: "📍 Address:", locationLine: "📍 Location:",
     requestNote: "This is a request — our team will confirm the exact time.", confirm: "Confirm ✅", startOver: "Start over ❌",
     sent: "✅ Your request was sent to our team. They will contact you to confirm.",
-    changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.",
+    changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.", talkSent: "✅ We told our team. An employee will contact you soon.",
     invalid: "⚠️ Please send one of the numbers above.", countInvalid: "⚠️ Please send a number from 1 to 50.",
     approved: (date: string, time: string, barber: string) => `✅ Your reservation is confirmed.\n📅 ${date} · ${time}\n💈 Barber: ${barber}`,
     rejected: (reason: string | null) => `❌ We could not confirm your request.${reason ? `\n${reason}` : ""}\nA staff member will contact you if needed.`,
   },
   ar: {
     changeLanguage: "Change language / تغيير اللغة", back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", pick: "أرسل رقماً للاختيار.",
-    who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "كبار", "كبار وأطفال"],
-    adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تفضل؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", talk: "التحدث مع موظف", salonPrices: "قائمة أسعار الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
+    who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت"],
+    adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ ما الوقت المناسب يوم ${date}؟ أرسل البداية والنهاية، مثال: من 4 إلى 6 مساءً.`,
-    timeInvalid: "⚠️ يجب أن يكون الوقت في المستقبل وأن تكون مدته بين 20 دقيقة و4 ساعات.",
+    timeInvalid: "⚠️ يجب أن يكون الوقت في المستقبل، وأن يبدأ عند بداية الساعة، وأن تكون مدته 1 أو 2 أو 3 أو 4 ساعات كاملة. مثال: من 4 إلى 6 مساءً.",
     area: "📍 في أي منطقة في الكويت؟", areaInvalid: "⚠️ لم نجد هذه المنطقة في الكويت. أرسل اسم المنطقة مرة أخرى.",
-    address: "📍 شارك موقعك (اضغط 📎 ثم الموقع في واتساب)، أو أرسل رابط خرائط Google، أو اكتب عنوانك (القطعة، الشارع، المنزل أو البناية).",
-    addressInvalid: "⚠️ أرسل رابط خرائط Google أو الموقع، أو القطعة والشارع والمنزل أو البناية.",
+    address: "📍 اكتب عنوانك (القطعة، الشارع، المنزل أو البناية). إذا لم تتمكن، أرسل رابط خرائط Google.",
+    addressInvalid: "⚠️ اكتب القطعة والشارع والمنزل أو البناية. إذا لم تتمكن، أرسل رابط خرائط Google.",
     confirmHead: "يرجى تأكيد طلبك:", service: "✂️ قص شعر — خدمة منزلية",
     forLine: (adults: number, children: number) => `👶 الكبار: ${adults} · الأطفال: ${children}`, barberLine: "💈 الحلاق:", addressLine: "📍 العنوان:", locationLine: "📍 الموقع:",
     requestNote: "هذا طلب — سيؤكد فريقنا الوقت المحدد.", confirm: "تأكيد ✅", startOver: "البدء من جديد ❌",
     sent: "✅ تم إرسال طلبك إلى فريقنا. سيتواصلون معك للتأكيد.",
-    changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.",
+    changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.", talkSent: "✅ أبلغنا فريقنا. سيتواصل معك موظف قريباً.",
     invalid: "⚠️ أرسل أحد الأرقام أعلاه.", countInvalid: "⚠️ أرسل رقماً من 1 إلى 50.",
     approved: (date: string, time: string, barber: string) => `✅ تم تأكيد حجزك.\n📅 ${date} · ${time}\n💈 الحلاق: ${barber}`,
     rejected: (reason: string | null) => `❌ لم نتمكن من تأكيد طلبك.${reason ? `\n${reason}` : ""}\nسيتواصل معك موظف عند الحاجة.`,
   },
 } as const;
 
-const whoValues: WhatsAppWho[] = ["boy", "girl", "baby", "special", "both", "adults", "family"];
+const whoValues: WhatsAppWho[] = ["boy", "girl", "baby", "special", "both"];
 const numbered = (options: readonly string[]) => options.map((option, index) => `${index + 1}. ${option}`).join("\n");
 const westernDigits = (text: string) => text.replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 const kuwaitDate = (now: Date, offset = 0) => new Date(now.getTime() + 3 * 3_600_000 + offset * 86_400_000).toISOString().slice(0, 10);
@@ -72,7 +75,7 @@ export function clientRejected(language: Language | null, reason: string | null)
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
-  if (state.step === "menu") return [text.book, text.change, text.back];
+  if (state.step === "menu") return [text.book, text.change, text.changeLanguage, text.talk, text.salonPrices, text.homePrices, text.salonLocation, text.back];
   if (state.step === "who") return [...text.whoOptions, text.changeLanguage, text.back];
   if (state.step === "barber") return [...context.barbers.map(barber => barber.name), text.any, text.changeLanguage, text.back];
   if (state.step === "date") return [...days(context.now).map(date => dateLabel(date, language)), text.changeLanguage, text.back];
@@ -164,8 +167,15 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       return move({ ...rest, language: chosen }, resume ?? "menu", context, copy[chosen].languageSet);
     }
     case "menu":
-      if (choice === 1) return move(freshBooking(state), "who", context);
-      return move(state, "change", context);
+      switch (choice) {
+        case 1: return move(freshBooking(state), "who", context);
+        case 2: return move(state, "change", context);
+        case 3: return chooseLanguageStep(state, context);
+        case 4: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
+        case 5: return { ...move(state, "menu", context), image: copy[language].salonPrices };
+        case 6: return { ...move(state, "menu", context), image: copy[language].homePrices };
+        default: return move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`);
+      }
     case "who": {
       const who = whoValues[choice - 1]!;
       return move({ ...state, who }, who === "adults" || who === "family" ? "adults" : "children", context);
@@ -189,7 +199,7 @@ function applyCount(state: WhatsAppFlow, count: number, context: FlowContext): T
 }
 
 function applyTime(state: WhatsAppFlow, startTime: string, endTime: string, context: FlowContext): Turn {
-  const valid = eligibilityQuerySchema.safeParse({ date: state.date, startTime, endTime }).success && new Date(`${state.date}T${startTime}:00+03:00`).getTime() > context.now.getTime();
+  const valid = eligibilityQuerySchema.safeParse({ date: state.date, startTime, endTime }).success && isWholeHourWindow({ startTime, endTime }) && new Date(`${state.date}T${startTime}:00+03:00`).getTime() > context.now.getTime();
   if (!valid) return stay(state, context, copy[state.language ?? "ar"].timeInvalid);
   return move({ ...state, startTime, endTime }, "area", context);
 }
@@ -274,7 +284,7 @@ export function stepInstructions(state: WhatsAppFlow, context: FlowContext) {
   const list = options(state, context, language);
   const value: Partial<Record<WhatsAppFlowStep, string>> = {
     adults: '{"count": <number of adults>}', children: '{"count": <number of children>}',
-    time: '{"startTime": "HH:MM", "endTime": "HH:MM"} in 24-hour time. Only when the client gave both a start and an end',
+    time: '{"startTime": "HH:MM", "endTime": "HH:MM"} in 24-hour time. Only when the client gave both a start and an end. Reservations start on the hour and last whole hours',
     date: '{"date": "YYYY-MM-DD"} or {"choice": <option number>}',
     area: `{"area": "<one exact name from this list>"} only when you are sure which area the client means. Areas: ${context.areas.map(area => area.name).join(" | ")}`,
     address: '{"block": "...", "street": "...", "houseNumber": "...", "buildingName": "...", "avenue": "...", "floor": "...", "apartment": "..."} with null for anything the client did not write',
@@ -290,7 +300,8 @@ Answer with one JSON object and nothing else:
 
 - "value": what the client's message answers for this step, as ${value[state.step] ?? '{"choice": <option number>}'}. Otherwise null. Never guess a value.
 - "reply": empty when "value" is set. Otherwise a short answer to the client's question, or a short request to answer the step. The code sends the menu again after it, so never list the options.
-- "forward": a short English summary for staff when the client asks about prices, confirmation or status, arrival time, asks for a person, complains, or asks about the service and the text above does not answer it. Then say in "reply" that staff will be told. Otherwise null.
+- "forward": a short English summary for staff when the client asks about confirmation or status, arrival time, asks for a person, complains, or asks about the service and the text above does not answer it. Then say in "reply" that staff will be told. Otherwise null.
+- When the client asks about prices, do not forward. Say in "reply" that the salon and home price lists are options 5 and 6 of the main menu, which opens when they send the word "menu" (in Arabic "القائمة").
 
 You have no access to bookings. Never say that a booking is made, confirmed, changed or cancelled.`;
 }

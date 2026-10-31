@@ -66,7 +66,10 @@ export const whatsappMessages = mysqlTable("whatsapp_messages", {
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
   direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
   audience: mysqlEnum("audience", ["client", "staff"]).notNull(),
+  // The text, or the caption when media is set.
   body: text("body").notNull(),
+  // Set when the message is a photo from the API's assets instead of text.
+  media: mysqlEnum("media", ["price_list"]),
   // inbound: pending until it has been answered; outbound: pending until OpenWA accepted it.
   status: mysqlEnum("status", ["pending", "done", "failed"]).notNull(),
   // inbound: OpenWA's X-OpenWA-Idempotency-Key; outbound: the Idempotency-Key sent with every attempt.

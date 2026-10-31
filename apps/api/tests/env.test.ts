@@ -64,7 +64,7 @@ describe("password storage", () => {
     it("groups the complete settings and drops a trailing slash from base URLs", () => {
       expect(apiEnvSchema.parse({ ...credentials, ...whatsapp, OPENWA_BASE_URL: "http://openwa:2785/", AI_BASE_URL: "https://ai.example.com/v1/" }).whatsapp).toEqual({
         openwa: { baseUrl: "http://openwa:2785", apiKey: "openwa-key", sessionId: "8f3c2b1a-9d4e-4c7a-8b2f-1e6d5a4c3b2a", webhookSecret: "s".repeat(32) },
-        staffPhone: "+96550000000",
+        staffPhones: ["+96550000000"],
         ai: { baseUrl: "https://ai.example.com/v1", apiKey: "ai-key", model: "model-1" },
       });
     });
@@ -80,6 +80,10 @@ describe("password storage", () => {
       expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, [key]: "" }).success).toBe(false);
     });
 
+    it("reads several staff numbers separated by commas", () => {
+      const parsed = apiEnvSchema.parse({ ...credentials, ...whatsapp, STAFF_WHATSAPP_NUMBER: "+201010813502, +201043370821" });
+      expect(parsed.whatsapp?.staffPhones).toEqual(["+201010813502", "+201043370821"]);
+    });
     it.each([{ OPENWA_BASE_URL: "openwa" }, { OPENWA_SESSION_ID: "business" }, { AI_BASE_URL: "ftp://ai.example.com" }, { STAFF_WHATSAPP_NUMBER: "50000000" }, { OPENWA_WEBHOOK_SECRET: "short" }])("rejects invalid setting %j", value => {
       expect(apiEnvSchema.safeParse({ ...credentials, ...whatsapp, ...value }).success).toBe(false);
     });

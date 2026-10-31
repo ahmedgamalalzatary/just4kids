@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WhatsAppFlow } from "@just4kids/db/schema";
-import { advance, NOT_PROVIDED, render } from "../src/modules/whatsapp/flow.js";
+import { advance, NOT_PROVIDED, render, stepInstructions } from "../src/modules/whatsapp/flow.js";
 import type { FlowContext } from "../src/modules/whatsapp/flow.js";
 
 const barber = { id: "b1", name: "Lenny" };
@@ -23,7 +23,7 @@ describe("WhatsApp flow", () => {
   it("sends the main menu without my-bookings after a language is chosen", async () => {
     const turn = await walk({ step: "language", language: null }, "2");
     expect(turn.reply).toContain("✅ اللغة: العربية");
-    expect(turn.reply).toContain("1. حجز موعد\n2. إلغاء أو تعديل طلب\n3. الرجوع للخطوة السابقة");
+    expect(turn.reply).toContain("1. حجز موعد\n2. إلغاء أو تعديل طلب\n3. Change language / تغيير اللغة\n4. التحدث مع موظف\n5. قائمة أسعار الصالون\n6. قائمة أسعار الخدمة المنزلية\n7. موقع الصالون\n8. الرجوع للخطوة السابقة");
     expect(turn.reply).not.toContain("حجوزاتي");
   });
 
@@ -41,8 +41,8 @@ describe("WhatsApp flow", () => {
   });
 
   it.each([
-    ["menu", {}, "3", "language"],
-    ["who", {}, "9", "menu"],
+    ["menu", {}, "8", "language"],
+    ["who", {}, "7", "menu"],
     ["barber", { who: "boy", children: 1 }, "5", "children"],
     ["barber", { who: "adults", adults: 1 }, "5", "adults"],
     ["barber", { who: "family", adults: 1, children: 1 }, "5", "children"],
@@ -61,7 +61,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("still changes language from the option before the way back", async () => {
-    const atLanguage = await advance({ step: "who", language: "en" }, "8", context, noAi);
+    const atLanguage = await advance({ step: "who", language: "en" }, "6", context, noAi);
     expect(atLanguage.state).toMatchObject({ step: "language", resume: "who" });
     const back = await advance(atLanguage.state, "3", context, noAi);
     expect(back.state).toEqual({ step: "who", language: "en" });
@@ -123,9 +123,50 @@ describe("WhatsApp flow", () => {
     expect(text).toContain("1. Lenny\n2. Heneer\n3. Any barber\n4. Change language");
   });
 
-  it("marks every child as special needs and asks adults then kids for a family", async () => {
+  it("marks every child as special needs, and lets a client already asked about adults finish", async () => {
     expect((await walk({ step: "who", language: "en" }, "4", "2")).state).toMatchObject({ who: "special", children: 2, step: "barber" });
-    expect((await walk({ step: "who", language: "en" }, "7", "1", "3")).state).toMatchObject({ adults: 1, children: 3, step: "barber" });
+    expect((await walk({ step: "adults", language: "en", who: "family" }, "1", "3")).state).toMatchObject({ adults: 1, children: 3, step: "barber" });
+  });
+
+  it("no longer offers adults in the who list", () => {
+    expect(render({ step: "who", language: "en" }, context)).toBe("👶 Who is this for?\n\n1. Boy\n2. Girl\n3. Baby\n4. Special needs\n5. Both (Girl & Boy)\n6. Change language / تغيير اللغة\n7. Back to the previous step");
+    expect(render({ step: "who", language: "ar" }, context)).not.toContain("كبار");
+  });
+
+  it("asks which barber the client chooses", () => {
+    expect(render({ step: "barber", language: "en" }, context)).toContain("Which barber do you choose?");
+    expect(render({ step: "barber", language: "ar" }, context)).toContain("أي حلاق تختار؟");
+  });
+
+  it("asks for the written address first and a Google Maps link only if the client cannot", () => {
+    const text = render({ step: "address", language: "en" }, context);
+    expect(text).toBe("📍 Please write your address (block, street, house or building). If you can't, send a Google Maps link.");
+  });
+
+  it("stops the AI and tells staff when the client asks for an employee", async () => {
+    const turn = await walk({ step: "menu", language: "en" }, "4");
+    expect(turn).toMatchObject({ pause: true, staff: { type: "talk" }, state: { step: "menu", language: null } });
+    expect(turn.reply).toContain("An employee will contact you soon.");
+  });
+
+  it.each([["5", "Salon price list"], ["6", "Home price list"]])("sends the price list photo for option %s and shows the menu again", async (choice, caption) => {
+    const turn = await walk({ step: "menu", language: "en" }, choice);
+    expect(turn.image).toBe(caption);
+    expect(turn.state).toEqual({ step: "menu", language: "en" });
+    expect(turn.reply).toContain("1. Book an appointment");
+  });
+
+  it("sends the salon location and shows the menu again", async () => {
+    const turn = await walk({ step: "menu", language: "en" }, "7");
+    expect(turn.reply).toContain("https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en");
+    expect(turn.reply).toContain("1. Book an appointment");
+    expect(turn.image).toBeUndefined();
+  });
+
+  it("tells the AI to point price questions to the menu instead of staff", () => {
+    const rules = stepInstructions({ step: "who", language: "en" }, context);
+    expect(rules).toContain("When the client asks about prices, do not forward.");
+    expect(rules).not.toContain("asks about prices, confirmation");
   });
 
   it("repeats the step for a wrong number without calling the AI", async () => {
@@ -134,10 +175,12 @@ describe("WhatsApp flow", () => {
     expect(turn.reply).toContain("Please send one of the numbers above.");
   });
 
-  it("refuses a time in the past or outside 20 minutes to 4 hours", async () => {
+  it("refuses a time in the past, off the hour, or outside 1 to 4 whole hours", async () => {
     const at: WhatsAppFlow = { step: "time", language: "en", date: "2026-10-30" };
     expect((await walk(at, "08:00-09:00")).state.step).toBe("time");
-    expect((await walk(at, "16:00-16:10")).state.step).toBe("time");
+    expect((await walk(at, "16:00-16:30")).state.step).toBe("time");
+    expect((await walk(at, "16:30-17:30")).state.step).toBe("time");
+    expect((await walk(at, "16:00-17:30")).state.step).toBe("time");
     expect((await walk(at, "16:00-21:00")).state.step).toBe("time");
     expect((await walk(at, "16:00-18:00")).state.step).toBe("area");
   });

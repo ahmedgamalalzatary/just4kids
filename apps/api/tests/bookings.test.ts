@@ -22,7 +22,7 @@ const date = "2099-01-05";
 type Session = { cookie: string; csrf: string; accountId: string };
 let admin: Session, employee: Session, other: Session;
 let bookingId: string;
-const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "09:20", adultCount: 3, childCount: 0 };
+const input = { clientId, addressId, employeeId, date, startTime: "09:00", endTime: "10:00", adultCount: 3, childCount: 0 };
 async function signIn(phone: string, password: string): Promise<Session> {
   const challenge = await request(app).get("/auth/csrf");
   const response = await request(app).post("/auth/login").set("Origin", origin).set("Cookie", challenge.headers["set-cookie"]?.[0]?.split(";")[0] ?? "").set("X-CSRF-Token", challenge.body.csrfToken).send({ phone, password });
@@ -75,7 +75,7 @@ describe("manual bookings", () => {
     expect((await request(app).post("/bookings").set("Origin", origin).set("Cookie", admin.cookie).send(input)).status).toBe(403);
     expect((await request(app).post("/bookings").set("Origin", "https://attacker.example").set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(input)).status).toBe(403);
   });
-  it("creates one reservation for three haircuts in 20 minutes", async () => {
+  it("creates one reservation for three haircuts in one hour", async () => {
     const response = await post(input);
     expect(response.status).toBe(201);
     bookingId = response.body.id;
@@ -92,8 +92,8 @@ describe("manual bookings", () => {
     expect((await request(app).get("/bookings").set("Cookie", employee.cookie)).body.bookings).toEqual(expect.arrayContaining([expect.objectContaining({ id: bookingId })]));
   });
   it("filters the list to one day and barber in start-time order, still scoped to the signed-in employee", async () => {
-    const later = await post({ ...input, startTime: "22:00", endTime: "22:20" });
-    const otherDay = await post({ ...input, date: "2099-01-06", startTime: "22:00", endTime: "22:20" });
+    const later = await post({ ...input, startTime: "22:00", endTime: "23:00" });
+    const otherDay = await post({ ...input, date: "2099-01-06", startTime: "22:00", endTime: "23:00" });
     try {
       expect([later.status, otherDay.status]).toEqual([201, 201]);
       const day = await request(app).get("/bookings").query({ date, employeeId, limit: "100" }).set("Cookie", admin.cookie);
@@ -114,20 +114,20 @@ describe("manual bookings", () => {
   });
   it("rejects past starts, invalid counts, outside-hours windows, and another client's address without saving bookings", async () => {
     for (const body of [{ ...input, date: "2000-01-01" }, { ...input, adultCount: 0 }, { ...input, adultCount: -1 }, { ...input, adultCount: 0.5 }, { ...input, endTime: "09:19" }, { ...input, endTime: "13:01" }]) expect((await post(body)).status).toBe(400);
-    expect((await post({ ...input, startTime: "07:00", endTime: "07:20" })).status).toBe(409);
+    expect((await post({ ...input, startTime: "07:00", endTime: "08:00" })).status).toBe(409);
     expect((await post({ ...input, addressId: randomUUID() })).status).toBe(404);
     expect((await post({ ...input, clientId: randomUUID() })).status).toBe(404);
   });
   it("rejects overlapping concurrent bookings while accepting adjacent windows", async () => {
-    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 }), post({ ...input, startTime: "10:00", endTime: "10:20", adultCount: 1, childCount: 1 })]);
+    const results = await Promise.all([post({ ...input, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1 }), post({ ...input, startTime: "10:00", endTime: "11:00", adultCount: 1, childCount: 1 })]);
     expect(results.map(result => result.status).sort()).toEqual([201, 409]);
-    expect((await post({ ...input, startTime: "10:20", endTime: "10:40" })).status).toBe(201);
+    expect((await post({ ...input, startTime: "11:00", endTime: "12:00" })).status).toBe(201);
     expect((await post({ ...input, startTime: "14:00", endTime: "18:00" })).status).toBe(201);
   });
   it("blocks booked, arrived, and completed visits in eligibility and releases cancelled/no-show visits", async () => {
     for (const [status, eligible] of [["booked", false], ["arrived", false], ["completed", false], ["cancelled", true], ["no_show", true]] as const) {
       await connection.pool.execute("UPDATE bookings SET visit_status = ? WHERE id = ?", [status, bookingId]);
-      const response = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=09:20`).set("Cookie", admin.cookie);
+      const response = await request(app).get(`/availability/eligible?date=${date}&startTime=09:00&endTime=10:00`).set("Cookie", admin.cookie);
       expect(response.status).toBe(200);
       expect(response.body.barbers.some((barber: { id: string }) => barber.id === employeeId)).toBe(eligible);
     }
@@ -154,13 +154,13 @@ describe("manual bookings", () => {
   it("refuses restoring weekly hours when a special-hours booking would no longer fit", async () => {
     const exceptionDate = "2099-01-06";
     expect((await schedule("put", `/schedules/${employeeId}/exceptions/${exceptionDate}`, { intervals: [{ startTime: "06:00", endTime: "23:00" }] })).status).toBe(200);
-    expect((await post({ ...input, date: exceptionDate, startTime: "06:00", endTime: "06:20" })).status).toBe(201);
+    expect((await post({ ...input, date: exceptionDate, startTime: "06:00", endTime: "07:00" })).status).toBe(201);
     expect((await schedule("delete", `/schedules/${employeeId}/exceptions/${exceptionDate}`)).status).toBe(409);
   });
   it("lets only the enabled administrator create through the shared creation service", async () => {
     const service = createBookingService(createBookingRepository(connection));
     await expect(service.create(input, employeeId)).rejects.toMatchObject({ status: 403 });
-    const created = await service.create({ ...input, startTime: "11:00", endTime: "11:20" }, admin.accountId);
+    const created = await service.create({ ...input, startTime: "18:00", endTime: "19:00" }, admin.accountId);
     expect(created).not.toHaveProperty("source");
   });
   it("protects a booking racing with a closure using the same employee lock", async () => {

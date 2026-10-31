@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, bookings, clientAddresses, bookingRevisions } from "@just4kids/db/schema";
 import type { Account } from "@just4kids/contracts";
-import { bookingEditSchema, bookingCreateSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema } from "@just4kids/contracts";
+import { bookingEditSchema, bookingEditedSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema, isWholeHourWindow } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
@@ -35,13 +35,14 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         // A started or finished visit is a correction: it must state a reason, and it may be moved into the past.
         const correction = booking.visitStatus !== "booked" || Date.parse(`${booking.date}T${booking.startTime}:00+03:00`) <= Date.now();
         if (correction && input.reason === undefined) throw new HttpError(400, "CORRECTION_REASON_REQUIRED", "A correction reason is required");
-        const parsed = bookingCreateSchema.parse({ clientId: booking.clientId, addressId: input.addressId ?? booking.addressId, employeeId: targetId,
+        const parsed = bookingEditedSchema.parse({ clientId: booking.clientId, addressId: input.addressId ?? booking.addressId, employeeId: targetId,
           date: input.date ?? booking.date, startTime: input.startTime ?? booking.startTime, endTime: input.endTime ?? booking.endTime,
           adultCount: input.adultCount ?? booking.adultCount, childCount: input.childCount ?? booking.childCount, specialChildCount: input.specialChildCount ?? booking.specialChildCount });
         const merged = { clientId: parsed.clientId, addressId: parsed.addressId, employeeId: parsed.employeeId, date: parsed.date, startTime: parsed.startTime, endTime: parsed.endTime, adultCount: parsed.adultCount, childCount: parsed.childCount, specialChildCount: parsed.specialChildCount };
         if (!correction) assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;
+        if (windowChanged && !correction && !isWholeHourWindow(merged)) throw new HttpError(400, "INVALID_BOOKING_WINDOW", "Reservations must start on the hour and last whole hours");
         const barber = barbers.get(targetId)!;
         const employeeSnapshot = reassigned ? { id: targetId, displayName: barber.employee.displayName } : booking.employeeSnapshot;
         if (reassigned || windowChanged) {

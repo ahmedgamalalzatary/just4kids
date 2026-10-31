@@ -4,8 +4,8 @@ import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 const now = new Date("2026-10-10T07:00:00.000Z"); // 10:00 in Kuwait
 
 describe("booking window", () => {
-  it("accepts 20 minutes up to 4 hours that start in the future", () => {
-    expect(windowProblem({ date: "2026-10-10", startTime: "10:01", endTime: "10:21" }, now)).toBeNull();
+  it("accepts 1 to 4 whole hours that start in the future", () => {
+    expect(windowProblem({ date: "2026-10-10", startTime: "11:00", endTime: "12:00" }, now)).toBeNull();
     expect(windowProblem({ date: "2026-10-11", startTime: "08:00", endTime: "12:00" }, now)).toBeNull();
   });
 
@@ -20,7 +20,7 @@ describe("booking window", () => {
   it("skips the future rule for a correction, which may sit in the past", () => {
     expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:20" }, now, false)).toBeNull();
     expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:19" }, now, false)).toBe("Appointments must be at least 20 minutes");
-    expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "10:20" }, now)).toBe("The appointment must start after the current Kuwait time");
+    expect(windowProblem({ date: "2026-10-09", startTime: "10:00", endTime: "11:00" }, now)).toBe("The appointment must start after the current Kuwait time");
   });
 });
 

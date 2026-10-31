@@ -15,10 +15,15 @@ export function readOwnerPrompt() {
   return readFileSync(new URL("../../../prompts/whatsapp-ai.md", import.meta.url), "utf8").trim();
 }
 
+// The price list photo sent to clients who ask for it from the main menu.
+export function readPriceList() {
+  return readFileSync(new URL("../../../assets/price-list.jpg", import.meta.url));
+}
+
 export function createWhatsApp(connection: ReturnType<typeof createDatabase>, settings: WhatsAppSettings, options: { fetch?: typeof fetch; prompt?: string; now?: () => Date } = {}) {
   const now = options.now ?? (() => new Date());
   const repository = createWhatsAppRepository(connection);
-  const service = createWhatsAppService(repository, createBookingRepository(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), now);
+  const service = createWhatsAppService(repository, createBookingRepository(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceList(), now);
   const running = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     const tracked = work.catch((error: unknown) => { console.error("WhatsApp processing failed", error instanceof Error ? error.message : error); }).finally(() => running.delete(tracked));
@@ -38,8 +43,8 @@ export function createWhatsApp(connection: ReturnType<typeof createDatabase>, se
       try { payload = JSON.parse(raw.toString("utf8")); } catch { deny(response, 400, "INVALID_JSON", "Could not process the request"); return; }
       const own = parseOwnMessage(payload, settings.openwa.sessionId);
       if (own) {
-        // A message to the staff number is not a client chat.
-        if (own.phone !== settings.staffPhone) await repository.takeOver(own, now());
+        // A message to a staff number is not a client chat.
+        if (!own.phone || !settings.staffPhones.includes(own.phone)) await repository.takeOver(own, now());
         response.json({ status: "received" });
         return;
       }

@@ -23,6 +23,7 @@ export function staffMessage(notice: StaffNotice, phone: string, requestNumber: 
     return [`طلب حجز جديد من واتساب #${requestNumber}`, `العميل: ${phone}`, ...requestLines(notice.details), "", `للموافقة: ${approve}`, `للرفض: no ${requestNumber} <السبب>`, "أو أنشئ الحجز من لوحة التحكم، ثم ارفض الطلب هنا."].join("\n");
   }
   if (notice.type === "change") return ["Client wants to change or cancel", `Client: ${phone}`, ...(earlierRequests.length ? [`Requests: ${earlierRequests.map(number => `#${number}`).join(", ")}`] : []), `Message: ${notice.text}`].join("\n");
+  if (notice.type === "talk") return ["Client wants to talk to an employee", `Client: ${phone}`, `The AI is stopped for this client. To turn it back on: ai on ${phone}`].join("\n");
   return ["WhatsApp message for staff", `Client: ${phone}`, notice.summary].join("\n");
 }
 
