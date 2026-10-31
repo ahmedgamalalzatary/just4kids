@@ -5,7 +5,9 @@ import type { WhatsAppSettings } from "../../configs/env.js";
 import { deny } from "../../lib/security.js";
 import { createAi } from "./ai.js";
 import { createBookingRepository } from "../bookings/booking.repository.js";
+import type { WhatsAppMedia } from "@just4kids/db/schema";
 import { createOpenWa, parseInbound, parseOwnMessage, verifySignature } from "./openwa.js";
+import type { Photo } from "./openwa.js";
 import { createWhatsAppRepository } from "./whatsapp.repository.js";
 import { createWhatsAppService } from "./whatsapp.service.js";
 
@@ -15,15 +17,16 @@ export function readOwnerPrompt() {
   return readFileSync(new URL("../../../prompts/whatsapp-ai.md", import.meta.url), "utf8").trim();
 }
 
-// The price list photo sent to clients who ask for it from the main menu.
-export function readPriceList() {
-  return readFileSync(new URL("../../../assets/price-list.jpg", import.meta.url));
+// The price list photos sent to clients who ask for them from the main menu.
+const readPhoto = (filename: string, mimetype: string): Photo => ({ data: readFileSync(new URL(`../../../assets/${filename}`, import.meta.url)), mimetype, filename });
+export function readPriceLists(): Record<WhatsAppMedia, Photo> {
+  return { price_list: readPhoto("home-price-list.jpg", "image/jpeg"), salon_price_list: readPhoto("salon-price-list.png", "image/png") };
 }
 
 export function createWhatsApp(connection: ReturnType<typeof createDatabase>, settings: WhatsAppSettings, options: { fetch?: typeof fetch; prompt?: string; now?: () => Date } = {}) {
   const now = options.now ?? (() => new Date());
   const repository = createWhatsAppRepository(connection);
-  const service = createWhatsAppService(repository, createBookingRepository(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceList(), now);
+  const service = createWhatsAppService(repository, createBookingRepository(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceLists(), now);
   const running = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     const tracked = work.catch((error: unknown) => { console.error("WhatsApp processing failed", error instanceof Error ? error.message : error); }).finally(() => running.delete(tracked));

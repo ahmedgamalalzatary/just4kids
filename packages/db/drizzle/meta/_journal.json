@@ -253,6 +253,13 @@
       "when": 1793460025968,
       "tag": "0035_yummy_kat_farrell",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1793463848153,
+      "tag": "0036_mean_deathstrike",
+      "breakpoints": true
     }
   ]
 }

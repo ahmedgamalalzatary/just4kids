@@ -1,3 +1,4 @@
+import type { WhatsAppMedia } from "@just4kids/db/schema";
 import type { WhatsAppSettings } from "../../configs/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { BookingRepository } from "../bookings/booking.repository.js";
@@ -6,7 +7,7 @@ import type { Ai, ChatMessage } from "./ai.js";
 import { advance, clientApproved, clientRejected, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { aiFailureMessage, parseStaffCommand, staffHelp } from "./messages.js";
-import type { OpenWa } from "./openwa.js";
+import type { OpenWa, Photo } from "./openwa.js";
 import type { WhatsAppRepository } from "./whatsapp.repository.js";
 
 const LEASE_MS = 5 * 60_000;
@@ -17,7 +18,7 @@ const MAX_AI_FAILURES = 12;
 const MAX_SEND_ATTEMPTS = 12;
 const backoff = (failures: number) => Math.min(30_000 * 2 ** (failures - 1), 10 * 60_000);
 
-export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceList: Buffer, now: () => Date) {
+export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<WhatsAppMedia, Photo>, now: () => Date) {
   const staffChatId = (phone: string) => `${phone.slice(1)}@c.us`;
   const staffChatIds = settings.staffPhones.map(staffChatId);
   /** The other staff numbers, told about a decision one of them made. */
@@ -30,7 +31,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     for (const message of await repository.pending(id, "outbound")) {
       // failTurn already marked the rest of a failed turn in the database.
       if (message.turnId && failedTurns.has(message.turnId)) continue;
-      const result = message.media ? await openwa.sendImage(message.chatId, priceList, message.body, message.idempotencyKey) : await openwa.sendText(message.chatId, message.body, message.idempotencyKey);
+      const result = message.media ? await openwa.sendImage(message.chatId, priceLists[message.media], message.body, message.idempotencyKey) : await openwa.sendText(message.chatId, message.body, message.idempotencyKey);
       if (result.status === "sent") { await repository.markSent(message.id, result.messageId, now()); continue; }
       if (result.status === "failed" || message.attempts + 1 >= MAX_SEND_ATTEMPTS) { await repository.failTurn(message, result.error, now()); failedTurns.add(message.turnId); continue; }
       await repository.markAttempt(message.id, result.error);

@@ -157,9 +157,9 @@ describe("WhatsApp flow", () => {
     expect(turn.reply).toContain("An employee will contact you soon.");
   });
 
-  it.each([["5", "Salon price list"], ["6", "Home price list"]])("sends the price list photo for option %s and shows the menu again", async (choice, caption) => {
+  it.each([["5", "salon_price_list", "Salon price list"], ["6", "price_list", "Home price list"]])("sends the price list photo for option %s and shows the menu again", async (choice, media, caption) => {
     const turn = await walk({ step: "menu", language: "en" }, choice);
-    expect(turn.image).toBe(caption);
+    expect(turn.image).toEqual({ media, caption });
     expect(turn.state).toEqual({ step: "menu", language: "en" });
     expect(turn.reply).toContain("1. Book an appointment");
   });

@@ -1,0 +1,1 @@
+ALTER TABLE `whatsapp_messages` MODIFY COLUMN `media` enum('price_list','salon_price_list');

@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { statSync } from "node:fs";
 import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -23,7 +24,7 @@ const connection = createDatabase(env.DATABASE_URL);
 const auth = createAuth(connection, env);
 const phones: string[] = [];
 
-type Sent = { chatId: string; text: string; key: string; image?: boolean };
+type Sent = { chatId: string; text: string; key: string; image?: { mimetype: string; size: number; filename: string } };
 type Decision = { reply: string; value: Record<string, unknown> | null; forward: string | null };
 const barberName = `Barber${randomInt(100000, 999999)}`, areaName = `Area${randomInt(100000, 999999)}`, barberId = randomUUID();
 function harness(whatsappSettings = settings) {
@@ -48,7 +49,7 @@ function harness(whatsappSettings = settings) {
       return Response.json(result.body ?? { messageId: `m-${sent.length}`, timestamp: 1 }, { status: result.status });
     }
     if (url === `http://openwa.test/api/sessions/${sessionId}/messages/send-image`) {
-      sent.push({ chatId: body.chatId, text: body.caption, key: new Headers(init?.headers).get("Idempotency-Key")!, image: body.mimetype === "image/jpeg" && body.base64.length > 0 });
+      sent.push({ chatId: body.chatId, text: body.caption, key: new Headers(init?.headers).get("Idempotency-Key")!, image: { mimetype: body.mimetype, size: Buffer.from(body.base64, "base64").length, filename: body.filename } });
       return Response.json({ messageId: `m-${sent.length}`, timestamp: 1 }, { status: 201 });
     }
     throw new Error(`unexpected request to ${url}`);
@@ -392,12 +393,17 @@ describe("main menu options", () => {
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "5")); await h.whatsapp.idle();
-    expect(h.sent.map(message => [message.chatId, message.image ?? false])).toEqual([[chatId, true], [chatId, false]]);
+    expect(h.sent.map(message => [message.chatId, message.image?.mimetype])).toEqual([[chatId, "image/png"], [chatId, undefined]]);
+    expect(h.sent[0]!.image).toEqual({ mimetype: "image/png", size: statSync(new URL("../assets/salon-price-list.png", import.meta.url)).size, filename: "salon-price-list.png" });
     expect(h.sent[0]!.text).toBe("Salon price list");
     expect(h.sent[1]!.text).toContain("1. Book an appointment");
     await deliver(h.app, ownMessage(phone, "", { type: "image" }));
     await deliver(h.app, ownMessage(phone, "Salon price list", { type: "image" }));
     expect((await stored(phone)).conversation!.aiPaused).toBe(false);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "6")); await h.whatsapp.idle();
+    expect(h.sent[0]!.text).toBe("Home price list");
+    expect(h.sent[0]!.image).toEqual({ mimetype: "image/jpeg", size: statSync(new URL("../assets/home-price-list.jpg", import.meta.url)).size, filename: "home-price-list.jpg" });
   });
 
   it("stops the AI when the client asks for an employee until staff send ai on", async () => {

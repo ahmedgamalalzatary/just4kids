@@ -1,6 +1,8 @@
 import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 // WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
+// price_list is the home list; the salon list has its own photo.
+export type WhatsAppMedia = "price_list" | "salon_price_list";
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
 export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
 export type WhatsAppRequestDetails = {
@@ -69,7 +71,7 @@ export const whatsappMessages = mysqlTable("whatsapp_messages", {
   // The text, or the caption when media is set.
   body: text("body").notNull(),
   // Set when the message is a photo from the API's assets instead of text.
-  media: mysqlEnum("media", ["price_list"]),
+  media: mysqlEnum("media", ["price_list", "salon_price_list"]),
   // inbound: pending until it has been answered; outbound: pending until OpenWA accepted it.
   status: mysqlEnum("status", ["pending", "done", "failed"]).notNull(),
   // inbound: OpenWA's X-OpenWA-Idempotency-Key; outbound: the Idempotency-Key sent with every attempt.

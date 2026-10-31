@@ -87,7 +87,7 @@ describe("OpenWA send-text", () => {
   });
   it("sends a photo with its caption and the same retry key", async () => {
     const fetcher = respond(201, { messageId: "true_x_2" });
-    expect(await createOpenWa(settings, fetcher).sendImage("96550000001@c.us", Buffer.from("photo"), "Prices", "j4k-key-2")).toEqual({ status: "sent", messageId: "true_x_2" });
+    expect(await createOpenWa(settings, fetcher).sendImage("96550000001@c.us", { data: Buffer.from("photo"), mimetype: "image/jpeg", filename: "price-list.jpg" }, "Prices", "j4k-key-2")).toEqual({ status: "sent", messageId: "true_x_2" });
     const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe("http://openwa:2785/api/sessions/business%20session/messages/send-image");
     expect(init).toMatchObject({ headers: { "Idempotency-Key": "j4k-key-2" } });

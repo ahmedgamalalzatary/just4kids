@@ -55,6 +55,7 @@ export function parseOwnMessage(payload: unknown, sessionId: string): OwnMessage
   return { key: idempotencyKey, phone: phoneOf(data.to) ?? phoneOf(data.chatId), chatId: data.chatId, text: data.body?.trim() || `[${data.type}]`, media: data.type !== "text" };
 }
 
+export type Photo = { data: Buffer; mimetype: string; filename: string };
 export type SendResult = { status: "sent"; messageId: string | null } | { status: "retry"; error: string } | { status: "failed"; error: string };
 
 export function createOpenWa(settings: WhatsAppSettings["openwa"], fetcher: typeof fetch = fetch) {
@@ -81,7 +82,7 @@ export function createOpenWa(settings: WhatsAppSettings["openwa"], fetcher: type
   }
   return {
     sendText: (chatId: string, text: string, key: string) => send("send-text", { chatId, text, linkPreview: false }, key),
-    sendImage: (chatId: string, image: Buffer, caption: string, key: string) => send("send-image", { chatId, base64: image.toString("base64"), mimetype: "image/jpeg", filename: "price-list.jpg", caption }, key),
+    sendImage: (chatId: string, photo: Photo, caption: string, key: string) => send("send-image", { chatId, base64: photo.data.toString("base64"), mimetype: photo.mimetype, filename: photo.filename, caption }, key),
   };
 }
 export type OpenWa = ReturnType<typeof createOpenWa>;

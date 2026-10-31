@@ -104,7 +104,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
           } else action = turn.staff;
           await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ ...outbound, audience: "staff" as const, body: staffMessage(turn.staff!, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId, action, requestNumber })));
         }
-        if (turn.image) await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.image, media: "price_list", idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
+        if (turn.image) await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.image.caption, media: turn.image.media, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
         await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.reply, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },

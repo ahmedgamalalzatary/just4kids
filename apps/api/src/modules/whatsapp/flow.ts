@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { addressCreateSchema, eligibilityQuerySchema, isWholeHourWindow } from "@just4kids/contracts";
-import type { WhatsAppAddress, WhatsAppFlow, WhatsAppFlowStep, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
+import type { WhatsAppAddress, WhatsAppFlow, WhatsAppFlowStep, WhatsAppMedia, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import type { Interpretation } from "./ai.js";
 
 // Shown in the reservation when the client sent only a location link; staff can complete it in the dashboard.
@@ -13,8 +13,8 @@ export type StaffNotice =
   | { type: "change"; text: string }
   | { type: "forward"; summary: string }
   | { type: "talk" };
-// image: the caption of the price list photo, sent before the reply. pause: the AI stops for this client until staff send "ai on".
-export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: string; pause?: true };
+// image: the price list photo and its caption, sent before the reply. pause: the AI stops for this client until staff send "ai on".
+export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: { media: WhatsAppMedia; caption: string }; pause?: true };
 type Language = "en" | "ar";
 
 const copy = {
@@ -172,8 +172,8 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
         case 2: return move(state, "change", context);
         case 3: return chooseLanguageStep(state, context);
         case 4: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
-        case 5: return { ...move(state, "menu", context), image: copy[language].salonPrices };
-        case 6: return { ...move(state, "menu", context), image: copy[language].homePrices };
+        case 5: return { ...move(state, "menu", context), image: { media: "salon_price_list", caption: copy[language].salonPrices } };
+        case 6: return { ...move(state, "menu", context), image: { media: "price_list", caption: copy[language].homePrices } };
         default: return move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`);
       }
     case "who": {
