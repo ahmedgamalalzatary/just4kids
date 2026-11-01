@@ -5,15 +5,18 @@ import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mys
 export type WhatsAppMedia = "price_list" | "salon_price_list";
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
 export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
+export type WhatsAppExtra = "manicure_pedicure" | "manicure" | "pedicure" | "hair_wash" | "hair_wash_treatment";
 export type WhatsAppRequestDetails = {
   // The language of this request, for the client's approval or rejection; the chat's language restarts after each request. Older requests have none.
   language?: "en" | "ar" | null;
   // Null when the flow has no answer; requests saved before this field have none either.
   who?: WhatsAppWho | null;
   adults: number; children: number; specialChildren: number;
-  // Null when the client chose "any barber": staff name one when approving.
+  // Null only on older requests where the client chose "any barber": staff name one when approving.
   barberId: string | null; barberName: string | null;
   date: string; startTime: string; endTime: string; areaId: string; area: string; address: WhatsAppAddress;
+  // Older requests have none; null means the client chose no extra service.
+  extra?: WhatsAppExtra | null;
 };
 export type WhatsAppStaffAction =
   | ({ type: "new_request"; requestNumber: number } & WhatsAppRequestDetails)
@@ -21,14 +24,16 @@ export type WhatsAppStaffAction =
   | { type: "talk" }
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "area" | "address" | "confirm" | "change";
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "duration" | "extra" | "area" | "address" | "confirm" | "change";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
   resume?: WhatsAppFlowStep;
   who?: WhatsAppWho; adults?: number; children?: number;
   barber?: { id: string; name: string } | null;
-  date?: string; startTime?: string; endTime?: string;
+  date?: string; startTime?: string; endTime?: string; extra?: WhatsAppExtra | null;
+  // What the numbers of the last sent date, time or duration list stand for, so a list that changed since keeps its meaning.
+  offered?: string[];
   area?: { id: string; name: string }; address?: WhatsAppAddress;
 };
 

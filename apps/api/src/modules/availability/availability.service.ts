@@ -23,3 +23,9 @@ export function isWindowAvailable(query: WindowQuery, days: WorkingDay[], except
   return !visits.some(visit => visit.date === requested.date && blockingStatuses.has(visit.status)
     && requested.startTime < visit.endTime && requested.endTime > visit.startTime);
 }
+
+/** The start of every whole hour of the date that the barber can still take. A reservation cannot pass 23:00, because it must end on the same day on the hour. */
+export function freeWholeHours(date: string, days: WorkingDay[], exception: WorkInterval[] | undefined, visits: VisitWindow[], blocks: (WorkInterval & { date: string })[] = []) {
+  const clock = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+  return Array.from({ length: 23 }, (_, hour) => hour).filter(hour => isWindowAvailable({ date, startTime: clock(hour), endTime: clock(hour + 1) }, days, exception, visits, blocks)).map(clock);
+}

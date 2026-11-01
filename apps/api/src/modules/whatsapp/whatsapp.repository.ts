@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, areas, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookings, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import type { WhatsAppStaffAction } from "@just4kids/db/schema";
+import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
+import { freeWholeHours } from "../availability/availability.service.js";
 import type { Inbound, OwnMessage } from "./openwa.js";
 import type { Turn } from "./flow.js";
 import { staffMessage } from "./messages.js";
@@ -80,6 +82,32 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       const barbers = await db.select({ id: employees.accountId, name: employees.displayName }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
       return { barbers, areas: enabledAreas };
+    },
+    /** Each barber's free whole hours on each date, for the lists the client chooses from. */
+    async freeHours(barberIds: string[], dates: string[]) {
+      if (!barberIds.length) return {};
+      const [work, workDays, exceptions, visits, blocks] = await Promise.all([
+        db.select().from(employeeWorkIntervals).where(inArray(employeeWorkIntervals.employeeId, barberIds)),
+        db.select().from(employeeWorkDays).where(inArray(employeeWorkDays.employeeId, barberIds)),
+        db.select({ employeeId: employeeScheduleExceptions.employeeId, date: employeeScheduleExceptions.date, interval: employeeExceptionIntervals }).from(employeeScheduleExceptions)
+          .leftJoin(employeeExceptionIntervals, eq(employeeScheduleExceptions.id, employeeExceptionIntervals.exceptionId))
+          .where(and(inArray(employeeScheduleExceptions.employeeId, barberIds), inArray(employeeScheduleExceptions.date, dates))),
+        db.select().from(bookings).where(and(inArray(bookings.employeeId, barberIds), inArray(bookings.date, dates))),
+        db.select().from(employeeTimeBlocks).where(and(inArray(employeeTimeBlocks.employeeId, barberIds), inArray(employeeTimeBlocks.date, dates))),
+      ]);
+      return Object.fromEntries(barberIds.map(barberId => {
+        const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+          dayOfWeek,
+          intervals: workDays.some(day => day.employeeId === barberId && day.dayOfWeek === dayOfWeek && !day.active) ? [] : work.filter(item => item.employeeId === barberId && item.dayOfWeek === dayOfWeek).map(item => ({ startTime: item.startTime, endTime: item.endTime })),
+        }));
+        const ownVisits = visits.filter(visit => visit.employeeId === barberId).map(visit => ({ date: visit.date, startTime: visit.startTime, endTime: visit.endTime, status: visit.visitStatus }));
+        const ownBlocks = blocks.filter(block => block.employeeId === barberId);
+        return [barberId, Object.fromEntries(dates.map(date => {
+          const rows = exceptions.filter(row => row.employeeId === barberId && row.date === date);
+          const exception: WorkInterval[] | undefined = rows.length ? rows.flatMap(row => row.interval ? [{ startTime: row.interval.startTime, endTime: row.interval.endTime }] : []) : undefined;
+          return [date, freeWholeHours(date, days, exception, ownVisits, ownBlocks)];
+        }))];
+      }));
     },
     async administrator() {
       const [admin] = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.role, "admin"), eq(accounts.enabled, true)));

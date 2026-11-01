@@ -4,7 +4,7 @@ import { HttpError } from "../../lib/http-error.js";
 import type { BookingRepository } from "../bookings/booking.repository.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, clientApproved, clientRejected, stepInstructions } from "./flow.js";
+import { advance, bookingDays, clientApproved, clientRejected, extraNote, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { aiFailureMessage, parseStaffCommand, staffHelp } from "./messages.js";
 import type { OpenWa, Photo } from "./openwa.js";
@@ -79,7 +79,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const { address } = details;
     try {
       await bookings.createForPhone(
-        { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren },
+        { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren, ...(details.extra ? { notes: extraNote(details.extra) } : {}) },
         { phone: client.phone, address: { areaId: details.areaId, area: details.area, ...address } },
         administrator,
         (transaction, booking) => repository.settleApproval(transaction, command.number, booking.id, client, clientApproved(language, details, barber.name), staff, message.id, `Request #${command.number} approved. Reservation ${booking.reference} created with ${barber.name}. The client was told.`, { chatIds: otherStaff(staff.phone), text: `Request #${command.number} was approved by ${staff.phone}. Reservation ${booking.reference} created with ${barber.name}.\nIt can no longer be changed here.` }, now()),
@@ -108,7 +108,8 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
       for (const message of inbound) await repository.answerPlainly(conversation, message.id, null, now());
       return true;
     }
-    const context: FlowContext = { ...await repository.options(), now: now() };
+    const options = await repository.options(), today = now();
+    const context: FlowContext = { ...options, now: today, free: await repository.freeHours(options.barbers.map(barber => barber.id), bookingDays(today)) };
     const requests = (await repository.requests(id)).map(request => request.number);
     let flow = conversation.flow;
     for (const message of inbound) {

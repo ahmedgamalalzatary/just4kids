@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { freeWholeHours } from "../src/modules/availability/availability.service.js";
 import { describe, expect, it, vi } from "vitest";
 import { parseInbound, parseOwnMessage, verifySignature, createOpenWa } from "../src/modules/whatsapp/openwa.js";
 import { AiRefusedError, createAi, parseInterpretation } from "../src/modules/whatsapp/ai.js";
@@ -178,5 +179,21 @@ describe("owner prompt", () => {
   it("is read from the prompt file, which ships with the API package", () => {
     expect(readOwnerPrompt().length).toBeGreaterThan(0);
     expect(apiPackage.files).toContain("prompts");
+  });
+});
+
+describe("free whole hours", () => {
+  const monday = "2026-11-02";
+  const days = [{ dayOfWeek: 1, intervals: [{ startTime: "10:00", endTime: "13:00" }, { startTime: "15:00", endTime: "16:30" }] }];
+  it("lists hours that fit inside the working shifts", () => {
+    expect(freeWholeHours(monday, days, undefined, [])).toEqual(["10:00", "11:00", "12:00", "15:00"]);
+  });
+  it("leaves out reservations and locks, but not cancelled visits", () => {
+    const visits = [{ date: monday, startTime: "10:30", endTime: "11:00", status: "booked" as const }, { date: monday, startTime: "12:00", endTime: "13:00", status: "cancelled" as const }];
+    expect(freeWholeHours(monday, days, undefined, visits, [{ date: monday, startTime: "15:00", endTime: "15:30" }])).toEqual(["11:00", "12:00"]);
+  });
+  it("follows a date's exception, including a day off", () => {
+    expect(freeWholeHours(monday, days, [{ startTime: "20:00", endTime: "23:59" }], [])).toEqual(["20:00", "21:00", "22:00"]);
+    expect(freeWholeHours(monday, days, [], [])).toEqual([]);
   });
 });

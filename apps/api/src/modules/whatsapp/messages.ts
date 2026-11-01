@@ -1,5 +1,5 @@
 import type { WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
-import { NOT_PROVIDED, type StaffNotice } from "./flow.js";
+import { extraNote, NOT_PROVIDED, type StaffNotice } from "./flow.js";
 
 const STAFF_HELP = "Commands:\nyes 12 — approve request 12\nyes 12 Lenny — approve and choose the barber\nno 12 reason — reject request 12\nai on +96550000000 — the AI answers that client again";
 
@@ -11,7 +11,7 @@ function requestLines(details: WhatsAppRequestDetails) {
   const typed = parts.filter(([, value]) => value && value !== NOT_PROVIDED).map(([label, value]) => `${label} ${value}`).join("، ");
   return [
     ...(details.who ? [`لمن: ${WHO_LABELS[details.who]}`] : []), `الكبار: ${details.adults}`, `الأطفال: ${details.children}`, ...(details.specialChildren ? [`ذوو احتياجات خاصة: ${details.specialChildren}`] : []),
-    `الحلاق: ${details.barberName ?? "أي حلاق (يختار الموظف)"}`, `التاريخ: ${details.date}`, `الوقت: ${details.startTime} - ${details.endTime}`,
+    `الحلاق: ${details.barberName ?? "أي حلاق (يختار الموظف)"}`, `التاريخ: ${details.date}`, `الوقت: ${details.startTime} - ${details.endTime}`, ...(details.extra ? [extraNote(details.extra)] : []),
     `المنطقة: ${details.area}`, ...(typed ? [`العنوان: ${typed}`] : []), ...(address.mapsUrl ? [`الموقع: ${address.mapsUrl}`] : []),
   ];
 }
