@@ -167,7 +167,7 @@ async function toTimes(phone: string, barberChoice: string) {
 const timeOption = (time: string) => new RegExp(`^(\\d+)\\. ${time}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
 async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "6") {
   await toTimes(phone, barberChoice);
-  for (const text of [timeOption(time)!, "1", extra, areaName, "https://www.google.com/maps?q=29.3,48.0"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+  for (const text of [timeOption(time)!, extra, areaName, "https://www.google.com/maps?q=29.3,48.0"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
 }
 // Every test books its own window, because they all share one barber and date.
 let windowHour = 8;
@@ -237,7 +237,7 @@ describe("WhatsApp booking flow", () => {
 
   it("sends a change request to staff as written", async () => {
     const { phone } = client();
-    for (const text of ["مرحبا", "1", "5", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    for (const text of ["مرحبا", "1", "6", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     expect(h.sent.find(message => message.chatId === staffChat)?.text).toBe(`Client wants to change or cancel\nClient: ${phone}\nMessage: ألغ موعد الأحد`);
   });
 
@@ -421,7 +421,7 @@ describe("main menu options", () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
-    await deliver(h.app, payload(phone, "3")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
     expect(h.sent.map(message => [message.chatId, message.image?.mimetype])).toEqual([[chatId, "image/png"], [chatId, undefined]]);
     expect(h.sent[0]!.image).toEqual({ mimetype: "image/png", size: statSync(new URL("../assets/salon-price-list.png", import.meta.url)).size, filename: "salon-price-list.png" });
     expect(h.sent[0]!.text).toBe("Salon price list");
@@ -439,7 +439,7 @@ describe("main menu options", () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
-    await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "5")); await h.whatsapp.idle();
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
     expect(h.sent[0]!.text).toBe(`Client wants to talk to an employee\nClient: ${phone}\nThe AI is stopped for this client. To turn it back on: ai on ${phone}`);
     expect((await stored(phone)).conversation!.aiPaused).toBe(true);

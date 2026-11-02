@@ -24,8 +24,8 @@ const copy = {
     menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", talk: "Talk to an employee", salonPrices: "Salon price list", homePrices: "Home service price list", salonLocation: "Salon location", pick: "Send a number to choose.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
-    time: (date: string) => `⏰ Available start times on ${date}:`, duration: (start: string) => `⏱️ How long, starting at ${start}?`,
-    hours: (count: number, end: string) => `${count} hour${count === 1 ? "" : "s"} (until ${end})`, am: "am", pm: "pm", noon: "pm",
+    time: (date: string) => `⏰ Available start times on ${date}:`,
+    am: "am", pm: "pm", noon: "pm",
     noTimes: "⚠️ This barber has no free times in the next 7 days. Please choose another barber.", taken: "⚠️ That time is no longer free. Please choose again.",
     extra: "💅 Any extra service?", extras: ["Manicure + Pedicure", "Manicure only", "Pedicure only", "Hair wash only", "Hair wash with treatment"], noExtra: "No service", extraLine: "💅 Extra service:",
     area: "📍 Which area in Kuwait?", areaInvalid: "⚠️ We could not find that area in Kuwait. Please send the area name again.",
@@ -45,8 +45,8 @@ const copy = {
     menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", talk: "التحدث مع موظف", salonPrices: "قائمة أسعار الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
-    time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`, duration: (start: string) => `⏱️ كم المدة، ابتداءً من ${start}؟`,
-    hours: (count: number, end: string) => `${count === 1 ? "ساعة واحدة" : count === 2 ? "ساعتان" : `${count} ساعات`} (حتى ${end})`, am: "صباحاً", pm: "مساءً", noon: "ظهراً",
+    time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`,
+    am: "صباحاً", pm: "مساءً", noon: "ظهراً",
     noTimes: "⚠️ لا توجد أوقات متاحة لهذا الحلاق خلال الأيام السبعة القادمة. اختر حلاقاً آخر.", taken: "⚠️ هذا الوقت لم يعد متاحاً. اختر مرة أخرى.",
     extra: "💅 هل تريد خدمة إضافية؟", extras: ["مانيكير + باديكير", "مانيكير فقط", "باديكير فقط", "غسيل شعر فقط", "غسيل شعر مع علاج"], noExtra: "بدون خدمة", extraLine: "💅 خدمة إضافية:",
     area: "📍 في أي منطقة في الكويت؟", areaInvalid: "⚠️ لم نجد هذه المنطقة في الكويت. أرسل اسم المنطقة مرة أخرى.",
@@ -84,17 +84,10 @@ const barberFree = (state: WhatsAppFlow, context: FlowContext) => context.free[s
 /** The barber's free hours of a date, without those already past. */
 const freeStarts = (state: WhatsAppFlow, context: FlowContext, date: string) => (barberFree(state, context)[date] ?? []).filter(time => new Date(`${date}T${time}:00+03:00`).getTime() > context.now.getTime());
 const openDates = (state: WhatsAppFlow, context: FlowContext) => bookingDays(context.now).filter(date => freeStarts(state, context, date).length);
-/** The end times a reservation can have: 1 to 4 whole hours, while the barber stays free. */
-function freeEnds(state: WhatsAppFlow, context: FlowContext) {
-  const starts = freeStarts(state, context, state.date!), first = hourOf(state.startTime!), ends: string[] = [];
-  for (let hour = first; hour < first + 4 && starts.includes(clock(hour)); hour++) ends.push(clock(hour + 1));
-  return ends;
-}
 /** The current choices of a list that depends on the barber's free time. */
 function freshChoices(state: WhatsAppFlow, context: FlowContext) {
   if (state.step === "date") return openDates(state, context);
   if (state.step === "time") return freeStarts(state, context, state.date!);
-  if (state.step === "duration") return freeEnds(state, context);
   return undefined;
 }
 
@@ -108,13 +101,12 @@ export function clientRejected(language: Language | null, reason: string | null)
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
-  if (state.step === "menu") return [text.book, text.homePrices, text.salonPrices, text.talk, text.change, text.salonLocation, text.back, text.changeLanguage];
+  if (state.step === "menu") return [text.book, text.homePrices, text.salonLocation, text.salonPrices, text.talk, text.change, text.back, text.changeLanguage];
   if (state.step === "who") return [...text.whoOptions, text.back];
   if (state.step === "barber") return [...context.barbers.map(barber => barber.name), text.back];
   const choices = state.offered ?? freshChoices(state, context) ?? [];
   if (state.step === "date") return [...choices.map(date => dateLabel(date, language)), text.back];
   if (state.step === "time") return [...choices.map(time => hourLabel(time, language)), text.back];
-  if (state.step === "duration") return [...choices.map(end => text.hours(hourOf(end) - hourOf(state.startTime!), hourLabel(end, language))), text.back];
   if (state.step === "extra") return [...text.extras, text.noExtra, text.back];
   if (state.step === "confirm") return [text.confirm, text.startOver, text.back];
   return [];
@@ -146,7 +138,6 @@ export function render(state: WhatsAppFlow, context: FlowContext) {
     case "barber": return `${text.barber}\n\n${numbered(options(state, context, language))}`;
     case "date": return `${text.date}\n\n${numbered(options(state, context, language))}`;
     case "time": return `${text.time(dateLabel(state.date!, language))}\n\n${numbered(options(state, context, language))}`;
-    case "duration": return `${text.duration(hourLabel(state.startTime!, language))}\n\n${numbered(options(state, context, language))}`;
     case "extra": return `${text.extra}\n\n${numbered(options(state, context, language))}`;
     case "area": return text.area;
     case "address": return text.address;
@@ -188,8 +179,7 @@ function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
     case "barber": return state.who === "adults" ? "adults" : "children";
     case "date": return "barber";
     case "time": return "date";
-    case "duration": return "time";
-    case "extra": return "duration";
+    case "extra": return "time";
     case "confirm": return "address";
     default: return state.step;
   }
@@ -218,10 +208,10 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       switch (choice) {
         case 1: return move(freshBooking(state), "who", context);
         case 2: return { ...move(state, "menu", context), image: { media: "price_list", caption: copy[language].homePrices } };
-        case 3: return { ...move(state, "menu", context), image: { media: "salon_price_list", caption: copy[language].salonPrices } };
-        case 4: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
-        case 5: return move(state, "change", context);
-        case 6: return move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`);
+        case 3: return move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`);
+        case 4: return { ...move(state, "menu", context), image: { media: "salon_price_list", caption: copy[language].salonPrices } };
+        case 5: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
+        case 6: return move(state, "change", context);
         default: return chooseLanguageStep(state, context);
       }
     case "who": {
@@ -235,10 +225,8 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     case "date":
       return pickDate(state, value!, context);
     case "time":
-      return freeStarts(state, context, state.date!).includes(value!) ? move({ ...state, startTime: value! }, "duration", context) : stay(state, context, copy[language].taken);
-    case "duration":
-      if (!freeEnds(state, context).includes(value!)) return move(state, "time", context, copy[language].taken);
-      return move({ ...state, endTime: value! }, "extra", context);
+      // Every reservation is one hour; staff change it in the dashboard when needed.
+      return freeStarts(state, context, state.date!).includes(value!) ? move({ ...state, startTime: value!, endTime: clock(hourOf(value!) + 1) }, "extra", context) : stay(state, context, copy[language].taken);
     case "extra":
       return move({ ...state, extra: extraValues[choice - 1] ?? null }, "area", context);
     case "confirm":
@@ -342,7 +330,7 @@ Answer with one JSON object and nothing else:
 - "value": what the client's message answers for this step, as ${value[state.step] ?? '{"choice": <option number>}'}. Otherwise null. Never guess a value.
 - "reply": empty when "value" is set. Otherwise a short answer to the client's question, or a short request to answer the step. The code sends the menu again after it, so never list the options.
 - "forward": a short English summary for staff when the client asks about confirmation or status, arrival time, asks for a person, complains, or asks about the service and the text above does not answer it. Then say in "reply" that staff will be told. Otherwise null.
-- When the client asks about prices, do not forward. Say in "reply" that the home service and salon price lists are options 2 and 3 of the main menu, which opens when they send the word "menu" (in Arabic "القائمة").
+- When the client asks about prices, do not forward. Say in "reply" that the home service and salon price lists are options 2 and 4 of the main menu, which opens when they send the word "menu" (in Arabic "القائمة").
 
 You have no access to bookings. Never say that a booking is made, confirmed, changed or cancelled.`;
 }
@@ -352,7 +340,10 @@ export async function advance(state: WhatsAppFlow | null, text: string, context:
   if (!state?.language && state?.step !== "language") return move({ step: "language", language: null }, "language", context);
   if (/^(menu|القائمة|قائمة)$/i.test(text.trim())) return move(state.language ? freshBooking(state) : state, state.language ? "menu" : "language", context);
   // A client who chose "any barber" before that option was removed chooses a barber now.
-  if (["date", "time", "duration"].includes(state.step) && !state.barber) return move(state, "barber", context);
+  // "duration" is the removed how-long question, still saved for clients who were on it; they choose the start time again.
+  const step: string = state.step;
+  if (["date", "time", "duration"].includes(step) && !state.barber) return move(state, "barber", context);
+  if (step === "duration") return move(state, "time", context);
   const handled = direct(state, text, context);
   if (handled) return handled;
   const answer = await ask(state);

@@ -24,7 +24,7 @@ export type WhatsAppStaffAction =
   | { type: "talk" }
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "duration" | "extra" | "area" | "address" | "confirm" | "change";
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "area" | "address" | "confirm" | "change";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
