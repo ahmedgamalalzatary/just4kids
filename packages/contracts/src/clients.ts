@@ -7,7 +7,8 @@ const googleMapsUrl = z.url().max(2048).refine(value => {
   const url = new URL(value);
   const host = url.hostname.toLowerCase();
   return url.protocol === "https:" && !url.username && !url.password && (
-    host === "maps.app.goo.gl" ||
+    host === "maps.app.goo.gl" || host === "share.google" ||
+    (host === "goo.gl" && url.pathname.startsWith("/maps/")) ||
     ((host === "google.com" || host === "www.google.com") && (url.pathname === "/maps" || url.pathname.startsWith("/maps/"))) ||
     host === "maps.google.com"
   );

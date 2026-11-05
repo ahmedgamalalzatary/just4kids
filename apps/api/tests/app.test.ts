@@ -1,6 +1,7 @@
+import express from "express";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
+import { describe, expect, it, vi } from "vitest";
+import { createApp, errorHandler } from "../src/app.js";
 
 describe("API infrastructure", () => {
   it("exposes liveness without requiring a database connection", async () => {
@@ -29,5 +30,25 @@ describe("API infrastructure", () => {
     const response = await request(createApp()).post("/health").send({ data: "x".repeat(120_000) });
     expect(response.status).toBe(413);
     expect(response.body).toMatchObject({ error: { code: "REQUEST_TOO_LARGE", message: expect.any(String) } });
+  });
+
+  it("logs unexpected errors while keeping their details out of the response", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failure = new Error("stored data failed validation");
+      const app = express().get("/broken/:id", () => { throw failure; }).use(errorHandler);
+      const response = await request(app).get("/broken/abc?x=1");
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: { code: "INTERNAL_ERROR", message: "Could not process the request" } });
+      expect(logged).toHaveBeenCalledWith("Unexpected error on GET /broken/abc?x=1", failure);
+    } finally { logged.mockRestore(); }
+  });
+
+  it("does not log expected client errors", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      expect((await request(createApp()).post("/health").set("Content-Type", "application/json").send("{")).status).toBe(400);
+      expect(logged).not.toHaveBeenCalled();
+    } finally { logged.mockRestore(); }
   });
 });

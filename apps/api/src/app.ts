@@ -52,14 +52,16 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     response.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
 
-  const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
-    if (error instanceof HttpError) { response.status(error.status).json({ error: { code: error.code, message: error.message } }); return; }
-    const errorStatus = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
-    const status = typeof errorStatus === "number" && errorStatus >= 400 && errorStatus < 500 ? errorStatus : 500;
-    const code = status === 400 ? "INVALID_JSON" : status === 413 ? "REQUEST_TOO_LARGE" : "INTERNAL_ERROR";
-    response.status(status).json({ error: { code, message: "Could not process the request" } });
-  };
-
   app.use(errorHandler);
   return app;
 }
+
+export const errorHandler: ErrorRequestHandler = (error: unknown, request, response, _next) => {
+  if (error instanceof HttpError) { response.status(error.status).json({ error: { code: error.code, message: error.message } }); return; }
+  const errorStatus = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+  const status = typeof errorStatus === "number" && errorStatus >= 400 && errorStatus < 500 ? errorStatus : 500;
+  // Unexpected failures stay generic for the caller but must reach the server log.
+  if (status === 500) console.error(`Unexpected error on ${request.method} ${request.originalUrl}`, error);
+  const code = status === 400 ? "INVALID_JSON" : status === 413 ? "REQUEST_TOO_LARGE" : "INTERNAL_ERROR";
+  response.status(status).json({ error: { code, message: "Could not process the request" } });
+};

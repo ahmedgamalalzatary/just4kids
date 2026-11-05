@@ -24,6 +24,9 @@ describe("client and address contracts", () => {
   it("accepts only trusted Google Maps links", () => {
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://maps.app.goo.gl/AbCd123" }).success).toBe(true);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://www.google.com/maps/place/Kuwait" }).success).toBe(true);
+    expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://goo.gl/maps/hJLfES4QoMY96ZyEA" }).success).toBe(true);
+    expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://share.google/ZcPCVzkwa817kTfX0" }).success).toBe(true);
+    expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://goo.gl/AbCd123" }).success).toBe(false);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://evilgoogle.com/maps" }).success).toBe(false);
     expect(addressCreateSchema.safeParse({ ...address, mapsUrl: "https://user:pass@www.google.com/maps" }).success).toBe(false);
   });
