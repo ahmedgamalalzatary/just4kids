@@ -10,7 +10,7 @@ import { SlotPills } from "@/components/booking-slot-pills";
 
 const id = "11111111-1111-4111-8111-111111111111", blockId = "22222222-2222-4222-8222-222222222222";
 const date = "2099-01-05";
-const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
+const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", displayNameAr: null, enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
 const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: "13:30", reason: "موعد Special", createdBy: id, createdAt: "2026-10-13T00:00:00.000Z" };
 const initial: Schedule = { employeeId: id, days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] };
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };
@@ -115,12 +115,12 @@ describe("booking time lock controls", () => {
     expect(screen.queryByRole("radio", { name: "1:30 PM" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     expect(screen.getAllByRole("radio", { name: /^End at/ }).map(end => end.getAttribute("aria-label"))).toEqual(["End at 2:00 PM", "End at 3:00 PM"]);
-    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Lock / unlock times" }));
     expect(screen.getByRole("radio", { name: "1:30 PM" })).toBeInTheDocument();
   });
   it("picks a start and an end for a lock and stores the whole window", async () => {
     const { fetch, changed } = await mount();
-    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     await userEvent.click(screen.getByRole("radio", { name: "Lock until 2:00 PM" }));
     await userEvent.type(screen.getByLabelText(/Lock reason/), "موعد Special");
@@ -134,7 +134,7 @@ describe("booking time lock controls", () => {
   });
   it("defaults the lock end to the first half-hour after the start", async () => {
     const { fetch } = await mount();
-    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     expect(screen.getByRole("status").textContent).toContain("Closing from 1:00 PM to 1:30 PM");
     await userEvent.click(screen.getByRole("button", { name: "Lock 1:00 PM to 1:30 PM" }));
@@ -153,7 +153,7 @@ describe("booking time lock controls", () => {
   });
   it("shows a recoverable conflict and never pretends the time was locked", async () => {
     await mount({ conflict: true });
-    await userEvent.click(screen.getByRole("button", { name: "Lock / unlock times" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Lock / unlock times" }));
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM" }));
     await userEvent.click(screen.getByRole("button", { name: "Lock 1:00 PM to 1:30 PM" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Time محجوز، أعد تحميل الأوقات");
@@ -161,7 +161,7 @@ describe("booking time lock controls", () => {
   });
   it("hides all lock writes from employees", async () => {
     await mount({ blocked: true, role: "employee" });
-    expect(screen.queryByRole("button", { name: "Lock / unlock times" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Lock / unlock times" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "1:00 PM, closed: موعد Special" }));
     expect(screen.queryByRole("button", { name: /^Unlock/ })).not.toBeInTheDocument();
   });

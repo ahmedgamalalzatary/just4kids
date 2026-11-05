@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `display_name_ar` varchar(120);

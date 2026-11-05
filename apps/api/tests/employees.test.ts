@@ -74,7 +74,7 @@ describe("employee management", () => {
 
   it("lets the administrator create an employee who signs in and sees only own records", async () => {
     const { created } = await createEmployee(testPhones[0]!);
-    expect(created.body).toMatchObject({ displayName: "سالم", phone: testPhones[0], enabled: true });
+    expect(created.body).toMatchObject({ displayName: "سالم", displayNameAr: null, phone: testPhones[0], enabled: true });
     expect(created.body).not.toHaveProperty("branchId");
     expect(created.body).not.toHaveProperty("branch");
     expect(created.body.password).toBeUndefined();
@@ -120,6 +120,10 @@ describe("employee management", () => {
       .send({ phone: testPhones[4] });
     expect(transferred.status).toBe(200);
     expect(transferred.body).toMatchObject({ phone: testPhones[4] });
+    const arabic = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ displayNameAr: " سالم " });
+    expect(arabic.body).toMatchObject({ displayName: "سالم", displayNameAr: "سالم" });
+    const cleared = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ displayNameAr: null });
+    expect(cleared.body.displayNameAr).toBeNull();
     expect((await request(app).get("/auth/session").set("Cookie", employee.cookie)).status).toBe(401);
     expect((await signIn(testPhones[3]!, "employee-password-123")).response.status).toBe(401);
     expect((await signIn(testPhones[4]!, "employee-password-123")).response.status).toBe(200);

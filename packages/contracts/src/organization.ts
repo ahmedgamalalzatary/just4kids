@@ -11,13 +11,17 @@ export const branchCreateSchema = z.strictObject({
 export const branchUpdateSchema = branchCreateSchema.partial().refine(value => Object.keys(value).length > 0);
 export const branchResponseSchema = branchCreateSchema.extend({ id: z.uuid(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
 
+// The Arabic name WhatsApp shows to Arabic chats; empty means the English display name is used.
+const arabicName = label.nullable();
 export const employeeCreateSchema = z.strictObject({
   displayName: label,
+  displayNameAr: arabicName.optional(),
   phone: phoneSchema,
   password: passwordSchema,
 });
 export const employeeAdminUpdateSchema = z.strictObject({
   displayName: label.optional(),
+  displayNameAr: arabicName.optional(),
   phone: phoneSchema.optional(),
   enabled: z.boolean().optional(),
   accessUntil: z.iso.date().nullable().optional(),
@@ -27,6 +31,7 @@ export const employeePasswordResetSchema = z.strictObject({ password: passwordSc
 export const employeeResponseSchema = z.strictObject({
   id: z.uuid(),
   displayName: label,
+  displayNameAr: arabicName,
   phone: phoneSchema,
   enabled: z.boolean(),
   accessUntil: z.iso.date().nullable(),

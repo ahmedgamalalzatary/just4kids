@@ -3,7 +3,7 @@ import { freeWholeHours } from "../src/modules/availability/availability.service
 import { describe, expect, it, vi } from "vitest";
 import { parseInbound, parseOwnMessage, verifySignature, createOpenWa } from "../src/modules/whatsapp/openwa.js";
 import { AiRefusedError, createAi, parseInterpretation } from "../src/modules/whatsapp/ai.js";
-import { aiFailureMessage, parseStaffCommand, staffMessage } from "../src/modules/whatsapp/messages.js";
+import { aiFailureMessage, parseStaffAddress, parseStaffCommand, staffMessage } from "../src/modules/whatsapp/messages.js";
 import { NOT_PROVIDED } from "../src/modules/whatsapp/flow.js";
 import { readOwnerPrompt } from "../src/modules/whatsapp/index.js";
 import apiPackage from "../package.json" with { type: "json" };
@@ -145,10 +145,10 @@ describe("staff messages", () => {
   it("sends the full request and how to answer it", () => {
     expect(staffMessage({ type: "new_request", details }, "+96550000001", 12)).toBe([
       "طلب حجز جديد من واتساب #12", "العميل: +96550000001", "لمن: كبار وأطفال", "الكبار: 1", "الأطفال: 2", "ذوو احتياجات خاصة: 1", "الحلاق: Lenny", "التاريخ: 2026-11-01", "الوقت: 16:00 - 18:00", "المنطقة: Hawally", "العنوان: قطعة 3، شارع 5، منزل 12",
-      "", "للموافقة: yes 12", "للرفض: no 12 <السبب>", "أو أنشئ الحجز من لوحة التحكم، ثم ارفض الطلب هنا.",
+      "", "للموافقة: yes 12", "للرفض: no 12 <السبب>", "لتعديل العنوان: address 12 قطعة 3، شارع 5، منزل 10، <رابط الخرائط>", "أو أنشئ الحجز من لوحة التحكم، ثم ارفض الطلب هنا.",
     ].join("\n"));
   });
-  it.each([["boy", "ولد"], ["girl", "بنت"], ["baby", "رضيع"], ["special", "ذوو احتياجات خاصة"], ["both", "ولد وبنت"], ["adults", "كبار"], ["family", "كبار وأطفال"]] as const)("tells staff the client chose %s", (who, label) => {
+  it.each([["boy", "ولد"], ["girl", "بنت"], ["baby", "رضيع"], ["special", "ذوو احتياجات خاصة"], ["both", "ولد وبنت"], ["medical", "خدمة حالة مرضية"], ["adults", "كبار"], ["family", "كبار وأطفال"]] as const)("tells staff the client chose %s", (who, label) => {
     expect(staffMessage({ type: "new_request", details: { ...details, who } }, "+96550000001", 12).split("\n")[2]).toBe(`لمن: ${label}`);
   });
   it("asks staff to name a barber and shows only the link for a link-only address", () => {
@@ -158,6 +158,13 @@ describe("staff messages", () => {
     expect(text).toContain("الموقع: https://maps.app.goo.gl/x");
     expect(text).not.toContain("Address:");
   });
+  it("warns staff when the barber is busy in the extra service hour", () => {
+    const text = staffMessage({ type: "new_request", details: { ...details, extra: "wavy_hair", extraHourBusy: true } }, "+96550000001", 12);
+    expect(text).toContain("خدمة إضافية: شعر ويفي");
+    expect(text).toContain("⚠️ الحلاق غير متاح في ساعة الخدمة الإضافية. تواصل مع العميل وأنشئ الحجز يدوياً من لوحة التحكم.");
+    expect(staffMessage({ type: "new_request", details: { ...details, extra: "wavy_hair" } }, "+96550000001", 12)).not.toContain("⚠️");
+  });
+
   it("copies a change request as written, and alerts when the AI fails", () => {
     expect(staffMessage({ type: "change", text: "ألغ الأحد" }, "+96550000001", null, [7])).toBe(["Client wants to change or cancel", "Client: +96550000001", "Requests: #7", "Message: ألغ الأحد"].join("\n"));
     expect(aiFailureMessage("+96550000001", "the AI account has no credit", ["أبي موعد", "بكرة"])).toBe(["WhatsApp AI could not answer", "Client: +96550000001", "Reason: the AI account has no credit", "The client got no reply. Please contact them.", "Client's messages:", "أبي موعد", "بكرة"].join("\n"));
@@ -169,9 +176,22 @@ describe("staff commands", () => {
     ["yes 12", { type: "approve", number: 12, barber: null }], ["YES #12 Lenny", { type: "approve", number: 12, barber: "Lenny" }], ["yes ١٢", { type: "approve", number: 12, barber: null }],
     ["no 12", { type: "reject", number: 12, reason: null }], ["no 12 barber is busy", { type: "reject", number: 12, reason: "barber is busy" }],
     ["ai on +96550000001", { type: "resume", phone: "+96550000001" }], ["AI ON 96550000001", { type: "resume", phone: "+96550000001" }],
-    ["hello", { type: "help" }], ["yes", { type: "help" }],
+    ["address 12 block 3, street 5", { type: "address", number: 12, text: "block 3, street 5" }], ["عنوان #١٢ قطعة 3", { type: "address", number: 12, text: "قطعة 3" }],
+    ["hello", { type: "help" }], ["yes", { type: "help" }], ["address 12", { type: "help" }],
   ])("reads %s", (text, command) => {
     expect(parseStaffCommand(text)).toEqual(command);
+  });
+
+  it("reads the parts of a new address, in English or Arabic, with a link that holds a comma", () => {
+    expect(parseStaffAddress("Block 3, street: 5, house 10, https://www.google.com/maps?q=29.3,48.0")).toEqual({ parts: { block: "3", street: "5", houseNumber: "10" }, mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
+    expect(parseStaffAddress("منطقة حولي، قطعة 3\nبناية البرج، شقة 4")).toEqual({ parts: { area: "حولي", block: "3", buildingName: "البرج", apartment: "4" }, mapsUrl: null });
+    expect(parseStaffAddress("https://maps.app.goo.gl/x")).toEqual({ parts: {}, mapsUrl: "https://maps.app.goo.gl/x" });
+  });
+
+  it("refuses an address part with an unknown name, two links, or nothing", () => {
+    expect(parseStaffAddress("block 3, near the mosque")).toBeNull();
+    expect(parseStaffAddress("https://maps.app.goo.gl/x https://maps.app.goo.gl/y")).toBeNull();
+    expect(parseStaffAddress(" , ")).toBeNull();
   });
 });
 

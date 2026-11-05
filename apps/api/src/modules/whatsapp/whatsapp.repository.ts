@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, areas, bookings, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
-import type { WhatsAppStaffAction } from "@just4kids/db/schema";
+import type { WhatsAppRequestDetails, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
 import { freeWholeHours } from "../availability/availability.service.js";
@@ -74,12 +74,19 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         .orderBy(desc(whatsappMessages.id)).limit(limit);
       return rows.reverse();
     },
+    /** When the client sent the message before this one, or null for their first message. */
+    async previousInboundAt(id: string, beforeId: number) {
+      const [row] = await db.select({ createdAt: whatsappMessages.createdAt }).from(whatsappMessages)
+        .where(and(eq(whatsappMessages.conversationId, id), eq(whatsappMessages.direction, "inbound"), lt(whatsappMessages.id, beforeId)))
+        .orderBy(desc(whatsappMessages.id)).limit(1);
+      return row?.createdAt ?? null;
+    },
     async requests(id: string) {
       return db.select({ number: whatsappRequests.number, details: whatsappRequests.details }).from(whatsappRequests).where(eq(whatsappRequests.conversationId, id)).orderBy(asc(whatsappRequests.number));
     },
     /** The barbers and areas the menus offer, always read from the dashboard's data. */
     async options() {
-      const barbers = await db.select({ id: employees.accountId, name: employees.displayName }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
+      const barbers = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
       return { barbers, areas: enabledAreas };
     },
@@ -170,6 +177,19 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
           { ...outbound, conversationId: staff.id, audience: "staff", turnId: randomUUID(), body: staffReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: staff.chatId },
           { ...outbound, conversationId: client.id, audience: "client", turnId: randomUUID(), body: clientReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: client.chatId, requestNumber: number },
           ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, audience: "staff" as const, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
+        ]);
+      }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
+    },
+    /** Replaces a pending request's details after a staff correction and sends the corrected request to every staff number; false when it was decided first. */
+    async changeRequestDetails(number: number, details: WhatsAppRequestDetails, client: { id: string }, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, others: { chatIds: string[]; text: string }, now: Date) {
+      return db.transaction(async transaction => {
+        const updated = await transaction.update(whatsappRequests).set({ details }).where(and(eq(whatsappRequests.number, number), eq(whatsappRequests.status, "pending")));
+        if (affected(updated) !== 1) transaction.rollback();
+        await transaction.update(whatsappMessages).set({ status: "done", completedAt: now }).where(eq(whatsappMessages.id, staffInboundId));
+        const outbound = { direction: "outbound" as const, audience: "staff" as const, status: "pending" as const, createdAt: now, requestNumber: number };
+        await transaction.insert(whatsappMessages).values([
+          { ...outbound, conversationId: staff.id, turnId: randomUUID(), body: staffReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: staff.chatId },
+          ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
         ]);
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },

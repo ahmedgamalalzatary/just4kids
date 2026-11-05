@@ -28,12 +28,14 @@ export const branchFormSchema = z.object({
 
 export const employeeCreateFormSchema = z.object({
   displayName: requiredText(120),
+  displayNameAr: optionalText(120),
   phone: phoneField,
   password: passwordField,
 });
 
 export const employeeEditFormSchema = z.object({
   displayName: requiredText(120),
+  displayNameAr: optionalText(120),
   phone: phoneField,
   enabled: z.boolean(),
   accessUntil: z.string().trim().transform(value => (value === "" ? null : value)).refine(value => value === null || z.iso.date().safeParse(value).success, "Enter a valid date"),

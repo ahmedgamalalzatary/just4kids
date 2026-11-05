@@ -22,9 +22,9 @@ import { employeeCreateFormSchema } from "@/lib/forms";
 function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const create = useCreateEmployee();
-  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", phone: "", password: "" } });
+  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", displayNameAr: "", phone: "", password: "" } });
   const errors = form.formState.errors;
-  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, phone: values.phone, password: values.password }, {
+  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, displayNameAr: values.displayNameAr, phone: values.phone, password: values.password }, {
     onSuccess: employee => { toast.success("Barber added"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
   }));
 
@@ -36,7 +36,8 @@ function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <DialogDescription>The barber logs in with this phone and password. Give them the password directly.</DialogDescription>
         </DialogHeader>
         <form id="employee-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-          <Field label="Name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="English name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="Arabic name" optional error={errors.displayNameAr?.message} hint="Shown to clients who chat on WhatsApp in Arabic. When empty, the English name is used."><Input {...form.register("displayNameAr")} dir="auto" /></Field>
           <Field label="Phone number" error={errors.phone?.message} hint="International format, e.g. +96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
           <Field label="Password" error={errors.password?.message} hint="At least 8 characters."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>

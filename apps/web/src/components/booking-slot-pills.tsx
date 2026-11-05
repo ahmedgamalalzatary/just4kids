@@ -8,6 +8,7 @@ import { ErrorState, LoadingRows, Ltr } from "@/components/page";
 import { VisitStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { keys, useCreateTimeBlock, useDayBookings, useDeleteTimeBlock, useSchedule } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
@@ -80,10 +81,11 @@ export function SlotPills({ barber, date, selected, selectedEnd, onSelect, onAva
   return (
     <div className="flex flex-col gap-3">
       {isAdmin ? <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant={managing ? "default" : "outline"} size="sm" aria-pressed={managing} disabled={busy}
-          onClick={() => { setManage(!manage); setShown(null); setPendingStart(null); setPendingEnd(null); resetAction(); onAvailabilityChange(); }}>
-          <Lock aria-hidden />Lock / unlock times
-        </Button>
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+          <Switch checked={managing} disabled={busy}
+            onCheckedChange={on => { setManage(on); setShown(null); setPendingStart(null); setPendingEnd(null); resetAction(); onAvailabilityChange(); }} />
+          <Lock className="size-4" aria-hidden />Lock / unlock times
+        </label>
         {managing ? <p className="text-sm text-muted-foreground">Select the start of the closed window, then its end; or a closed slot to unlock.</p> : null}
       </div> : null}
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={managing ? "Lock time" : "Start time"}>

@@ -95,7 +95,7 @@ beforeAll(async () => {
   await connection.db.insert(areas).values({ id: randomUUID(), name: areaName, createdAt: now, updatedAt: now });
   for (let day = 0; day < 7; day++) {
     await connection.db.insert(employeeWorkDays).values({ employeeId: barberId, dayOfWeek: day, active: true });
-    await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "08:00", endTime: "23:00" });
+    await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "05:00", endTime: "23:00" });
   }
   const { barbers } = await createWhatsAppRepository(connection).options();
   barberOption = String(barbers.findIndex(barber => barber.id === barberId) + 1);
@@ -165,12 +165,15 @@ async function toTimes(phone: string, barberChoice: string) {
 }
 // The number of a start time in the list the client was just sent.
 const timeOption = (time: string) => new RegExp(`^(\\d+)\\. ${time}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
-async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "6") {
+// The client sends the link first, then the written address, which the AI reads.
+async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "7") {
   await toTimes(phone, barberChoice);
   for (const text of [timeOption(time)!, extra, areaName, "https://www.google.com/maps?q=29.3,48.0"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+  h.answer({ reply: "", value: { block: "3", street: "5", houseNumber: "12" }, forward: null });
+  await deliver(h.app, payload(phone, "block 3 street 5 house 12")); await h.whatsapp.idle();
 }
 // Every test books its own window, because they all share one barber and date.
-let windowHour = 8;
+let windowHour = 5;
 const nextWindow = () => { const hour = windowHour++; return hour < 12 ? `${hour} am` : hour === 12 ? "12 pm" : `${hour - 12} pm`; };
 async function confirmed(phone: string, barberChoice = barberOption, time = nextWindow()) {
   await toConfirm(phone, barberChoice, time);
@@ -203,7 +206,8 @@ describe("WhatsApp booking flow", () => {
     expect(h.sent[0]!.text).toContain(`طلب حجز جديد من واتساب #${number}`);
     expect(h.sent[0]!.text).toContain(`الحلاق: ${barberName}`);
     expect(h.sent[0]!.text).toContain("الموقع: https://www.google.com/maps?q=29.3,48.0");
-    expect(h.aiCalls).toHaveLength(0);
+    expect(h.sent[0]!.text).toContain("العنوان: قطعة 3، شارع 5، منزل 12");
+    expect(h.aiCalls).toHaveLength(1);
   });
 
   it("keeps each sender's progress apart", async () => {
@@ -213,6 +217,20 @@ describe("WhatsApp booking flow", () => {
     await deliver(h.app, payload(second.phone, "مرحبا")); await h.whatsapp.idle();
     expect((await stored(first.phone)).conversation!.flow).toMatchObject({ step: "menu", language: "en" });
     expect((await stored(second.phone)).conversation!.flow).toMatchObject({ step: "language" });
+  });
+
+  it("starts the chat over after 15 minutes of silence, and continues before that", async () => {
+    const { phone } = client();
+    for (const text of ["مرحبا", "1", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect((await stored(phone)).conversation!.flow).toMatchObject({ step: "who" });
+    h.advance(14 * 60_000);
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    expect((await stored(phone)).conversation!.flow).toMatchObject({ step: "children", who: "boy" });
+    h.advance(15 * 60_000 + 1);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "2")); await h.whatsapp.idle();
+    expect((await stored(phone)).conversation!.flow).toEqual({ step: "language", language: null });
+    expect(h.sent[0]!.text).toContain("1. English\n2. العربية");
   });
 
   it("sends the AI the owner's prompt and the step rules only for free text", async () => {
@@ -237,7 +255,7 @@ describe("WhatsApp booking flow", () => {
 
   it("sends a change request to staff as written", async () => {
     const { phone } = client();
-    for (const text of ["مرحبا", "1", "6", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    for (const text of ["مرحبا", "1", "5", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     expect(h.sent.find(message => message.chatId === staffChat)?.text).toBe(`Client wants to change or cancel\nClient: ${phone}\nMessage: ألغ موعد الأحد`);
   });
 
@@ -330,7 +348,7 @@ describe("staff approval", () => {
     expect(requests[0]).toMatchObject({ status: "approved", bookingId: expect.any(String) });
     const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, requests[0]!.bookingId!));
     expect(booking).toMatchObject({ employeeId: barberId, childCount: 1, adultCount: 0, clientSnapshot: { phone } });
-    expect(booking!.addressSnapshot).toMatchObject({ area: areaName, block: "—", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
+    expect(booking!.addressSnapshot).toMatchObject({ area: areaName, block: "3", houseNumber: "12", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
     expect(h.sent[0]!.text).toContain(booking!.reference);
     h.sent.length = 0;
@@ -376,9 +394,11 @@ describe("staff approval", () => {
     expect(timeOption(nextWindow())).toBeDefined();
   });
 
-  it("puts the extra service on the staff message and as a note on the reservation", async () => {
+  it("puts the extra service on the staff message and as a note on the reservation, and adds an hour", async () => {
     const { phone } = client();
-    await toConfirm(phone, barberOption, nextWindow(), "1");
+    // The extra service takes the next hour too, so no later test may use it.
+    const time = nextWindow(); nextWindow();
+    await toConfirm(phone, barberOption, time, "1");
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
     const number = (await stored(phone)).requests.at(-1)!.number;
     expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain("خدمة إضافية: مانيكير + باديكير");
@@ -386,6 +406,7 @@ describe("staff approval", () => {
     const { requests: [request] } = await stored(phone);
     const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, request!.bookingId!));
     expect(booking!.notes).toBe("خدمة إضافية: مانيكير + باديكير");
+    expect(Number(booking!.endTime.slice(0, 2)) - Number(booking!.startTime.slice(0, 2))).toBe(2);
   });
 
   it("rejects with the reason and tells the client", async () => {
@@ -397,6 +418,39 @@ describe("staff approval", () => {
     expect(h.sent.at(-1)).toMatchObject({ chatId });
     expect(h.sent.at(-1)!.text).toContain("We are fully booked");
     expect(h.sent.at(-1)!.text).toContain("We could not confirm");
+  });
+
+  it("lets staff change the address of a pending request, and uses it on approval", async () => {
+    const { phone } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await fromStaff(`address ${number} street 7, house 20, floor 2, https://maps.app.goo.gl/new`);
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.chatId).toBe(staffChat);
+    expect(h.sent[0]!.text).toContain(`The address of #${number} was changed.`);
+    expect(h.sent[0]!.text).toContain("العنوان: قطعة 3، شارع 7، منزل 20، دور 2");
+    expect(h.sent[0]!.text).toContain("الموقع: https://maps.app.goo.gl/new");
+    expect((await stored(phone)).requests[0]!.details).toMatchObject({ area: areaName, address: { block: "3", street: "7", houseNumber: "20", floor: "2", mapsUrl: "https://maps.app.goo.gl/new" } });
+    await fromStaff(`yes ${number}`);
+    const { requests: [request] } = await stored(phone);
+    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, request!.bookingId!));
+    expect(booking!.addressSnapshot).toMatchObject({ block: "3", street: "7", houseNumber: "20", floor: "2", mapsUrl: "https://maps.app.goo.gl/new" });
+    h.sent.length = 0;
+    await fromStaff(`address ${number} street 9`);
+    expect(h.sent.at(-1)!.text).toBe(`Request #${number} was already approved.`);
+  });
+
+  it("keeps the address when the staff command is unclear, the area is unknown, or the link is not Google Maps", async () => {
+    const { phone } = client();
+    const number = await confirmed(phone);
+    const before = (await stored(phone)).requests[0]!.details;
+    await fromStaff(`address ${number} near the mosque`);
+    expect(h.sent.at(-1)!.text).toContain(`The address of #${number} was not changed.`);
+    await fromStaff(`address ${number} area Nowhere, block 1`);
+    expect(h.sent.at(-1)!.text).toBe(`Area "Nowhere" was not found. The address of #${number} was not changed.`);
+    await fromStaff(`address ${number} https://evil.example/x`);
+    expect(h.sent.at(-1)!.text).toContain("the link must be from Google Maps");
+    expect((await stored(phone)).requests[0]!.details).toEqual(before);
   });
 
   it("answers help for anything else and for an unknown request", async () => {
@@ -421,13 +475,14 @@ describe("main menu options", () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
-    await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "3")); await h.whatsapp.idle();
     expect(h.sent.map(message => [message.chatId, message.image?.mimetype])).toEqual([[chatId, "image/png"], [chatId, undefined]]);
     expect(h.sent[0]!.image).toEqual({ mimetype: "image/png", size: statSync(new URL("../assets/salon-price-list.png", import.meta.url)).size, filename: "salon-price-list.png" });
-    expect(h.sent[0]!.text).toBe("Salon price list");
+    expect(h.sent[0]!.text).toBe("Salon service");
+    expect(h.sent[1]!.text).toContain("Salon location");
     expect(h.sent[1]!.text).toContain("1. Book an appointment");
     await deliver(h.app, ownMessage(phone, "", { type: "image" }));
-    await deliver(h.app, ownMessage(phone, "Salon price list", { type: "image" }));
+    await deliver(h.app, ownMessage(phone, "Salon service", { type: "image" }));
     expect((await stored(phone)).conversation!.aiPaused).toBe(false);
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "2")); await h.whatsapp.idle();
@@ -439,7 +494,7 @@ describe("main menu options", () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
-    await deliver(h.app, payload(phone, "5")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
     expect(h.sent[0]!.text).toBe(`Client wants to talk to an employee\nClient: ${phone}\nThe AI is stopped for this client. To turn it back on: ai on ${phone}`);
     expect((await stored(phone)).conversation!.aiPaused).toBe(true);
@@ -491,6 +546,16 @@ describe("two staff numbers", () => {
     await from(second, `yes ${number}`);
     expect(h.sent).toEqual([expect.objectContaining({ chatId: secondChat, text: `Request #${number} was already rejected.` })]);
     expect((await stored(phone)).requests[0]!.status).toBe("rejected");
+  });
+
+  it("sends a changed address to the other number too", async () => {
+    const { phone } = client();
+    const number = await confirmed(phone);
+    h.sent.length = 0;
+    await from(second, `address ${number} house 30`);
+    expect(h.sent.map(message => message.chatId)).toEqual([secondChat, staffChat]);
+    expect(h.sent[1]!.text).toContain(`The address of #${number} was changed by ${second}.`);
+    expect(h.sent[1]!.text).toContain("منزل 30");
   });
 
   it("never treats either number as a client", async () => {

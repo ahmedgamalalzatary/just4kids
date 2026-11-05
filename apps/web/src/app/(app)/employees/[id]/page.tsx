@@ -70,12 +70,13 @@ function ProfileCard({ employee }: { employee: Employee }) {
   const update = useUpdateEmployee();
   const form = useForm({
     resolver: zodResolver(employeeEditFormSchema),
-    values: { displayName: employee.displayName, phone: employee.phone, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
+    values: { displayName: employee.displayName, displayNameAr: employee.displayNameAr ?? "", phone: employee.phone, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
   });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
     // Send only what changed, so an unchanged phone is never rewritten.
-    const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => (employee[key as keyof typeof values] ?? "") !== value));
+    // Empty optional fields arrive as null, the same as the saved value.
+    const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => (employee[key as keyof typeof values] ?? null) !== value));
     if (Object.keys(changes).length === 0) return;
     update.mutate({ id: employee.id, ...changes }, { onSuccess: () => toast.success("Barber details saved") });
   });
@@ -87,7 +88,8 @@ function ProfileCard({ employee }: { employee: Employee }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="English name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
+          <Field label="Arabic name" optional error={errors.displayNameAr?.message} hint="Shown to clients who chat on WhatsApp in Arabic. When empty, the English name is used."><Input {...form.register("displayNameAr")} dir="auto" /></Field>
           <Field label="Phone number" error={errors.phone?.message} hint="The barber uses this to log in."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
           <div className="flex items-center gap-3 self-end pb-2">
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />

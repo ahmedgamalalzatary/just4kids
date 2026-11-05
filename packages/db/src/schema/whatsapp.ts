@@ -4,8 +4,9 @@ import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mys
 // price_list is the home list; the salon list has its own photo.
 export type WhatsAppMedia = "price_list" | "salon_price_list";
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
-export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "adults" | "family";
-export type WhatsAppExtra = "manicure_pedicure" | "manicure" | "pedicure" | "hair_wash" | "hair_wash_treatment";
+export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "medical" | "adults" | "family";
+// hair_wash is no longer offered; older requests keep it.
+export type WhatsAppExtra = "manicure_pedicure" | "manicure" | "pedicure" | "hair_wash" | "hair_wash_treatment" | "blow_dry_styling" | "wavy_hair";
 export type WhatsAppRequestDetails = {
   // The language of this request, for the client's approval or rejection; the chat's language restarts after each request. Older requests have none.
   language?: "en" | "ar" | null;
@@ -17,6 +18,8 @@ export type WhatsAppRequestDetails = {
   date: string; startTime: string; endTime: string; areaId: string; area: string; address: WhatsAppAddress;
   // Older requests have none; null means the client chose no extra service.
   extra?: WhatsAppExtra | null;
+  // An extra service adds an hour; true when the barber was not free in that hour, so staff arrange the visit by hand.
+  extraHourBusy?: boolean;
 };
 export type WhatsAppStaffAction =
   | ({ type: "new_request"; requestNumber: number } & WhatsAppRequestDetails)
@@ -30,11 +33,14 @@ export type WhatsAppFlow = {
   // The step to return to after the client changes language in the middle of a booking.
   resume?: WhatsAppFlowStep;
   who?: WhatsAppWho; adults?: number; children?: number;
-  barber?: { id: string; name: string } | null;
-  date?: string; startTime?: string; endTime?: string; extra?: WhatsAppExtra | null;
+  // name is the English name; nameAr is shown to Arabic chats when set.
+  barber?: { id: string; name: string; nameAr?: string | null } | null;
+  date?: string; startTime?: string; endTime?: string; extra?: WhatsAppExtra | null; extraHourBusy?: boolean;
   // What the numbers of the last sent date, time or duration list stand for, so a list that changed since keeps its meaning.
   offered?: string[];
   area?: { id: string; name: string }; address?: WhatsAppAddress;
+  // The half of the address sent so far: the client must send both the written address and a Google Maps link.
+  draft?: { written?: Omit<WhatsAppAddress, "mapsUrl">; mapsUrl?: string };
 };
 
 export const whatsappConversations = mysqlTable("whatsapp_conversations", {

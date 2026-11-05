@@ -4,9 +4,10 @@ import { HttpError } from "../../lib/http-error.js";
 import type { BookingRepository } from "../bookings/booking.repository.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, bookingDays, clientApproved, clientRejected, extraNote, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientApproved, clientRejected, extraNote, IDLE_RESET_MS, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
-import { aiFailureMessage, parseStaffCommand, staffHelp } from "./messages.js";
+import { addressCreateSchema } from "@just4kids/contracts";
+import { addressHelp, aiFailureMessage, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
 import type { OpenWa, Photo } from "./openwa.js";
 import type { WhatsAppRepository } from "./whatsapp.repository.js";
 
@@ -61,6 +62,25 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const { request, conversation: client } = found;
     if (request.status !== "pending") { await repository.answerPlainly(staff, message.id, `Request #${command.number} was already ${request.status}.`, now()); return; }
     const language = request.details.language ?? client.flow?.language ?? null;
+    if (command.type === "address") {
+      const parsed = parseStaffAddress(command.text);
+      if (!parsed) { await repository.answerPlainly(staff, message.id, `The address of #${command.number} was not changed.\n${addressHelp()}`, now()); return; }
+      const { parts: { area: areaName, ...written }, mapsUrl } = parsed;
+      const area = areaName ? (await repository.options()).areas.find(item => item.name.toLowerCase() === areaName.toLowerCase()) : { id: request.details.areaId, name: request.details.area };
+      if (!area) { await repository.answerPlainly(staff, message.id, `Area "${areaName}" was not found. The address of #${command.number} was not changed.`, now()); return; }
+      const address = { ...request.details.address, ...written, ...(mapsUrl ? { mapsUrl } : {}) };
+      if (!addressCreateSchema.safeParse({ area: area.name, ...address }).success) {
+        await repository.answerPlainly(staff, message.id, `The address of #${command.number} was not changed: it needs a block, a street, a house or building, and the link must be from Google Maps.\n${addressHelp()}`, now());
+        return;
+      }
+      const details = { ...request.details, areaId: area.id, area: area.name, address };
+      const updated = staffMessage({ type: "new_request", details }, client.phone, command.number);
+      const changed = await repository.changeRequestDetails(command.number, details, client, staff, message.id, `The address of #${command.number} was changed.\n\n${updated}`, { chatIds: otherStaff(staff.phone), text: `The address of #${command.number} was changed by ${staff.phone}.\n\n${updated}` }, now());
+      if (!changed) { await repository.answerPlainly(staff, message.id, `Request #${command.number} was already decided. Change the reservation in the dashboard.`, now()); return; }
+      await sendPending(staff.id);
+      await process(client.id, false);
+      return;
+    }
     if (command.type === "reject") {
       await repository.reject(command.number, client, clientRejected(language, command.reason), staff, message.id, `Request #${command.number} rejected. The client was told.`, { chatIds: otherStaff(staff.phone), text: `Request #${command.number} was rejected by ${staff.phone}${command.reason ? `: ${command.reason}` : "."}\nIt can no longer be changed here.` }, now());
       await sendPending(staff.id);
@@ -69,7 +89,8 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     }
     const { barbers } = await repository.options();
     const details = request.details;
-    const barber = command.barber ? barbers.find(item => item.name.toLowerCase() === command.barber!.toLowerCase()) : barbers.find(item => item.id === details.barberId);
+    const named = command.barber?.toLowerCase();
+    const barber = named ? barbers.find(item => item.name.toLowerCase() === named || item.nameAr?.toLowerCase() === named) : barbers.find(item => item.id === details.barberId);
     if (!barber) {
       await repository.answerPlainly(staff, message.id, `Choose a barber for #${command.number}: yes ${command.number} <name>\nBarbers: ${barbers.map(item => item.name).join(", ")}`, now());
       return;
@@ -82,7 +103,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
         { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren, ...(details.extra ? { notes: extraNote(details.extra) } : {}) },
         { phone: client.phone, address: { areaId: details.areaId, area: details.area, ...address } },
         administrator,
-        (transaction, booking) => repository.settleApproval(transaction, command.number, booking.id, client, clientApproved(language, details, barber.name), staff, message.id, `Request #${command.number} approved. Reservation ${booking.reference} created with ${barber.name}. The client was told.`, { chatIds: otherStaff(staff.phone), text: `Request #${command.number} was approved by ${staff.phone}. Reservation ${booking.reference} created with ${barber.name}.\nIt can no longer be changed here.` }, now()),
+        (transaction, booking) => repository.settleApproval(transaction, command.number, booking.id, client, clientApproved(language, details, barberName(barber, language)), staff, message.id, `Request #${command.number} approved. Reservation ${booking.reference} created with ${barber.name}. The client was told.`, { chatIds: otherStaff(staff.phone), text: `Request #${command.number} was approved by ${staff.phone}. Reservation ${booking.reference} created with ${barber.name}.\nIt can no longer be changed here.` }, now()),
       );
     } catch (error) {
       // The reservation rules refused it, for example the barber is busy: nothing was saved, so staff can decide again. A decision that came first rolled it back too.
@@ -112,7 +133,11 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const context: FlowContext = { ...options, now: today, free: await repository.freeHours(options.barbers.map(barber => barber.id), bookingDays(today)) };
     const requests = (await repository.requests(id)).map(request => request.number);
     let flow = conversation.flow;
+    let lastAt = await repository.previousInboundAt(id, inbound[0]!.id);
     for (const message of inbound) {
+      // After a long silence the chat starts over, so a half-finished booking does not continue.
+      if (lastAt && message.createdAt.getTime() - lastAt.getTime() > IDLE_RESET_MS) flow = null;
+      lastAt = message.createdAt;
       try {
         const turn = await advance(flow, message.body, context, async state => {
           const history = await repository.history(id, HISTORY_LIMIT);

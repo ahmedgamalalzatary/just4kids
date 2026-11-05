@@ -20,12 +20,12 @@ export function createEmployeeRepository(connection: ReturnType<typeof createDat
       return row;
     },
 
-    async create(input: { displayName: string; phone: string; passwordHash: string }) {
+    async create(input: { displayName: string; displayNameAr: string | null; phone: string; passwordHash: string }) {
       const id = randomUUID();
       const now = new Date();
       await db.transaction(async transaction => {
         await transaction.insert(accounts).values({ id, phone: input.phone, role: "employee", passwordHash: input.passwordHash, createdAt: now, updatedAt: now });
-        await transaction.insert(employees).values({ accountId: id, displayName: input.displayName, createdAt: now, updatedAt: now });
+        await transaction.insert(employees).values({ accountId: id, displayName: input.displayName, displayNameAr: input.displayNameAr, createdAt: now, updatedAt: now });
       });
       return this.get(id);
     },
@@ -47,6 +47,7 @@ export function createEmployeeRepository(connection: ReturnType<typeof createDat
         }
         await transaction.update(employees).set({
           ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+          ...(input.displayNameAr !== undefined ? { displayNameAr: input.displayNameAr } : {}),
           updatedAt: now,
         }).where(eq(employees.accountId, id));
         if ((input.phone !== undefined && input.phone !== account.phone) || input.enabled === false) {
