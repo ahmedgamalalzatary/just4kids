@@ -1,4 +1,4 @@
-import type { WhatsAppAddress, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
+import type { WhatsAppAddress, WhatsAppHospital, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import { extraNote, NOT_PROVIDED, type StaffNotice } from "./flow.js";
 
 const ADDRESS_FORMAT = "address 12 block 3, street 5, house 10, https://maps.app.goo.gl/...";
@@ -6,6 +6,7 @@ const STAFF_HELP = `Commands:\nyes 12 — approve request 12\nyes 12 Lenny — a
 export const addressHelp = () => `Write the parts to change, separated by commas, for example:\n${ADDRESS_FORMAT}\nParts: area, block, street, house, building, avenue, floor, apartment, and a Google Maps link. Arabic names work too (منطقة، قطعة، شارع، منزل، بناية، جادة، دور، شقة). Parts you leave out stay as they are.`;
 
 const WHO_LABELS: Record<WhatsAppWho, string> = { boy: "ولد", girl: "بنت", baby: "رضيع", special: "ذوو احتياجات خاصة", both: "ولد وبنت", medical: "خدمة حالة مرضية", adults: "كبار", family: "كبار وأطفال" };
+export const hospitalNote = (hospital: WhatsAppHospital) => `المستشفى: جناح ${hospital.wing}، دور ${hospital.floor}، غرفة ${hospital.room}`;
 
 function requestLines(details: WhatsAppRequestDetails) {
   const { address } = details;
@@ -13,9 +14,10 @@ function requestLines(details: WhatsAppRequestDetails) {
   const typed = parts.filter(([, value]) => value && value !== NOT_PROVIDED).map(([label, value]) => `${label} ${value}`).join("، ");
   return [
     ...(details.who ? [`لمن: ${WHO_LABELS[details.who]}`] : []), `الكبار: ${details.adults}`, `الأطفال: ${details.children}`, ...(details.specialChildren ? [`ذوو احتياجات خاصة: ${details.specialChildren}`] : []),
+    ...(details.visitType ? [`نوع الزيارة: ${details.visitType === "hospital" ? "مستشفى" : "منزل"}`] : []),
     `الحلاق: ${details.barberName ?? "أي حلاق (يختار الموظف)"}`, `التاريخ: ${details.date}`, `الوقت: ${details.startTime} - ${details.endTime}`, ...(details.extra ? [extraNote(details.extra)] : []),
     ...(details.extraHourBusy ? ["⚠️ الحلاق غير متاح في ساعة الخدمة الإضافية. تواصل مع العميل وأنشئ الحجز يدوياً من لوحة التحكم."] : []),
-    `المنطقة: ${details.area}`, ...(typed ? [`العنوان: ${typed}`] : []), ...(address.mapsUrl ? [`الموقع: ${address.mapsUrl}`] : []),
+    `المنطقة: ${details.area}`, ...(details.hospital ? [`موقع المستشفى: جناح ${details.hospital.wing}، دور ${details.hospital.floor}، غرفة ${details.hospital.room}`] : []), ...(typed ? [`العنوان: ${typed}`] : []), ...(address.mapsUrl ? [`الموقع: ${address.mapsUrl}`] : []),
   ];
 }
 

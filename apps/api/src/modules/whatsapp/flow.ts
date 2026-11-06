@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { addressCreateSchema } from "@just4kids/contracts";
-import type { WhatsAppAddress, WhatsAppExtra, WhatsAppFlow, WhatsAppFlowStep, WhatsAppMedia, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
+import { ADDRESS_NOT_PROVIDED, addressCreateSchema } from "@just4kids/contracts";
+import type { WhatsAppAddress, WhatsAppExtra, WhatsAppFlow, WhatsAppFlowStep, WhatsAppHospital, WhatsAppMedia, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import type { Interpretation } from "./ai.js";
 
 // Shown in the reservation when the client sent only a location link; staff can complete it in the dashboard.
-export const NOT_PROVIDED = "—";
+export const NOT_PROVIDED = ADDRESS_NOT_PROVIDED;
 // A client silent for longer than this starts again from the language list; an unconfirmed request is dropped.
 export const IDLE_RESET_MS = 15 * 60_000;
 const SALON_LOCATION ="https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en";
@@ -22,7 +22,7 @@ type Language = "en" | "ar";
 
 const copy = {
   en: {
-    changeLanguage: "Change language / تغيير اللغة", back: "Back to the previous step", languageSet: "✅ Language: English",
+    back: "Back to the previous step", languageSet: "✅ Language: English",
     menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", talk: "Talk to an employee", salonService: "Salon service", homePrices: "Home service price list", salonLocation: "Salon location", pick: "Send a number to choose.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Medical condition service"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
@@ -30,13 +30,16 @@ const copy = {
     am: "am", pm: "pm", noon: "pm",
     noTimes: "⚠️ This barber has no free times in the next 7 days. Please choose another barber.", taken: "⚠️ That time is no longer free. Please choose again.",
     extra: "💅 Any extra service? It adds one hour to the visit.", noExtra: "No service", extraLine: "💅 Extra service:",
+    visitType: "🏠 Is this visit at home or in a hospital?", home: "Home", hospital: "Hospital",
     area: "📍 Which area in Kuwait?", areaInvalid: "⚠️ We could not find that area in Kuwait. Please send the area name again.",
-    address: "📍 Please write your address (block, street, house or building) and send your location as a Google Maps link. Both are needed.",
+    address: "📍 Please write your address (block, street, house or building) or send your location as a Google Maps link.",
     addressInvalid: "⚠️ Please write the block, street and house or building.",
-    needLink: "📍 Thank you. Now send your location as a Google Maps link.", needWritten: "📍 Thank you. Now write your address (block, street, house or building).",
+    hospitalAddress: "📍 Please send the hospital location: wing, floor, and room, or send a Google Maps link.",
+    hospitalInvalid: "⚠️ Please send the hospital wing, floor, and room, or a Google Maps link.",
     linkInvalid: "⚠️ That is not a Google Maps link. Please send your location from Google Maps.",
-    confirmHead: "Please confirm your request:", service: "✂️ Hair Cut — Home Service",
+    confirmHead: "Please confirm your request:", service: "✂️ Hair Cut — Home Service", hospitalService: "✂️ Hair Cut — Hospital Service",
     forLine: (adults: number, children: number) => `👶 Adults: ${adults} · Kids: ${children}`, barberLine: "💈 Barber:", addressLine: "📍 Address:", locationLine: "📍 Location:",
+    hospitalLine: "🏥 Hospital location:", hospitalParts: (hospital: WhatsAppHospital) => `Wing ${hospital.wing}, Floor ${hospital.floor}, Room ${hospital.room}`,
     requestNote: "This is a request — our team will confirm the exact time.", confirm: "Confirm ✅", startOver: "Start over ❌",
     sent: "✅ Your request was sent to our team. They will contact you to confirm.",
     changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.", talkSent: "✅ We told our team. An employee will contact you soon.",
@@ -45,7 +48,7 @@ const copy = {
     rejected: (reason: string | null) => `❌ We could not confirm your request.${reason ? `\n${reason}` : ""}\nA staff member will contact you if needed.`,
   },
   ar: {
-    changeLanguage: "Change language / تغيير اللغة", back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
+    back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
     menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", talk: "التحدث مع موظف", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "خدمة حالة مرضية"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
@@ -53,13 +56,16 @@ const copy = {
     am: "صباحاً", pm: "مساءً", noon: "ظهراً",
     noTimes: "⚠️ لا توجد أوقات متاحة لهذا الحلاق خلال الأيام السبعة القادمة. اختر حلاقاً آخر.", taken: "⚠️ هذا الوقت لم يعد متاحاً. اختر مرة أخرى.",
     extra: "💅 هل تريد خدمة إضافية؟ تضيف ساعة إلى مدة الزيارة.", noExtra: "بدون خدمة", extraLine: "💅 خدمة إضافية:",
+    visitType: "🏠 هل الزيارة في المنزل أم في المستشفى؟", home: "المنزل", hospital: "المستشفى",
     area: "📍 في أي منطقة في الكويت؟", areaInvalid: "⚠️ لم نجد هذه المنطقة في الكويت. أرسل اسم المنطقة مرة أخرى.",
-    address: "📍 اكتب عنوانك (القطعة، الشارع، المنزل أو البناية) وأرسل موقعك كرابط خرائط Google. كلاهما مطلوب.",
+    address: "📍 اكتب عنوانك (القطعة، الشارع، المنزل أو البناية) أو أرسل موقعك كرابط خرائط Google.",
     addressInvalid: "⚠️ اكتب القطعة والشارع والمنزل أو البناية.",
-    needLink: "📍 شكراً. الآن أرسل موقعك كرابط خرائط Google.", needWritten: "📍 شكراً. الآن اكتب عنوانك (القطعة، الشارع، المنزل أو البناية).",
+    hospitalAddress: "📍 أرسل موقع المستشفى: الجناح، الدور، والغرفة، أو أرسل رابط خرائط Google.",
+    hospitalInvalid: "⚠️ أرسل جناح المستشفى والدور والغرفة، أو أرسل رابط خرائط Google.",
     linkInvalid: "⚠️ هذا ليس رابط خرائط Google. أرسل موقعك من خرائط Google.",
-    confirmHead: "يرجى تأكيد طلبك:", service: "✂️ قص شعر — خدمة منزلية",
+    confirmHead: "يرجى تأكيد طلبك:", service: "✂️ قص شعر — خدمة منزلية", hospitalService: "✂️ قص شعر — خدمة مستشفى",
     forLine: (adults: number, children: number) => `👶 الكبار: ${adults} · الأطفال: ${children}`, barberLine: "💈 الحلاق:", addressLine: "📍 العنوان:", locationLine: "📍 الموقع:",
+    hospitalLine: "🏥 موقع المستشفى:", hospitalParts: (hospital: WhatsAppHospital) => `جناح ${hospital.wing}، دور ${hospital.floor}، غرفة ${hospital.room}`,
     requestNote: "هذا طلب — سيؤكد فريقنا الوقت المحدد.", confirm: "تأكيد ✅", startOver: "البدء من جديد ❌",
     sent: "✅ تم إرسال طلبك إلى فريقنا. سيتواصلون معك للتأكيد.",
     changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.", talkSent: "✅ أبلغنا فريقنا. سيتواصل معك موظف قريباً.",
@@ -115,26 +121,31 @@ export function clientRejected(language: Language | null, reason: string | null)
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
-  if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.talk, text.change, text.back, text.changeLanguage];
+  if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.talk, text.change, text.back];
   if (state.step === "who") return [...text.whoOptions, text.back];
   if (state.step === "barber") return [...context.barbers.map(barber => barberName(barber, language)), text.back];
   const choices = state.offered ?? freshChoices(state, context) ?? [];
   if (state.step === "date") return [...choices.map(date => dateLabel(date, language)), text.back];
   if (state.step === "time") return [...choices.map(time => hourLabel(time, language)), text.back];
   if (state.step === "extra") return [...extraValues.map(extra => extraLabel(extra, language)), text.noExtra, text.back];
+  if (state.step === "visitType") return [text.home, text.hospital, text.back];
   if (state.step === "confirm") return [text.confirm, text.startOver, text.back];
   return [];
 }
 
 function summary(state: WhatsAppFlow, context: FlowContext, language: Language) {
   const text = copy[language], address = state.address!;
+  const hospital = state.visitType === "hospital";
   const typed = [address.block, address.street, address.houseNumber ?? address.buildingName].filter(part => part && part !== NOT_PROVIDED).join(", ");
+  const location = hospital
+    ? `${text.hospitalLine} ${[state.area!.name, state.hospital ? text.hospitalParts(state.hospital) : null].filter(Boolean).join(", ")}`
+    : `${text.addressLine} ${[state.area!.name, typed].filter(Boolean).join(", ")}`;
   return [
-    text.confirmHead, "", text.service, text.forLine(state.adults ?? 0, state.children ?? 0),
+    text.confirmHead, "", hospital ? text.hospitalService : text.service, text.forLine(state.adults ?? 0, state.children ?? 0),
     `${text.barberLine} ${state.barber ? barberName(state.barber, language) : text.any}`,
     `📅 ${dateLabel(state.date!, language)} · ${state.startTime} - ${state.endTime}`,
     ...(state.extra ? [`${text.extraLine} ${extraLabel(state.extra, language)}`] : []),
-    `${text.addressLine} ${[state.area!.name, typed].filter(Boolean).join(", ")}`,
+    location,
     ...(address.mapsUrl ? [`${text.locationLine} ${address.mapsUrl}`] : []),
     "", text.requestNote, "", numbered(options(state, context, language)),
   ].join("\n");
@@ -153,8 +164,9 @@ export function render(state: WhatsAppFlow, context: FlowContext) {
     case "date": return `${text.date}\n\n${numbered(options(state, context, language))}`;
     case "time": return `${text.time(dateLabel(state.date!, language))}\n\n${numbered(options(state, context, language))}`;
     case "extra": return `${text.extra}\n\n${numbered(options(state, context, language))}`;
+    case "visitType": return `${text.visitType}\n\n${numbered(options(state, context, language))}`;
     case "area": return text.area;
-    case "address": return state.draft?.written ? text.needLink : state.draft?.mapsUrl ? text.needWritten : text.address;
+    case "address": return state.visitType === "hospital" ? text.hospitalAddress : text.address;
     case "confirm": return summary(state, context, language);
     case "change": return text.changeAsk;
   }
@@ -176,12 +188,9 @@ function details(state: WhatsAppFlow): WhatsAppRequestDetails {
   return {
     language: state.language, who: state.who ?? null, adults: state.adults ?? 0, children: state.children ?? 0, specialChildren: state.who === "special" ? state.children ?? 0 : 0,
     barberId: state.barber?.id ?? null, barberName: state.barber?.name ?? null, extra: state.extra ?? null, ...(state.extraHourBusy ? { extraHourBusy: true } : {}),
+    visitType: state.visitType ?? "home", ...(state.hospital ? { hospital: state.hospital } : {}),
     date: state.date!, startTime: state.startTime!, endTime: state.endTime!, areaId: state.area!.id, area: state.area!.name, address: state.address!,
   };
-}
-
-function chooseLanguageStep(state: WhatsAppFlow, context: FlowContext) {
-  return move({ ...state, resume: state.step }, "language", context);
 }
 
 /** The step the "back" option of a list returns to. */
@@ -194,6 +203,8 @@ function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
     case "date": return "barber";
     case "time": return "date";
     case "extra": return "time";
+    case "visitType": return "extra";
+    case "area": return "visitType";
     case "confirm": return "address";
     default: return state.step;
   }
@@ -225,7 +236,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
         case 3: return { ...move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`), image: { media: "salon_price_list", caption: copy[language].salonService } };
         case 4: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
         case 5: return move(state, "change", context);
-        default: return chooseLanguageStep(state, context);
+        default: return null;
       }
     case "who": {
       const who = whoValues[choice - 1]!;
@@ -244,10 +255,16 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       const extra = extraValues[choice - 1] ?? null, hour = hourOf(state.startTime!);
       const rest = { ...state };
       delete rest.extraHourBusy;
-      if (!extra) return move({ ...rest, extra, endTime: clock(hour + 1) }, "area", context);
+      if (!extra) return move({ ...rest, extra, endTime: clock(hour + 1) }, "visitType", context);
       // The request is still sent when the extra hour is taken; staff see it flagged and arrange the visit.
       const busy = !(barberFree(state, context)[state.date!] ?? []).includes(clock(hour + 1));
-      return move({ ...rest, extra, endTime: clock((hour + 2) % 24), ...(busy ? { extraHourBusy: true } : {}) }, "area", context);
+      return move({ ...rest, extra, endTime: clock((hour + 2) % 24), ...(busy ? { extraHourBusy: true } : {}) }, "visitType", context);
+    }
+    case "visitType": {
+      const visitType = choice === 1 ? "home" as const : "hospital" as const;
+      const next = { ...state, visitType };
+      if (visitType === "home") delete next.hospital;
+      return move(next, "area", context);
     }
     case "confirm":
       if (choice === 2) return move({ step: "language", language: null }, "language", context);
@@ -264,29 +281,50 @@ function applyCount(state: WhatsAppFlow, count: number, context: FlowContext): T
 }
 
 type WrittenInput = { [Key in keyof Omit<WhatsAppAddress, "mapsUrl">]?: string | null | undefined };
+type HospitalInput = { wing?: string | null | undefined; floor?: string | null | undefined; room?: string | null | undefined };
 const linkIn = (text: string) => /https?:\/\/\S+/.exec(text)?.[0] ?? null;
 const isGoogleMapsLink = (link: string) => addressCreateSchema.shape.mapsUrl.safeParse(link).success;
 
-/** Keeps each half of the address the client sent; the request continues only once both the written address and the Google Maps link are in. */
-function applyAddress(state: WhatsAppFlow, input: WrittenInput | null, link: string | null, context: FlowContext): Turn {
+/** A complete address for a link-only or hospital visit; the home fields that do not apply stay unused. */
+function unusedHomeAddress(mapsUrl: string | null): WhatsAppAddress {
+  return { block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED, buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl };
+}
+const trimmed = (value: string | null | undefined) => value?.trim() || null;
+function hospitalFrom(input: HospitalInput): WhatsAppHospital | null {
+  const wing = trimmed(input.wing), floor = trimmed(input.floor), room = trimmed(input.room);
+  return wing && floor && room ? { wing, floor, room } : null;
+}
+
+function applyHospitalAddress(state: WhatsAppFlow, input: HospitalInput | null, link: string | null, context: FlowContext): Turn {
   const text = copy[state.language ?? "ar"];
   if (link && !isGoogleMapsLink(link)) return stay(state, context, text.linkInvalid);
-  const draft = { ...state.draft, ...(link ? { mapsUrl: link } : {}) };
+  const hospital = (input ? hospitalFrom(input) : null) ?? state.hospital;
+  if (!link && !hospital) return stay(state, context, text.hospitalInvalid);
+  const next: WhatsAppFlow = { ...state, address: unusedHomeAddress(link) };
+  if (hospital) next.hospital = hospital;
+  else delete next.hospital;
+  return move(next, "confirm", context);
+}
+
+/** The written address or the Google Maps link is enough; sending both is also allowed. */
+function applyAddress(state: WhatsAppFlow, input: WrittenInput | HospitalInput | null, link: string | null, context: FlowContext): Turn {
+  if (state.visitType === "hospital") return applyHospitalAddress(state, input, link, context);
+  const text = copy[state.language ?? "ar"];
+  if (link && !isGoogleMapsLink(link)) return stay(state, context, text.linkInvalid);
+  const previous = state.draft, mapsUrl = link ?? previous?.mapsUrl ?? null;
+  let written = previous?.written;
   if (input) {
-    const part = (value: string | null | undefined) => value?.trim() || null;
-    const written = {
-      block: part(input.block) ?? "", street: part(input.street) ?? "", houseNumber: part(input.houseNumber), buildingName: part(input.buildingName),
-      avenue: part(input.avenue), floor: part(input.floor), apartment: part(input.apartment),
+    const home = input as WrittenInput;
+    written = {
+      block: trimmed(home.block) ?? "", street: trimmed(home.street) ?? "", houseNumber: trimmed(home.houseNumber), buildingName: trimmed(home.buildingName),
+      avenue: trimmed(home.avenue), floor: trimmed(home.floor), apartment: trimmed(home.apartment),
     };
-    if (!addressCreateSchema.safeParse({ area: state.area!.name, ...written }).success) return stay({ ...state, draft }, context, text.addressInvalid);
-    draft.written = written;
+    if (!addressCreateSchema.safeParse({ area: state.area!.name, ...written }).success) return stay({ ...state, draft: { ...previous, ...(mapsUrl ? { mapsUrl } : {}) } }, context, text.addressInvalid);
   }
-  if (draft.written && draft.mapsUrl) {
-    const next: WhatsAppFlow = { ...state, address: { ...draft.written, mapsUrl: draft.mapsUrl } };
-    delete next.draft;
-    return move(next, "confirm", context);
-  }
-  return move({ ...state, draft }, "address", context);
+  if (!written && !mapsUrl) return stay(state, context, text.address);
+  const next: WhatsAppFlow = { ...state, address: written ? { ...written, mapsUrl } : unusedHomeAddress(mapsUrl) };
+  delete next.draft;
+  return move(next, "confirm", context);
 }
 /** A new address step starts empty. */
 function toAddress(state: WhatsAppFlow, area: { id: string; name: string }, context: FlowContext) {
@@ -323,6 +361,7 @@ const valueSchemas = {
   area: z.object({ area: z.string() }),
   date: z.object({ date: z.iso.date() }),
   address: z.object({ block: z.string().nullish(), street: z.string().nullish(), houseNumber: z.string().nullish(), buildingName: z.string().nullish(), avenue: z.string().nullish(), floor: z.string().nullish(), apartment: z.string().nullish() }),
+  hospital: z.object({ wing: z.string().nullish(), floor: z.string().nullish(), room: z.string().nullish() }),
 };
 
 /** Applies what the AI read from free text; everything is checked here, so the AI cannot skip a step or invent a value. */
@@ -337,6 +376,10 @@ function applyValue(state: WhatsAppFlow, value: Record<string, unknown>, context
     return area ? toAddress(state, area, context) : stay(state, context, copy[state.language ?? "ar"].areaInvalid);
   }
   if (state.step === "address") {
+    if (state.visitType === "hospital") {
+      const parsed = valueSchemas.hospital.safeParse(value);
+      return parsed.success ? applyHospitalAddress(state, parsed.data, link, context) : null;
+    }
     const parsed = valueSchemas.address.safeParse(value);
     return parsed.success ? applyAddress(state, parsed.data, link, context) : null;
   }
@@ -357,7 +400,9 @@ export function stepInstructions(state: WhatsAppFlow, context: FlowContext) {
     adults: '{"count": <number of adults>}', children: '{"count": <number of children>}',
     date: '{"date": "YYYY-MM-DD"} or {"choice": <option number>}',
     area: `{"area": "<one exact name from this list>"} only when you are sure which area the client means. Areas: ${context.areas.map(area => area.name).join(" | ")}`,
-    address: '{"block": "...", "street": "...", "houseNumber": "...", "buildingName": "...", "avenue": "...", "floor": "...", "apartment": "..."} with null for anything the client did not write. Leave out any link; the code reads it',
+    address: state.visitType === "hospital"
+      ? '{"wing": "...", "floor": "...", "room": "..."} with null for anything the client did not write. Leave out any link; the code reads it'
+      : '{"block": "...", "street": "...", "houseNumber": "...", "buildingName": "...", "avenue": "...", "floor": "...", "apartment": "..."} with null for anything the client did not write. Leave out any link; the code reads it',
   };
   return `## Technical rules (fixed by the system)
 
@@ -391,7 +436,7 @@ export async function advance(state: WhatsAppFlow | null, text: string, context:
   const link = state.step === "address" ? linkIn(westernDigits(text)) : null;
   const applied = answer.value ? applyValue(state, answer.value, context, link) : null;
   if (applied) return applied;
-  // The client sent a link with text the AI could not read as an address: keep the link and ask for the written address.
+  // The client sent a link with text the AI could not read as an address: the link alone is enough.
   if (link) return applyAddress(state, null, link, context);
   const language = state.language ?? "ar";
   return stay(state, context, answer.reply || copy[language].invalid, answer.forward ? { type: "forward", summary: answer.forward } : undefined);

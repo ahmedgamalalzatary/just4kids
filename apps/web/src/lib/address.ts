@@ -1,3 +1,5 @@
+import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
+
 type AddressLike = {
   area: string; block: string; street: string; houseNumber: string | null; buildingName: string | null;
   avenue?: string | null; gate?: string | null; blueNumber?: string | null;
@@ -6,17 +8,18 @@ type AddressLike = {
 
 /** One-line Kuwaiti address: area, block, street, then house or building details. */
 export function formatAddress(address: AddressLike): string {
+  const shown = (value: string | null | undefined) => value && value !== ADDRESS_NOT_PROVIDED ? value : null;
   return [
     address.area,
-    `Block ${address.block}`,
-    `Street ${address.street}`,
-    address.houseNumber ? `House ${address.houseNumber}` : null,
-    address.buildingName ? `Building ${address.buildingName}` : null,
-    address.floor ? `Floor ${address.floor}` : null,
-    address.apartment ? `Apartment ${address.apartment}` : null,
-    address.avenue ? `Avenue ${address.avenue}` : null,
-    address.gate ? `Gate ${address.gate}` : null,
-    address.blueNumber ? `Blue number ${address.blueNumber}` : null,
+    shown(address.block) ? `Block ${address.block}` : null,
+    shown(address.street) ? `Street ${address.street}` : null,
+    shown(address.houseNumber) ? `House ${address.houseNumber}` : null,
+    shown(address.buildingName) ? `Building ${address.buildingName}` : null,
+    shown(address.floor) ? `Floor ${address.floor}` : null,
+    shown(address.apartment) ? `Apartment ${address.apartment}` : null,
+    shown(address.avenue) ? `Avenue ${address.avenue}` : null,
+    shown(address.gate) ? `Gate ${address.gate}` : null,
+    shown(address.blueNumber) ? `Blue number ${address.blueNumber}` : null,
   ].filter(Boolean).join(", ");
 }
 

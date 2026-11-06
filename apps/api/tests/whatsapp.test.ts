@@ -4,6 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
+import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
 import { accounts, areas, bookingVisitEvents, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
@@ -95,7 +96,7 @@ beforeAll(async () => {
   await connection.db.insert(areas).values({ id: randomUUID(), name: areaName, createdAt: now, updatedAt: now });
   for (let day = 0; day < 7; day++) {
     await connection.db.insert(employeeWorkDays).values({ employeeId: barberId, dayOfWeek: day, active: true });
-    await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "05:00", endTime: "23:00" });
+    await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "00:00", endTime: "23:59" });
   }
   const { barbers } = await createWhatsAppRepository(connection).options();
   barberOption = String(barbers.findIndex(barber => barber.id === barberId) + 1);
@@ -159,22 +160,35 @@ describe("WhatsApp webhook", () => {
   });
 });
 
-// Walks a client from the first message to the confirm step using only menu numbers.
-async function toTimes(phone: string, barberChoice: string) {
-  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice, "4"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+// Walks a client from the first message to the start-time list, using another date when the wanted time is taken.
+async function toTimes(phone: string, barberChoice: string, wanted?: string) {
+  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+  for (const dateChoice of ["4", "5", "6", "7"]) {
+    await deliver(h.app, payload(phone, dateChoice)); await h.whatsapp.idle();
+    if (!wanted || timeOption(wanted)) return;
+    const back = /^(\d+)\. Back to the previous step$/m.exec(h.sent.at(-1)!.text)?.[1];
+    if (!back) throw new Error(`No back option on the start-time list:\n${h.sent.at(-1)?.text}`);
+    await deliver(h.app, payload(phone, back)); await h.whatsapp.idle();
+  }
+  throw new Error(`Time "${wanted}" was not offered on any date.`);
 }
 // The number of a start time in the list the client was just sent.
 const timeOption = (time: string) => new RegExp(`^(\\d+)\\. ${time}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
-// The client sends the link first, then the written address, which the AI reads.
+// The client sends the written address and the link in one message, which the AI reads.
 async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "7") {
-  await toTimes(phone, barberChoice);
-  for (const text of [timeOption(time)!, extra, areaName, "https://www.google.com/maps?q=29.3,48.0"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+  await toTimes(phone, barberChoice, time);
+  const chosen = timeOption(time);
+  if (!chosen) throw new Error(`Time "${time}" was not offered. Last message:\n${h.sent.at(-1)?.text}`);
+  for (const text of [chosen, extra, "1", areaName]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
   h.answer({ reply: "", value: { block: "3", street: "5", houseNumber: "12" }, forward: null });
-  await deliver(h.app, payload(phone, "block 3 street 5 house 12")); await h.whatsapp.idle();
+  await deliver(h.app, payload(phone, "block 3 street 5 house 12 https://www.google.com/maps?q=29.3,48.0")); await h.whatsapp.idle();
 }
 // Every test books its own window, because they all share one barber and date.
 let windowHour = 5;
-const nextWindow = () => { const hour = windowHour++; return hour < 12 ? `${hour} am` : hour === 12 ? "12 pm" : `${hour - 12} pm`; };
+const nextWindow = () => {
+  const hour = windowHour++ % 23;
+  return hour === 0 ? "12 am" : hour < 12 ? `${hour} am` : hour === 12 ? "12 pm" : `${hour - 12} pm`;
+};
 async function confirmed(phone: string, barberChoice = barberOption, time = nextWindow()) {
   await toConfirm(phone, barberChoice, time);
   await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
@@ -407,6 +421,23 @@ describe("staff approval", () => {
     const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, request!.bookingId!));
     expect(booking!.notes).toBe("خدمة إضافية: مانيكير + باديكير");
     expect(Number(booking!.endTime.slice(0, 2)) - Number(booking!.startTime.slice(0, 2))).toBe(2);
+  });
+
+  it("puts a hospital location in the reservation notes and leaves the home address unused", async () => {
+    const { phone } = client();
+    const time = nextWindow();
+    await toTimes(phone, barberOption, time);
+    for (const text of [timeOption(time)!, "7", "2", areaName]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    h.answer({ reply: "", value: { wing: "B", floor: "3", room: "7" }, forward: null });
+    await deliver(h.app, payload(phone, "wing B floor 3 room 7")); await h.whatsapp.idle();
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    const { requests: [request] } = await stored(phone);
+    expect(request!.details).toMatchObject({ visitType: "hospital", hospital: { wing: "B", floor: "3", room: "7" }, address: { block: ADDRESS_NOT_PROVIDED, street: ADDRESS_NOT_PROVIDED, houseNumber: ADDRESS_NOT_PROVIDED, mapsUrl: null } });
+    expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain("موقع المستشفى: جناح B، دور 3، غرفة 7");
+    await fromStaff(`yes ${request!.number}`);
+    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, (await stored(phone)).requests[0]!.bookingId!));
+    expect(booking!.notes).toBe("المستشفى: جناح B، دور 3، غرفة 7");
+    expect(booking!.addressSnapshot).toMatchObject({ block: ADDRESS_NOT_PROVIDED, street: ADDRESS_NOT_PROVIDED, houseNumber: ADDRESS_NOT_PROVIDED, mapsUrl: null });
   });
 
   it("rejects with the reason and tells the client", async () => {

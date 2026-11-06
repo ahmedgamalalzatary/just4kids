@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
 import { formatAddress, mapLink } from "@/lib/address";
 import { addressFormSchema, emptyAddress } from "@/lib/forms";
 import { intervalsProblem } from "@/components/schedule";
@@ -15,6 +16,10 @@ describe("address display", () => {
   it("uses only the saved map link", () => {
     expect(mapLink(base)).toBeNull();
     expect(mapLink({ ...base, mapsUrl: "https://maps.app.goo.gl/abc" })).toBe("https://maps.app.goo.gl/abc");
+  });
+
+  it("omits home fields that do not apply to a hospital or link-only visit", () => {
+    expect(formatAddress({ ...base, block: ADDRESS_NOT_PROVIDED, street: ADDRESS_NOT_PROVIDED, houseNumber: ADDRESS_NOT_PROVIDED, mapsUrl: "https://maps.app.goo.gl/x" })).toBe("السالمية");
   });
 });
 

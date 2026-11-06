@@ -7,7 +7,7 @@ import type { Ai, ChatMessage } from "./ai.js";
 import { advance, barberName, bookingDays, clientApproved, clientRejected, extraNote, IDLE_RESET_MS, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
-import { addressHelp, aiFailureMessage, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
+import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
 import type { OpenWa, Photo } from "./openwa.js";
 import type { WhatsAppRepository } from "./whatsapp.repository.js";
 
@@ -98,9 +98,10 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const administrator = await repository.administrator();
     if (!administrator) { await repository.answerPlainly(staff, message.id, "No enabled administrator account exists. Create the reservation in the dashboard.", now()); return; }
     const { address } = details;
+    const notes = [details.extra ? extraNote(details.extra) : null, details.hospital ? hospitalNote(details.hospital) : null].filter(Boolean).join("\n") || undefined;
     try {
       await bookings.createForPhone(
-        { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren, ...(details.extra ? { notes: extraNote(details.extra) } : {}) },
+        { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren, ...(notes ? { notes } : {}) },
         { phone: client.phone, address: { areaId: details.areaId, area: details.area, ...address } },
         administrator,
         (transaction, booking) => repository.settleApproval(transaction, command.number, booking.id, client, clientApproved(language, details, barberName(barber, language)), staff, message.id, `Request #${command.number} approved. Reservation ${booking.reference} created with ${barber.name}. The client was told.`, { chatIds: otherStaff(staff.phone), text: `Request #${command.number} was approved by ${staff.phone}. Reservation ${booking.reference} created with ${barber.name}.\nIt can no longer be changed here.` }, now()),

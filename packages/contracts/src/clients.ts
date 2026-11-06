@@ -3,6 +3,8 @@ import { phoneSchema } from "./auth.js";
 
 const addressPart = z.string().trim().min(1).max(120);
 const optionalPart = addressPart.nullable().optional();
+// Stored in home-address fields that do not apply to a link-only or hospital visit.
+export const ADDRESS_NOT_PROVIDED = "—";
 const googleMapsUrl = z.url().max(2048).refine(value => {
   const url = new URL(value);
   const host = url.hostname.toLowerCase();

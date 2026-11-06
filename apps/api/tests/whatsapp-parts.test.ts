@@ -158,6 +158,21 @@ describe("staff messages", () => {
     expect(text).toContain("الموقع: https://maps.app.goo.gl/x");
     expect(text).not.toContain("Address:");
   });
+
+  it("shows the visit type and hospital location without home placeholders", () => {
+    const text = staffMessage({
+      type: "new_request",
+      details: {
+        ...details, visitType: "hospital", hospital: { wing: "A", floor: "2", room: "12" },
+        address: { ...address, block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED, mapsUrl: "https://maps.app.goo.gl/x" },
+      },
+    }, "+96550000001", 12);
+    expect(text).toContain("نوع الزيارة: مستشفى");
+    expect(text).toContain("موقع المستشفى: جناح A، دور 2، غرفة 12");
+    expect(text).toContain("الموقع: https://maps.app.goo.gl/x");
+    expect(text).not.toContain("قطعة —");
+    expect(text).not.toContain("شارع —");
+  });
   it("warns staff when the barber is busy in the extra service hour", () => {
     const text = staffMessage({ type: "new_request", details: { ...details, extra: "wavy_hair", extraHourBusy: true } }, "+96550000001", 12);
     expect(text).toContain("خدمة إضافية: شعر ويفي");
