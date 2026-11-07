@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 import { toast } from "sonner";
 import { Minus, Plus } from "lucide-react";
 import type { BookingEdit } from "@just4kids/contracts";
 import { Field, FormAlert } from "@/components/field";
+import { AddressFields } from "@/components/address-fields";
 import { LoadingRows, Ltr } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +21,13 @@ import { formatAddress } from "@/lib/address";
 import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 import { isCorrection } from "@/lib/visit-rules";
 import { kuwaitNow } from "@/lib/kuwait-time";
+import { addressFormSchema } from "@/lib/forms";
 
 const KEEP_ADDRESS = "keep";
+const addressValues = (address: Booking["address"]) => ({
+  area: address.area, block: address.block, street: address.street, houseNumber: address.houseNumber ?? "", buildingName: address.buildingName ?? "",
+  avenue: address.avenue ?? "", gate: address.gate ?? "", blueNumber: address.blueNumber ?? "", floor: address.floor ?? "", apartment: address.apartment ?? "", mapsUrl: address.mapsUrl ?? "",
+});
 
 function Stepper({ label, value, onChange, max = 99 }: { label: string; value: number; onChange: (value: number) => void; max?: number }) {
   return (
@@ -39,6 +48,9 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const edit = useEditBooking();
   const correction = isCorrection(booking);
   const [addressId, setAddressId] = useState(KEEP_ADDRESS);
+  const [editingAddress, setEditingAddress] = useState(false);
+  const addressForm = useForm<z.input<typeof addressFormSchema>, unknown, z.output<typeof addressFormSchema>>({ resolver: zodResolver(addressFormSchema), defaultValues: addressValues(booking.address) });
+  const areaValue = useWatch({ control: addressForm.control, name: "area" });
   const [employeeId, setEmployeeId] = useState(booking.employeeId);
   const [date, setDate] = useState(booking.date);
   const [startTime, setStartTime] = useState(booking.startTime);
@@ -57,11 +69,12 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   const countsChanged = adultCount !== booking.adultCount || childCount !== booking.childCount || specialChildCount !== booking.specialChildCount;
   const setChildren = (value: number) => { setChildCount(value); setSpecialChildCount(current => Math.min(current, value)); };
   const barberChanged = employeeId !== booking.employeeId;
-  const addressChanged = addressId !== KEEP_ADDRESS;
+  const addressChanged = addressId !== KEEP_ADDRESS || (editingAddress && addressForm.formState.isDirty);
   const notesChanged = notes !== (booking.notes ?? "");
   const changed = timingChanged || countsChanged || barberChanged || addressChanged || notesChanged;
 
-  const submit = () => {
+  const submit = async () => {
+    if (editingAddress && !await addressForm.trigger()) return;
     if (!changed) { setProblem("No changes yet"); return; }
     if (timingChanged) { const issue = windowProblem({ date, startTime, endTime }, new Date(), !correction); if (issue) { setProblem(issue); return; } }
     if (correction && !reason.trim()) { setProblem("Enter the correction reason"); return; }
@@ -73,7 +86,7 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
       id: booking.id,
       expectedVersion: booking.visitVersion,
       ...(reason.trim() ? { reason: reason.trim() } : {}),
-      ...(addressChanged ? { addressId } : {}),
+      ...(addressChanged ? editingAddress ? { address: addressFormSchema.parse(addressForm.getValues()) } : { addressId } : {}),
       ...(barberChanged ? { employeeId } : {}),
       ...(timingChanged ? { date, startTime, endTime } : {}),
       ...(countsChanged ? { adultCount, childCount, specialChildCount } : {}),
@@ -85,7 +98,14 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
   return (
     <>
       <div className="flex flex-col gap-4">
-        <Field label="Address">
+        {editingAddress ? <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">Reservation address</p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingAddress(false); addressForm.reset(addressValues(booking.address)); }}>Cancel address changes</Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Changes apply to this reservation. Saved client addresses stay the same.</p>
+          <AddressFields register={name => addressForm.register(name)} errors={addressForm.formState.errors} areaValue={areaValue} originalArea={(client.data.addresses.find(address => address.id === addressId) ?? booking.address).area} />
+        </div> : <div className="flex flex-col gap-2"><Field label="Address">
           <Select value={addressId} onValueChange={setAddressId}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -94,6 +114,11 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
             </SelectContent>
           </Select>
         </Field>
+          <Button type="button" variant="outline" size="sm" className="mt-2 w-fit" onClick={() => {
+            addressForm.reset(addressValues(client.data.addresses.find(address => address.id === addressId) ?? booking.address));
+            setEditingAddress(true);
+          }}>Edit reservation address</Button>
+        </div>}
         <Field label="Barber" hint="Availability is checked when saving.">
           <Select value={employeeId} onValueChange={setEmployeeId}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
@@ -106,8 +131,8 @@ function EditForm({ booking, onDone }: { booking: Booking; onDone: () => void })
         </Field>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Date"><Input type="date" dir="ltr" min={correction ? undefined : kuwaitNow().date} value={date} onChange={event => setDate(event.target.value)} /></Field>
-          <Field label="From"><Input type="time" dir="ltr" step={correction ? undefined : 3600} value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
-          <Field label="To"><Input type="time" dir="ltr" step={correction ? undefined : 3600} value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
+          <Field label="From"><Input type="time" dir="ltr" step={correction ? undefined : 1800} value={startTime} onChange={event => setStartTime(event.target.value)} /></Field>
+          <Field label="To"><Input type="time" dir="ltr" step={correction ? undefined : 1800} value={endTime} onChange={event => setEndTime(event.target.value)} /></Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Stepper label="Adults" value={adultCount} onChange={setAdultCount} />

@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, bookings, clientAddresses, bookingRevisions } from "@just4kids/db/schema";
 import type { Account } from "@just4kids/contracts";
-import { bookingEditSchema, bookingEditedSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema, isWholeHourWindow } from "@just4kids/contracts";
+import { bookingEditSchema, bookingEditedSchema, bookingAddressSnapshotSchema, bookingRevisionResponseSchema, isReservationWindow } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
@@ -42,7 +42,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         if (!correction) assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;
-        if (windowChanged && !correction && !isWholeHourWindow(merged)) throw new HttpError(400, "INVALID_BOOKING_WINDOW", "Reservations must start on the hour and last whole hours");
+        if (windowChanged && !correction && !isReservationWindow(merged)) throw new HttpError(400, "INVALID_BOOKING_WINDOW", "Reservations must start on the hour or half hour and last 1 to 4 whole hours");
         const barber = barbers.get(targetId)!;
         const employeeSnapshot = reassigned ? { id: targetId, displayName: barber.employee.displayName } : booking.employeeSnapshot;
         if (reassigned || windowChanged) {
@@ -51,7 +51,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
           const blocks = await readTimeBlocks(transaction, targetId, merged.date);
           if (!barber.account.enabled || !isWindowAvailable({ date: merged.date, startTime: merged.startTime, endTime: merged.endTime }, hours.days, hours.exception, existing.filter(row => row.id !== id).map(row => ({ ...row, status: row.visitStatus })), blocks)) throw new HttpError(409, "BARBER_UNAVAILABLE", "Employee unavailable during the selected window");
         }
-        let addressSnapshot = booking.addressSnapshot;
+        let addressSnapshot = input.address ?? booking.addressSnapshot;
         if (input.addressId !== undefined) {
           const [address] = await transaction.select().from(clientAddresses).where(and(eq(clientAddresses.id, merged.addressId), eq(clientAddresses.clientId, booking.clientId))).for("update");
           if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "Address not found for this client");

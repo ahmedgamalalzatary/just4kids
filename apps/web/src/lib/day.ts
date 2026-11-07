@@ -53,7 +53,7 @@ function covered(intervals: Interval[], startTime: string, endTime: string): boo
 /**
  * 30-minute pills across the barber's whole day. A pill is booked when a visit holds its half hour, past when it has
  * already started, locked (blue) when the half hour is outside the day's working intervals — a break between shifts
- * or a whole day off. The visit length is chosen afterwards with `buildEndOptions`; the server rechecks on save. Half hours stay for locks and for showing older visits.
+ * or a whole day off. The visit length is chosen afterwards with `buildEndOptions`; the server rechecks on save.
  */
 export function buildSlots<T extends Visit>({ date, schedule, bookings, now = new Date() }: { date: string; schedule: ScheduleLike; bookings: T[]; now?: Date }): Slot<T>[] {
   const intervals = workingIntervals(schedule, date);
@@ -79,9 +79,9 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, now = ne
   });
 }
 
-/** The valid end times for a visit starting at `startTime`: whole hours until the shift ends, a visit, or a lock is hit. */
+/** Whole-hour durations from an on-the-hour or half-hour start, bounded by working hours, visits, and locks. */
 export function buildEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
-  if (!args.startTime.endsWith(":00")) return [];
+  if (minuteOfDay(args.startTime) % SLOT_MINUTES !== 0) return [];
   return endOptions(args, MAX_VISIT_MINUTES, MIN_VISIT_MINUTES);
 }
 

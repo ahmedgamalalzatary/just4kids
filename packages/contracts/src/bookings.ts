@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibilityQuerySchema, isWholeHourWindow } from "./availability.js";
+import { eligibilityQuerySchema, isReservationWindow } from "./availability.js";
 import { addressCreateSchema, addressResponseSchema } from "./clients.js";
 import { phoneSchema } from "./auth.js";
 
@@ -36,7 +36,7 @@ function validateBooking(value: Pick<z.infer<typeof bookingFields>, "date" | "st
 }
 function validateNewBooking(value: Parameters<typeof validateBooking>[0], context: z.RefinementCtx) {
   validateBooking(value, context);
-  if (!isWholeHourWindow(value)) context.addIssue({ code: "custom", message: "Reservations must start on the hour and last whole hours" });
+  if (!isReservationWindow(value)) context.addIssue({ code: "custom", message: "Reservations must start on the hour or half hour and last 1 to 4 whole hours" });
 }
 export const bookingCreateSchema = bookingFields.superRefine(validateNewBooking);
 // What an edit re-checks: an older visit or a correction may keep a window that is not whole hours.
@@ -73,9 +73,11 @@ export const bookingListQuerySchema = z.strictObject({
 export type BookingCreate = z.infer<typeof bookingCreateSchema>;
 export const bookingEditSchema = z.strictObject({
   expectedVersion: version, reason: reason.optional(), addressId: z.uuid().optional(), employeeId: z.uuid().optional(),
+  address: bookingAddressSnapshotSchema.refine(value => addressCreateSchema.safeParse(value).success, "A complete reservation address is required").optional(),
   date: eligibilityQuerySchema.shape.date.optional(), startTime: eligibilityQuerySchema.shape.startTime.optional(), endTime: eligibilityQuerySchema.shape.endTime.optional(),
   adultCount: haircutCount.optional(), childCount: haircutCount.optional(), specialChildCount: haircutCount.optional(), notes: notes.optional(),
 }).superRefine((value, context) => {
+  if (value.address && value.addressId) context.addIssue({ code: "custom", message: "Edit the reservation address or select a saved address, not both" });
   if (!Object.entries(value).some(([key, field]) => !["expectedVersion", "reason"].includes(key) && field !== undefined)) context.addIssue({ code: "custom", message: "At least one edit is required" });
   if (value.adultCount === 0 && value.childCount === 0) context.addIssue({ code: "custom", message: "At least one haircut is required" });
 });

@@ -3,7 +3,7 @@ import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mys
 // WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
 // price_list is the home list; the salon list has its own photo.
 export type WhatsAppMedia = "price_list" | "salon_price_list";
-export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null };
+export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null; gate?: string | null; blueNumber?: string | null };
 export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "medical" | "adults" | "family";
 export type WhatsAppVisitType = "home" | "hospital";
 export type WhatsAppHospital = { wing: string; floor: string; room: string };
@@ -48,8 +48,8 @@ export type WhatsAppFlow = {
   // What the numbers of the last sent date, time or duration list stand for, so a list that changed since keeps its meaning.
   offered?: string[];
   area?: { id: string; name: string }; address?: WhatsAppAddress;
-  // The half of the address sent so far: the client must send both the written address and a Google Maps link.
-  draft?: { written?: Omit<WhatsAppAddress, "mapsUrl">; mapsUrl?: string };
+  // Keep supplied details while asking for missing required fields. A Maps link alone is also accepted.
+  draft?: { written?: Partial<Omit<WhatsAppAddress, "mapsUrl">>; mapsUrl?: string };
 };
 
 export const whatsappConversations = mysqlTable("whatsapp_conversations", {

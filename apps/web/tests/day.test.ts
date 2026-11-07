@@ -104,8 +104,10 @@ describe("buildEndOptions", () => {
     expect(afterBooking).toEqual(["12:00", "13:00", "14:00", "15:00"]);
   });
 
-  it("offers no end for a start on the half hour", () => {
-    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:30", now: early })).toEqual([]);
+  it("offers whole-hour durations from a half-hour start and stops at bookings or locks", () => {
+    expect(buildEndOptions({ date, schedule: wide, bookings: [], startTime: "09:30", now: early })).toEqual(["10:30", "11:30", "12:30", "13:30"]);
+    expect(buildEndOptions({ date, schedule: wide, bookings: [visit("11:00", "12:00")], startTime: "09:30", now: early })).toEqual(["10:30"]);
+    expect(buildEndOptions({ date, schedule: { ...wide, blocks: [{ id: "lock", date, startTime: "10:00", endTime: "10:30", reason: null }] }, bookings: [], startTime: "09:30", now: early })).toEqual([]);
   });
 
   it("returns no ends for a start outside the working hours", () => {

@@ -21,6 +21,34 @@ const chosen = { barber, date: "2026-10-30", startTime: "16:00", endTime: "17:00
 const atConfirm: WhatsAppFlow = { step: "confirm", language: "en", who: "boy", children: 1, ...chosen, extra: null, area: context.areas[0]!, address };
 
 describe("WhatsApp flow", () => {
+  it.each([
+    "floor 2, gate B, house 12, block 3, blue number 123, street 5, apartment 4",
+    "street: 5 house: 12 apartment: 4 blue number: 123 block: 3 floor: 2 gate: B",
+    "الدور ٢، بوابة B، منزل ١٢، قطعة ٣، الرقم الآلي ١٢٣، شارع ٥، شقة ٤",
+  ])("accepts labeled home details in any order: %s", async input => {
+    const turn = await advance({ ...atConfirm, step: "address" }, input, context, noAi);
+    expect(turn.state).toMatchObject({ step: "confirm", address: { block: "3", street: "5", houseNumber: "12", floor: "2", apartment: "4", gate: "B", blueNumber: "123" } });
+    expect(turn.reply).toContain("B");
+    expect(turn.reply).toContain("123");
+    const sent = await advance(turn.state, "1", context, noAi);
+    expect(sent.staff).toMatchObject({ type: "new_request", details: { address: { gate: "B", blueNumber: "123", floor: "2" } } });
+  });
+  it("keeps partial labeled details until the missing required field arrives", async () => {
+    const partial = await advance({ ...atConfirm, step: "address" }, "gate B, floor 2, block 3, house 12", context, noAi);
+    expect(partial.state.step).toBe("address");
+    expect(partial.reply).toBe("📍 Please send the missing address details: street.");
+    const complete = await advance(partial.state, "street 5", context, noAi);
+    expect(complete.state).toMatchObject({ step: "confirm", address: { block: "3", street: "5", houseNumber: "12", floor: "2", gate: "B" } });
+  });
+  it("accepts a Maps link after partial address details and preserves what was supplied", async () => {
+    const partial = await advance({ ...atConfirm, step: "address" }, "gate B, floor 2, block 3", context, noAi);
+    const complete = await advance(partial.state, "https://maps.app.goo.gl/xyz", context, noAi);
+    expect(complete.state).toMatchObject({ step: "confirm", address: { block: "3", street: NOT_PROVIDED, gate: "B", floor: "2", mapsUrl: "https://maps.app.goo.gl/xyz" } });
+  });
+  it.each(["room 12 floor 2 wing A", "غرفة ١٢، الدور ٢، جناح A"])("accepts hospital parts in any order: %s", async input => {
+    const turn = await advance({ ...atConfirm, step: "address", visitType: "hospital" }, input, context, noAi);
+    expect(turn.state).toMatchObject({ step: "confirm", hospital: { wing: "A", floor: "2", room: "12" } });
+  });
   it("always opens with the language menu, whatever the first message says", async () => {
     const turn = await advance(null, "ابي احجز", context, noAi);
     expect(turn.state.step).toBe("language");

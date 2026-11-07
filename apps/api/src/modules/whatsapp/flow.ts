@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ADDRESS_NOT_PROVIDED, addressCreateSchema } from "@just4kids/contracts";
 import type { WhatsAppAddress, WhatsAppExtra, WhatsAppFlow, WhatsAppFlowStep, WhatsAppHospital, WhatsAppMedia, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import type { Interpretation } from "./ai.js";
+import { addressText, homeLabels, hospitalLabels, parseLabeledParts } from "./address-input.js";
 
 // Shown in the reservation when the client sent only a location link; staff can complete it in the dashboard.
 export const NOT_PROVIDED = ADDRESS_NOT_PROVIDED;
@@ -136,7 +137,7 @@ function options(state: WhatsAppFlow, context: FlowContext, language: Language):
 function summary(state: WhatsAppFlow, context: FlowContext, language: Language) {
   const text = copy[language], address = state.address!;
   const hospital = state.visitType === "hospital";
-  const typed = [address.block, address.street, address.houseNumber ?? address.buildingName].filter(part => part && part !== NOT_PROVIDED).join(", ");
+  const typed = addressText(address, language);
   const location = hospital
     ? `${text.hospitalLine} ${[state.area!.name, state.hospital ? text.hospitalParts(state.hospital) : null].filter(Boolean).join(", ")}`
     : `${text.addressLine} ${[state.area!.name, typed].filter(Boolean).join(", ")}`;
@@ -315,14 +316,29 @@ function applyAddress(state: WhatsAppFlow, input: WrittenInput | HospitalInput |
   let written = previous?.written;
   if (input) {
     const home = input as WrittenInput;
+    const gate = trimmed(home.gate) ?? written?.gate ?? null, blueNumber = trimmed(home.blueNumber) ?? written?.blueNumber ?? null;
     written = {
-      block: trimmed(home.block) ?? "", street: trimmed(home.street) ?? "", houseNumber: trimmed(home.houseNumber), buildingName: trimmed(home.buildingName),
-      avenue: trimmed(home.avenue), floor: trimmed(home.floor), apartment: trimmed(home.apartment),
+      block: trimmed(home.block) ?? written?.block ?? "", street: trimmed(home.street) ?? written?.street ?? "", houseNumber: trimmed(home.houseNumber) ?? written?.houseNumber ?? null, buildingName: trimmed(home.buildingName) ?? written?.buildingName ?? null,
+      avenue: trimmed(home.avenue) ?? written?.avenue ?? null, floor: trimmed(home.floor) ?? written?.floor ?? null, apartment: trimmed(home.apartment) ?? written?.apartment ?? null,
+      ...(gate ? { gate } : {}), ...(blueNumber ? { blueNumber } : {}),
     };
-    if (!addressCreateSchema.safeParse({ area: state.area!.name, ...written }).success) return stay({ ...state, draft: { ...previous, ...(mapsUrl ? { mapsUrl } : {}) } }, context, text.addressInvalid);
   }
   if (!written && !mapsUrl) return stay(state, context, text.address);
-  const next: WhatsAppFlow = { ...state, address: written ? { ...written, mapsUrl } : unusedHomeAddress(mapsUrl) };
+  // A Maps link is sufficient even after a partial written reply; retain the details already supplied.
+  if (written && mapsUrl) written = {
+    ...written, block: written.block || NOT_PROVIDED, street: written.street || NOT_PROVIDED,
+    houseNumber: written.houseNumber ?? (written.buildingName ? null : NOT_PROVIDED),
+  };
+  // Revalidate a saved draft as well as newly supplied fields before advancing.
+  const parsed = written ? addressCreateSchema.safeParse({ area: state.area!.name, ...written, mapsUrl }) : null;
+  if (parsed && !parsed.success) {
+    const arabic = state.language !== "en";
+    const missing = [!written?.block ? arabic ? "القطعة" : "block" : null, !written?.street ? arabic ? "الشارع" : "street" : null, !written?.houseNumber && !written?.buildingName ? arabic ? "المنزل أو البناية" : "house or building" : null].filter(Boolean);
+    const next = { ...state, draft: { written: written!, ...(mapsUrl ? { mapsUrl } : {}) } };
+    if (missing.length) return { state: next, reply: arabic ? `📍 أرسل تفاصيل العنوان الناقصة: ${missing.join("، ")}.` : `📍 Please send the missing address details: ${missing.join(", ")}.` };
+    return stay(next, context, text.addressInvalid);
+  }
+  const next: WhatsAppFlow = { ...state, address: parsed?.success ? { ...unusedHomeAddress(mapsUrl), ...written } : unusedHomeAddress(mapsUrl) };
   delete next.draft;
   return move(next, "confirm", context);
 }
@@ -350,6 +366,10 @@ function direct(state: WhatsAppFlow, raw: string, context: FlowContext): Turn | 
   // A link with nothing else written needs no AI; written text, alone or with a link, is read by the AI.
   if (state.step === "address") {
     const link = linkIn(text);
+    const parts = state.visitType === "hospital"
+      ? parseLabeledParts(link ? text.replace(link, "") : text, hospitalLabels)
+      : parseLabeledParts(link ? text.replace(link, "") : text, homeLabels);
+    if (parts) return applyAddress(state, parts, link, context);
     if (link && !text.replace(link, "").trim()) return applyAddress(state, null, link, context);
   }
   return null;
@@ -360,7 +380,7 @@ const valueSchemas = {
   count: z.object({ count: z.number() }),
   area: z.object({ area: z.string() }),
   date: z.object({ date: z.iso.date() }),
-  address: z.object({ block: z.string().nullish(), street: z.string().nullish(), houseNumber: z.string().nullish(), buildingName: z.string().nullish(), avenue: z.string().nullish(), floor: z.string().nullish(), apartment: z.string().nullish() }),
+  address: z.object({ block: z.string().nullish(), street: z.string().nullish(), houseNumber: z.string().nullish(), buildingName: z.string().nullish(), avenue: z.string().nullish(), floor: z.string().nullish(), apartment: z.string().nullish(), gate: z.string().nullish(), blueNumber: z.string().nullish() }),
   hospital: z.object({ wing: z.string().nullish(), floor: z.string().nullish(), room: z.string().nullish() }),
 };
 
@@ -402,7 +422,7 @@ export function stepInstructions(state: WhatsAppFlow, context: FlowContext) {
     area: `{"area": "<one exact name from this list>"} only when you are sure which area the client means. Areas: ${context.areas.map(area => area.name).join(" | ")}`,
     address: state.visitType === "hospital"
       ? '{"wing": "...", "floor": "...", "room": "..."} with null for anything the client did not write. Leave out any link; the code reads it'
-      : '{"block": "...", "street": "...", "houseNumber": "...", "buildingName": "...", "avenue": "...", "floor": "...", "apartment": "..."} with null for anything the client did not write. Leave out any link; the code reads it',
+      : '{"block": "...", "street": "...", "houseNumber": "...", "buildingName": "...", "avenue": "...", "floor": "...", "apartment": "...", "gate": "...", "blueNumber": "..."} with null for anything the client did not write. Read labeled fields in any order, in Arabic or English; never assign numbers by their position. Leave out any link; the code reads it',
   };
   return `## Technical rules (fixed by the system)
 

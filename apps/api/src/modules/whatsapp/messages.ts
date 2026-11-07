@@ -1,17 +1,17 @@
 import type { WhatsAppAddress, WhatsAppHospital, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
-import { extraNote, NOT_PROVIDED, type StaffNotice } from "./flow.js";
+import { extraNote, type StaffNotice } from "./flow.js";
+import { addressText, homeLabels, parseLabeledParts } from "./address-input.js";
 
 const ADDRESS_FORMAT = "address 12 block 3, street 5, house 10, https://maps.app.goo.gl/...";
 const STAFF_HELP = `Commands:\nyes 12 — approve request 12\nyes 12 Lenny — approve and choose the barber\nno 12 reason — reject request 12\n${ADDRESS_FORMAT} — change the address of request 12 before approving it\nai on +96550000000 — the AI answers that client again`;
-export const addressHelp = () => `Write the parts to change, separated by commas, for example:\n${ADDRESS_FORMAT}\nParts: area, block, street, house, building, avenue, floor, apartment, and a Google Maps link. Arabic names work too (منطقة، قطعة، شارع، منزل، بناية، جادة، دور، شقة). Parts you leave out stay as they are.`;
+export const addressHelp = () => `Write the parts to change, separated by commas, for example:\n${ADDRESS_FORMAT}\nParts: area, block, street, house, building, avenue, floor, apartment, gate, blue number, and a Google Maps link. Arabic names work too (منطقة، قطعة، شارع، منزل، بناية، جادة، دور، شقة). Parts you leave out stay as they are.`;
 
 const WHO_LABELS: Record<WhatsAppWho, string> = { boy: "ولد", girl: "بنت", baby: "رضيع", special: "ذوو احتياجات خاصة", both: "ولد وبنت", medical: "خدمة حالة مرضية", adults: "كبار", family: "كبار وأطفال" };
 export const hospitalNote = (hospital: WhatsAppHospital) => `المستشفى: جناح ${hospital.wing}، دور ${hospital.floor}، غرفة ${hospital.room}`;
 
 function requestLines(details: WhatsAppRequestDetails) {
   const { address } = details;
-  const parts: [string, string | null][] = [["قطعة", address.block], ["شارع", address.street], ["منزل", address.houseNumber], ["بناية", address.buildingName], ["جادة", address.avenue], ["دور", address.floor], ["شقة", address.apartment]];
-  const typed = parts.filter(([, value]) => value && value !== NOT_PROVIDED).map(([label, value]) => `${label} ${value}`).join("، ");
+  const typed = addressText(address, "ar");
   return [
     ...(details.who ? [`لمن: ${WHO_LABELS[details.who]}`] : []), `الكبار: ${details.adults}`, `الأطفال: ${details.children}`, ...(details.specialChildren ? [`ذوو احتياجات خاصة: ${details.specialChildren}`] : []),
     ...(details.visitType ? [`نوع الزيارة: ${details.visitType === "hospital" ? "مستشفى" : "منزل"}`] : []),
@@ -41,9 +41,7 @@ export type StaffCommand = { type: "approve"; number: number; barber: string | n
 
 type AddressPart = Exclude<keyof WhatsAppAddress, "mapsUrl"> | "area";
 const ADDRESS_LABELS: Record<string, AddressPart> = {
-  area: "area", "منطقة": "area", "المنطقة": "area", block: "block", "قطعة": "block", "القطعة": "block", street: "street", "شارع": "street", "الشارع": "street",
-  house: "houseNumber", "منزل": "houseNumber", "المنزل": "houseNumber", "بيت": "houseNumber", building: "buildingName", "بناية": "buildingName", "البناية": "buildingName", "عمارة": "buildingName",
-  avenue: "avenue", "جادة": "avenue", "الجادة": "avenue", floor: "floor", "دور": "floor", "الدور": "floor", "طابق": "floor", apartment: "apartment", flat: "apartment", "شقة": "apartment", "الشقة": "apartment",
+  ...homeLabels, area: "area", "منطقة": "area", "المنطقة": "area",
 };
 /** Reads the parts of an "address" command; null when a part has no known name. */
 export function parseStaffAddress(text: string): { parts: Partial<Record<AddressPart, string>>; mapsUrl: string | null } | null {
@@ -53,10 +51,9 @@ export function parseStaffAddress(text: string): { parts: Partial<Record<Address
   if (links.length > 1) return null;
   const mapsUrl = links[0] ?? null;
   for (const piece of (mapsUrl ? text.replace(mapsUrl, "") : text).split(/[,،\n]+/).map(item => item.trim()).filter(Boolean)) {
-    const named = /^(\S+)\s*:?\s*(.+)$/.exec(piece);
-    const part = named ? ADDRESS_LABELS[named[1]!.replace(/:$/, "").toLowerCase()] : undefined;
-    if (!part) return null;
-    parts[part] = named![2]!.trim();
+    const parsed = parseLabeledParts(piece, ADDRESS_LABELS);
+    if (!parsed) return null;
+    Object.assign(parts, parsed);
   }
   return Object.keys(parts).length || mapsUrl ? { parts, mapsUrl } : null;
 }

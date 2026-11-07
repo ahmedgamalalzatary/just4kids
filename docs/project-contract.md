@@ -63,7 +63,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - The same barber serves every adult/child in the reservation. No multiple-barber assignment.
 - Adult and child counts are non-negative integers; at least one haircut is required.
 - The client requests a date and time window through WhatsApp; approving keeps that window, and the administrator can set another in the dashboard.
-- Confirmed 2026-10-31: a new reservation, from WhatsApp or the dashboard, starts on the hour and lasts 1, 2, 3 or 4 whole hours. The new-booking screen offers only those starts and ends. Older visits keep their window, and a correction of a started or finished visit may record any time.
+- Confirmed 2026-10-31, amended 2026-11-07: dashboard reservations can start on the hour or half hour and last 1, 2, 3 or 4 whole hours. WhatsApp continues to offer only on-the-hour starts. Older visits keep their window, and a correction of a started or finished visit may record any time.
 - Confirmed on 2026-10-02: new reservations must start strictly in the future in Kuwait, with no additional lead-time cutoff. This does not decide later WhatsApp rescheduling/cancellation policy.
 - Minimum new window: **1 hour**. Maximum window: **4 hours**. Both bounds are inclusive. Stored older visits and corrections keep the earlier 20-minute minimum.
 - The whole window includes outbound travel, all haircuts, and return travel and blocks the assigned barber.
@@ -73,6 +73,7 @@ Agreed scope, captured 2026-09-29. This is the single product contract. Read the
 - Recheck availability at commit time and protect against simultaneous bookings of the same employee.
 - Failed rescheduling preserves the original booking/window.
 - Confirmed reservation edits (2026-10-02; amended 2026-10-12, S10): administrator-only edits may change address, adult/child counts, window, and assigned barber while the visit is booked and its original start is strictly in the future in Kuwait; a changed window must then also start strictly in the future, without an extra cutoff. A started or finished visit may be edited only as a correction (see S15 below). Edits retain the reservation/reference, actor/time/reason when supplied, and complete previous/new values. Client rescheduling policy remains pending.
+- Confirmed 2026-11-07: the reservation editor can change the saved address details directly, or select another saved client address. Direct edits apply only to that reservation, preserve the client's saved addresses, and record all address and Maps-link changes in reservation history.
 - Keep cancelled/no-show records for history. Arrival means the barber reached the client's address.
 - Visit states: booked, arrived, completed, cancelled, no-show.
 - Confirmed visit workflow (2026-10-02): booked → arrived/cancelled/no-show; arrived → completed/cancelled/no-show. Normal arrival/completion actions are allowed at or after the reserved start; no-show is allowed at or after the reserved end. Cancellation is allowed from booked or arrived, without an additional timing cutoff. Completed/cancelled/no-show states are final for employees.
@@ -103,6 +104,8 @@ Decided 2026-10-30 (replaces the intake-only decision of 2026-10-21): the AI tal
 5. Approval creates a normal reservation through the same rules as the dashboard (availability, future start, enabled barber and client), then tells the client. If the rules refuse it, nothing is saved, staff are told why, and the request stays open.
 
 Other rules:
+
+- Confirmed 2026-11-07: WhatsApp accepts correctly labeled address details in any order, in Arabic or English, including optional floor, apartment, avenue, gate and blue number. Supplied details are retained while missing required fields are requested, and carried through confirmation, staff messages and booking creation. A shared location or Google Maps link remains an accepted alternative to a written address.
 
 | Situation | What happens |
 | --- | --- |

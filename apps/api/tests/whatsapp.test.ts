@@ -174,14 +174,13 @@ async function toTimes(phone: string, barberChoice: string, wanted?: string) {
 }
 // The number of a start time in the list the client was just sent.
 const timeOption = (time: string) => new RegExp(`^(\\d+)\\. ${time}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
-// The client sends the written address and the link in one message, which the AI reads.
+// Labeled address details can arrive in any order, with a Maps link in the same message.
 async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "7") {
   await toTimes(phone, barberChoice, time);
   const chosen = timeOption(time);
   if (!chosen) throw new Error(`Time "${time}" was not offered. Last message:\n${h.sent.at(-1)?.text}`);
   for (const text of [chosen, extra, "1", areaName]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
-  h.answer({ reply: "", value: { block: "3", street: "5", houseNumber: "12" }, forward: null });
-  await deliver(h.app, payload(phone, "block 3 street 5 house 12 https://www.google.com/maps?q=29.3,48.0")); await h.whatsapp.idle();
+  await deliver(h.app, payload(phone, "floor 2 gate B house 12 blue number 123 block 3 street 5 https://www.google.com/maps?q=29.3,48.0")); await h.whatsapp.idle();
 }
 // Every test books its own window, because they all share one barber and date.
 let windowHour = 5;
@@ -221,7 +220,7 @@ describe("WhatsApp booking flow", () => {
     expect(h.sent[0]!.text).toContain(`الحلاق: ${barberName}`);
     expect(h.sent[0]!.text).toContain("الموقع: https://www.google.com/maps?q=29.3,48.0");
     expect(h.sent[0]!.text).toContain("العنوان: قطعة 3، شارع 5، منزل 12");
-    expect(h.aiCalls).toHaveLength(1);
+    expect(h.aiCalls).toHaveLength(0);
   });
 
   it("keeps each sender's progress apart", async () => {
@@ -362,7 +361,7 @@ describe("staff approval", () => {
     expect(requests[0]).toMatchObject({ status: "approved", bookingId: expect.any(String) });
     const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, requests[0]!.bookingId!));
     expect(booking).toMatchObject({ employeeId: barberId, childCount: 1, adultCount: 0, clientSnapshot: { phone } });
-    expect(booking!.addressSnapshot).toMatchObject({ area: areaName, block: "3", houseNumber: "12", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
+    expect(booking!.addressSnapshot).toMatchObject({ area: areaName, block: "3", houseNumber: "12", floor: "2", gate: "B", blueNumber: "123", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" });
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
     expect(h.sent[0]!.text).toContain(booking!.reference);
     h.sent.length = 0;

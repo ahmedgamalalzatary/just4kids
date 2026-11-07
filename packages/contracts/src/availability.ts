@@ -50,8 +50,11 @@ export const eligibilityQuerySchema = z.strictObject({ date: dateSchema, startTi
     return duration >= 20 && duration <= 240;
   }, "Booking windows must last between 20 minutes and 4 hours within one Kuwait day");
 
-/** A new reservation starts on the hour and lasts whole hours; with the bounds above that means 1 to 4 hours. Older visits and corrections may differ. */
-export const isWholeHourWindow = ({ startTime, endTime }: { startTime: string; endTime: string }) => startTime.endsWith(":00") && endTime.endsWith(":00");
+/** Dashboard reservations start on a half-hour boundary and last 1 to 4 whole hours. Corrections may differ. */
+export const isReservationWindow = ({ startTime, endTime }: { startTime: string; endTime: string }) => {
+  const start = minuteOfDay(startTime), duration = minuteOfDay(endTime) - start;
+  return start % 30 === 0 && duration >= 60 && duration <= 240 && duration % 60 === 0;
+};
 
 export const scheduleResponseSchema = z.strictObject({
   employeeId: z.uuid(),

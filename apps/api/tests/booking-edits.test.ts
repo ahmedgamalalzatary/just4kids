@@ -72,6 +72,22 @@ afterAll(async () => {
   await connection.pool.end();
 });
 describe("reservation edits and revisions", () => {
+  it("edits the reservation address and records history without changing the client's saved address", async () => {
+    const before = (await detail()).body;
+    const address = { ...before.address, street: "New street", floor: "4", gate: "B", mapsUrl: "https://maps.app.goo.gl/new" };
+    const updated = await edit({ address });
+    expect(updated.status).toBe(200);
+    expect(updated.body).toMatchObject({ id: booking.id, addressId, address, visitVersion: 1 });
+    const [saved] = await connection.db.select().from(clientAddresses).where(eq(clientAddresses.id, addressId));
+    expect(saved!.street).toBe(before.address.street);
+    expect((await revisions()).body.revisions[0]).toMatchObject({ before: { address: before.address }, after: { address } });
+    expect((await edit({ address: { ...address, street: "Stale" } })).status).toBe(409);
+  });
+  it("allows a future visit to move to a half-hour start", async () => {
+    const updated = await edit({ startTime: "09:30", endTime: "10:30" });
+    expect(updated.status).toBe(200);
+    expect(updated.body).toMatchObject({ startTime: "09:30", endTime: "10:30", visitVersion: 1 });
+  });
   it("loads and edits legacy bookings without the newer address fields", async () => {
     await connection.pool.execute("UPDATE bookings SET address_snapshot = JSON_REMOVE(address_snapshot, '$.avenue', '$.gate', '$.blueNumber') WHERE id = ?", [booking.id]);
     const loaded = await detail();
@@ -208,8 +224,8 @@ describe("reservation edits and revisions", () => {
     const results = await Promise.all([edit({ employeeId: otherId }), write("patch", `/bookings/${second.body.id}`, { expectedVersion: 0, employeeId })]);
     expect(results.map(result => result.status)).toEqual([409, 409]); expect((await detail()).body.employeeId).toBe(employeeId);
   });
-  it("keeps new reservation times on whole hours, without blocking older visits or corrections", async () => {
-    expect((await edit({ startTime: "09:30", endTime: "10:30" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
+  it("keeps whole-hour durations and half-hour starts, without blocking older visits or corrections", async () => {
+    expect((await edit({ startTime: "09:15", endTime: "10:15" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
     expect((await edit({ startTime: "09:00", endTime: "09:30" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
     await connection.db.update(bookings).set({ endTime: "09:30" }).where(eq(bookings.id, booking.id));
     const notes = await edit({ notes: "older half-hour visit" });

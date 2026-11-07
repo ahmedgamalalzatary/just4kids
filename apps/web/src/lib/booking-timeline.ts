@@ -48,6 +48,7 @@ export function revisionChanges(revision: BookingRevision): string[] {
   }
   if (before.employee.id !== after.employee.id) changes.push(`Barber: from ${before.employee.displayName} to ${after.employee.displayName}`);
   if (formatAddress(before.address) !== formatAddress(after.address)) changes.push(`Address: ${formatAddress(after.address)}`);
+  if (before.address.mapsUrl !== after.address.mapsUrl) changes.push(`Location: from ${before.address.mapsUrl ?? "None"} to ${after.address.mapsUrl ?? "None"}`);
   if (before.adultCount !== after.adultCount || before.childCount !== after.childCount || before.specialChildCount !== after.specialChildCount) {
     changes.push(`Count: from ${before.adultCount} adult${before.adultCount === 1 ? "" : "s"} and ${before.childCount} children (${before.specialChildCount} special needs) to ${after.adultCount} adult${after.adultCount === 1 ? "" : "s"} and ${after.childCount} children (${after.specialChildCount} special needs)`);
   }

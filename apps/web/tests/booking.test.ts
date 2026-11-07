@@ -4,6 +4,11 @@ import { specialChildrenProblem, windowProblem } from "@/lib/booking";
 const now = new Date("2026-10-10T07:00:00.000Z"); // 10:00 in Kuwait
 
 describe("booking window", () => {
+  it("accepts a future visit starting on the half hour while retaining whole-hour durations", () => {
+    expect(windowProblem({ date: "2026-10-11", startTime: "11:30", endTime: "12:30" }, now)).toBeNull();
+    expect(windowProblem({ date: "2026-10-11", startTime: "11:15", endTime: "12:15" }, now)).not.toBeNull();
+    expect(windowProblem({ date: "2026-10-11", startTime: "11:30", endTime: "12:00" }, now)).not.toBeNull();
+  });
   it("accepts 1 to 4 whole hours that start in the future", () => {
     expect(windowProblem({ date: "2026-10-10", startTime: "11:00", endTime: "12:00" }, now)).toBeNull();
     expect(windowProblem({ date: "2026-10-11", startTime: "08:00", endTime: "12:00" }, now)).toBeNull();
