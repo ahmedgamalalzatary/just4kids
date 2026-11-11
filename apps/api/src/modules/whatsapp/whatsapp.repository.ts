@@ -127,7 +127,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
           .where(and(eq(whatsappMessages.id, inboundId), eq(whatsappMessages.status, "pending")));
         // Another worker answered this message first.
         if (affected(answered) !== 1) transaction.rollback();
-        await transaction.update(whatsappConversations).set({ flow: turn.state, updatedAt: now, ...(turn.pause ? { aiPaused: true } : {}) }).where(eq(whatsappConversations.id, conversation.id));
+        await transaction.update(whatsappConversations).set({ flow: turn.state, updatedAt: now }).where(eq(whatsappConversations.id, conversation.id));
         const turnId = randomUUID();
         const outbound = { conversationId: conversation.id, direction: "outbound" as const, status: "pending" as const, turnId, createdAt: now };
         if (turn.staff) {

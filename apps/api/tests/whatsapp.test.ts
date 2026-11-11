@@ -268,7 +268,7 @@ describe("WhatsApp booking flow", () => {
 
   it("sends a change request to staff as written", async () => {
     const { phone } = client();
-    for (const text of ["مرحبا", "1", "5", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    for (const text of ["مرحبا", "1", "4", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     expect(h.sent.find(message => message.chatId === staffChat)?.text).toBe(`Client wants to change or cancel\nClient: ${phone}\nMessage: ألغ موعد الأحد`);
   });
 
@@ -520,21 +520,14 @@ describe("main menu options", () => {
     expect(h.sent[0]!.image).toEqual({ mimetype: "image/jpeg", size: statSync(new URL("../assets/home-price-list.jpg", import.meta.url)).size, filename: "home-price-list.jpg" });
   });
 
-  it("stops the AI when the client asks for an employee until staff send ai on", async () => {
+  it("has no talk-to-an-employee option: 4 asks what to change and the AI keeps running", async () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
-    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
-    expect(h.sent[0]!.text).toBe(`Client wants to talk to an employee\nClient: ${phone}\nThe AI is stopped for this client. To turn it back on: ai on ${phone}`);
-    expect((await stored(phone)).conversation!.aiPaused).toBe(true);
-    h.sent.length = 0;
-    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
-    expect(h.sent).toEqual([]);
-    await fromStaff(`ai on ${phone}`);
-    h.sent.length = 0;
-    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
-    expect(h.sent[0]!.text).toContain("1. English");
+    expect(h.sent.map(message => message.chatId)).toEqual([chatId]);
+    expect(h.sent[0]!.text).toBe("✏️ What would you like to change or cancel? Send it in one message.");
+    expect((await stored(phone)).conversation!.aiPaused).toBe(false);
   });
 });
 

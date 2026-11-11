@@ -15,16 +15,15 @@ export type FlowContext = { barbers: { id: string; name: string; nameAr?: string
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "change"; text: string }
-  | { type: "forward"; summary: string }
-  | { type: "talk" };
-// image: the price list photo and its caption, sent before the reply. pause: the AI stops for this client until staff send "ai on".
-export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: { media: WhatsAppMedia; caption: string }; pause?: true };
+  | { type: "forward"; summary: string };
+// image: the price list photo and its caption, sent before the reply.
+export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: { media: WhatsAppMedia; caption: string } };
 type Language = "en" | "ar";
 
 const copy = {
   en: {
     back: "Back to the previous step", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", talk: "Talk to an employee", salonService: "Salon service", homePrices: "Home service price list", salonLocation: "Salon location", pick: "Send a number to choose.",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", salonService: "Salon service", homePrices: "Home service price list", salonLocation: "Salon location", pick: "Send a number to choose.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Medical condition service"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ Available start times on ${date}:`,
@@ -43,14 +42,14 @@ const copy = {
     hospitalLine: "🏥 Hospital location:", hospitalParts: (hospital: WhatsAppHospital) => `Wing ${hospital.wing}, Floor ${hospital.floor}, Room ${hospital.room}`,
     requestNote: "This is a request — our team will confirm the exact time.", confirm: "Confirm ✅", startOver: "Start over ❌",
     sent: "✅ Your request was sent to our team. They will contact you to confirm.",
-    changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.", talkSent: "✅ We told our team. An employee will contact you soon.",
+    changeAsk: "✏️ What would you like to change or cancel? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.",
     invalid: "⚠️ Please send one of the numbers above.", countInvalid: "⚠️ Please send a number from 1 to 50.",
     approved: (date: string, time: string, barber: string) => `✅ Your reservation is confirmed.\n📅 ${date} · ${time}\n💈 Barber: ${barber}`,
     rejected: (reason: string | null) => `❌ We could not confirm your request.${reason ? `\n${reason}` : ""}\nA staff member will contact you if needed.`,
   },
   ar: {
     back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", talk: "التحدث مع موظف", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "خدمة حالة مرضية"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`,
@@ -69,7 +68,7 @@ const copy = {
     hospitalLine: "🏥 موقع المستشفى:", hospitalParts: (hospital: WhatsAppHospital) => `جناح ${hospital.wing}، دور ${hospital.floor}، غرفة ${hospital.room}`,
     requestNote: "هذا طلب — سيؤكد فريقنا الوقت المحدد.", confirm: "تأكيد ✅", startOver: "البدء من جديد ❌",
     sent: "✅ تم إرسال طلبك إلى فريقنا. سيتواصلون معك للتأكيد.",
-    changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.", talkSent: "✅ أبلغنا فريقنا. سيتواصل معك موظف قريباً.",
+    changeAsk: "✏️ ما الذي تريد تعديله أو إلغاءه؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.",
     invalid: "⚠️ أرسل أحد الأرقام أعلاه.", countInvalid: "⚠️ أرسل رقماً من 1 إلى 50.",
     approved: (date: string, time: string, barber: string) => `✅ تم تأكيد حجزك.\n📅 ${date} · ${time}\n💈 الحلاق: ${barber}`,
     rejected: (reason: string | null) => `❌ لم نتمكن من تأكيد طلبك.${reason ? `\n${reason}` : ""}\nسيتواصل معك موظف عند الحاجة.`,
@@ -122,7 +121,7 @@ export function clientRejected(language: Language | null, reason: string | null)
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
-  if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.talk, text.change, text.back];
+  if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.change, text.back];
   if (state.step === "who") return [...text.whoOptions, text.back];
   if (state.step === "barber") return [...context.barbers.map(barber => barberName(barber, language)), text.back];
   const choices = state.offered ?? freshChoices(state, context) ?? [];
@@ -235,8 +234,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
         case 1: return move(freshBooking(state), "who", context);
         case 2: return { ...move(state, "menu", context), image: { media: "price_list", caption: copy[language].homePrices } };
         case 3: return { ...move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`), image: { media: "salon_price_list", caption: copy[language].salonService } };
-        case 4: return { state: finished, reply: copy[language].talkSent, staff: { type: "talk" }, pause: true };
-        case 5: return move(state, "change", context);
+        case 4: return move(state, "change", context);
         default: return null;
       }
     case "who": {

@@ -58,7 +58,7 @@ describe("WhatsApp flow", () => {
   it("puts the home service price list second and the salon service third in the main menu", async () => {
     const turn = await walk({ step: "language", language: null }, "2");
     expect(turn.reply).toContain("✅ اللغة: العربية");
-    expect(turn.reply).toContain("1. حجز موعد\n2. قائمة أسعار الخدمة المنزلية\n3. خدمة الصالون\n4. التحدث مع موظف\n5. إلغاء أو تعديل طلب\n6. الرجوع للخطوة السابقة");
+    expect(turn.reply).toContain("1. حجز موعد\n2. قائمة أسعار الخدمة المنزلية\n3. خدمة الصالون\n4. إلغاء أو تعديل طلب\n5. الرجوع للخطوة السابقة");
     expect(render({ step: "menu", language: "en" }, context)).toContain("2. Home service price list\n");
   });
 
@@ -82,7 +82,7 @@ describe("WhatsApp flow", () => {
   });
 
   it.each([
-    ["menu", {}, "6", "language"],
+    ["menu", {}, "5", "language"],
     ["who", {}, "7", "menu"],
     ["barber", { who: "boy", children: 1 }, "3", "children"],
     ["barber", { who: "adults", adults: 1 }, "3", "adults"],
@@ -103,7 +103,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("opens the language list from the main menu's back option and comes back to the menu", async () => {
-    const atLanguage = await advance({ step: "menu", language: "en" }, "6", context, noAi);
+    const atLanguage = await advance({ step: "menu", language: "en" }, "5", context, noAi);
     expect(atLanguage.state.step).toBe("language");
     expect((await advance(atLanguage.state, "3", context, noAi)).state).toEqual({ step: "menu", language: "en" });
   });
@@ -352,14 +352,9 @@ describe("WhatsApp flow", () => {
     expect(render({ step: "address", language: "ar", visitType: "home" }, context)).toContain("أو أرسل موقعك كرابط خرائط Google");
   });
 
-  it("stops the AI and tells staff when the client asks for an employee", async () => {
-    const turn = await walk({ step: "menu", language: "en" }, "4");
-    expect(turn).toMatchObject({ pause: true, staff: { type: "talk" }, state: { step: "menu", language: null } });
-    expect(turn.reply).toContain("An employee will contact you soon.");
-  });
-
-  it("lists the salon service as one option", () => {
-    expect(render({ step: "menu", language: "en" }, context)).toContain("1. Book an appointment\n2. Home service price list\n3. Salon service\n4. Talk to an employee\n5. Cancel or change a request\n6. Back to the previous step");
+  it("lists the salon service as one option, without a talk-to-an-employee option", () => {
+    expect(render({ step: "menu", language: "en" }, context)).toContain("1. Book an appointment\n2. Home service price list\n3. Salon service\n4. Cancel or change a request\n5. Back to the previous step");
+    expect(render({ step: "menu", language: "ar" }, context)).not.toContain("التحدث مع موظف");
     expect(render({ step: "menu", language: "ar" }, context)).toContain("3. خدمة الصالون");
   });
 
@@ -397,7 +392,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("forwards a change request as written, without the AI", async () => {
-    const asked = await walk({ step: "menu", language: "en" }, "5");
+    const asked = await walk({ step: "menu", language: "en" }, "4");
     const sent = await walk(asked.state, "Cancel Sunday please");
     expect(sent.staff).toEqual({ type: "change", text: "Cancel Sunday please" });
   });
