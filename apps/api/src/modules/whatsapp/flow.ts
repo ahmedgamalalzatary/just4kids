@@ -8,10 +8,15 @@ import { addressText, homeLabels, hospitalLabels, parseLabeledParts } from "./ad
 export const NOT_PROVIDED = ADDRESS_NOT_PROVIDED;
 // A client silent for longer than this starts again from the language list; an unconfirmed request is dropped.
 export const IDLE_RESET_MS = 15 * 60_000;
-const SALON_LOCATION ="https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en";
+// Each salon branch's Google Maps location, matched by the branch name in the dashboard.
+const BRANCH_LOCATIONS: { name: RegExp; link: string }[] = [
+  { name: /fahahel/i, link: "https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en" },
+  { name: /farwaniy?a/i, link: "https://maps.google.com/maps?q=29.276134490966797%2C47.964111328125&z=17&hl=en" },
+];
+const branchLocation = (name: string) => BRANCH_LOCATIONS.find(branch => branch.name.test(name))?.link ?? null;
 
 // free: each barber's free whole hours by date, for the days in bookingDays.
-export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null }[]; areas: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>> };
+export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null }[]; areas: { id: string; name: string }[]; branches: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>> };
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "change"; text: string }
@@ -23,7 +28,7 @@ type Language = "en" | "ar";
 const copy = {
   en: {
     back: "Back to the previous step", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", salonService: "Salon service", homePrices: "Home service price list", salonLocation: "Salon location", pick: "Send a number to choose.",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a request", salonService: "Salon service", homePrices: "Home service price list", branch: "🏪 Which branch?", pick: "Send a number to choose.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Medical condition service"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ Available start times on ${date}:`,
@@ -49,7 +54,7 @@ const copy = {
   },
   ar: {
     back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", salonLocation: "موقع الصالون", pick: "أرسل رقماً للاختيار.",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل طلب", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", branch: "🏪 أي فرع؟", pick: "أرسل رقماً للاختيار.",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "خدمة حالة مرضية"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`,
@@ -124,6 +129,7 @@ function options(state: WhatsAppFlow, context: FlowContext, language: Language):
   if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.change, text.back];
   if (state.step === "who") return [...text.whoOptions, text.back];
   if (state.step === "barber") return [...context.barbers.map(barber => barberName(barber, language)), text.back];
+  if (state.step === "branch") return [...context.branches.map(branch => branch.name), text.back];
   const choices = state.offered ?? freshChoices(state, context) ?? [];
   if (state.step === "date") return [...choices.map(date => dateLabel(date, language)), text.back];
   if (state.step === "time") return [...choices.map(time => hourLabel(time, language)), text.back];
@@ -155,12 +161,13 @@ function summary(state: WhatsAppFlow, context: FlowContext, language: Language) 
 export function render(state: WhatsAppFlow, context: FlowContext) {
   const language = state.language ?? "ar", text = copy[language];
   switch (state.step) {
-    case "language": return `👋 Welcome to *J4Kids Salon*!\nأهلاً بك في *صالون J4Kids*!\n\nSelect your language / اختر اللغة:\n\n${numbered(options(state, context, language))}`;
+    case "language": return `معاك يوسف - المساعد الافتراضي 🤖\n\nSelect your language / اختر اللغة:\n\n${numbered(options(state, context, language))}`;
     case "menu": return `${text.menu}\n\n${numbered(options(state, context, language))}\n\n${text.pick}`;
     case "who": return `${text.who}\n\n${numbered(options(state, context, language))}`;
     case "adults": return text.adults;
     case "children": return text.children;
     case "barber": return `${text.barber}\n\n${numbered(options(state, context, language))}`;
+    case "branch": return `${text.branch}\n\n${numbered(options(state, context, language))}`;
     case "date": return `${text.date}\n\n${numbered(options(state, context, language))}`;
     case "time": return `${text.time(dateLabel(state.date!, language))}\n\n${numbered(options(state, context, language))}`;
     case "extra": return `${text.extra}\n\n${numbered(options(state, context, language))}`;
@@ -199,6 +206,7 @@ function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
     case "language": return "menu";
     case "menu": return "language";
     case "who": return "menu";
+    case "branch": return "menu";
     case "barber": return state.who === "adults" ? "adults" : "children";
     case "date": return "barber";
     case "time": return "date";
@@ -208,6 +216,13 @@ function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
     case "confirm": return "address";
     default: return state.step;
   }
+}
+
+/** The salon price list photo and the branch's location, then the main menu. */
+function salonService(state: WhatsAppFlow, context: FlowContext, branch: string | null): Turn {
+  const language = state.language ?? "ar", link = branch ? branchLocation(branch) : null;
+  const location = branch ? [`📍 ${branch}`, link].filter(Boolean).join("\n") : undefined;
+  return { ...move(state, "menu", context, location), image: { media: "salon_price_list", caption: copy[language].salonService } };
 }
 
 function pickDate(state: WhatsAppFlow, date: string, context: FlowContext): Turn {
@@ -233,10 +248,13 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       switch (choice) {
         case 1: return move(freshBooking(state), "who", context);
         case 2: return { ...move(state, "menu", context), image: { media: "price_list", caption: copy[language].homePrices } };
-        case 3: return { ...move(state, "menu", context, `📍 ${copy[language].salonLocation}\n${SALON_LOCATION}`), image: { media: "salon_price_list", caption: copy[language].salonService } };
+        // With no branch in the dashboard there is nothing to choose: the price list is sent alone.
+        case 3: return context.branches.length ? move(state, "branch", context) : salonService(state, context, null);
         case 4: return move(state, "change", context);
         default: return null;
       }
+    case "branch":
+      return salonService(state, context, context.branches[choice - 1]!.name);
     case "who": {
       const who = whoValues[choice - 1]!;
       return move({ ...state, who }, who === "adults" || who === "family" ? "adults" : "children", context);

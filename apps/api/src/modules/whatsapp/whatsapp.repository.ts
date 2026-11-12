@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, areas, bookings, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookings, branches, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import type { WhatsAppRequestDetails, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
@@ -84,11 +84,12 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
     async requests(id: string) {
       return db.select({ number: whatsappRequests.number, details: whatsappRequests.details }).from(whatsappRequests).where(eq(whatsappRequests.conversationId, id)).orderBy(asc(whatsappRequests.number));
     },
-    /** The barbers and areas the menus offer, always read from the dashboard's data. */
+    /** The barbers, areas and salon branches the menus offer, always read from the dashboard's data. */
     async options() {
       const barbers = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
-      return { barbers, areas: enabledAreas };
+      const salonBranches = await db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(asc(branches.name));
+      return { barbers, areas: enabledAreas, branches: salonBranches };
     },
     /** Each barber's free whole hours on each date, for the lists the client chooses from. */
     async freeHours(barberIds: string[], dates: string[]) {

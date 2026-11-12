@@ -5,7 +5,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
 import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
-import { accounts, areas, bookingVisitEvents, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookingVisitEvents, branches, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -28,6 +28,8 @@ const phones: string[] = [];
 type Sent = { chatId: string; text: string; key: string; image?: { mimetype: string; size: number; filename: string } };
 type Decision = { reply: string; value: Record<string, unknown> | null; forward: string | null };
 const barberName = `Barber${randomInt(100000, 999999)}`, areaName = `Area${randomInt(100000, 999999)}`, barberId = randomUUID();
+// Its name holds "Farwaniya", so the flow sends the Farwaniya location.
+const branchName = `Farwaniya salon ${randomInt(100000, 999999)}`, branchId = randomUUID();
 function harness(whatsappSettings = settings) {
   const sent: Sent[] = [], aiCalls: { role: string; content: string }[][] = [];
   const decisions: (Decision | Error | number)[] = [];
@@ -94,6 +96,7 @@ beforeAll(async () => {
   await connection.db.insert(accounts).values({ id: barberId, phone: `+965${randomInt(70000000, 79999999)}`, role: "employee", passwordHash: "x", createdAt: now, updatedAt: now });
   await connection.db.insert(employees).values({ accountId: barberId, displayName: barberName, createdAt: now, updatedAt: now });
   await connection.db.insert(areas).values({ id: randomUUID(), name: areaName, createdAt: now, updatedAt: now });
+  await connection.db.insert(branches).values({ id: branchId, name: branchName, address: "Farwaniya", createdAt: now, updatedAt: now });
   for (let day = 0; day < 7; day++) {
     await connection.db.insert(employeeWorkDays).values({ employeeId: barberId, dayOfWeek: day, active: true });
     await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "00:00", endTime: "23:59" });
@@ -125,6 +128,7 @@ afterAll(async () => {
   }
   const testAreas = (await connection.db.select({ id: areas.id, name: areas.name }).from(areas)).filter(row => /^Area\d{6}$/.test(row.name)).map(row => row.id);
   if (testAreas.length) await connection.db.delete(areas).where(inArray(areas.id, testAreas));
+  await connection.db.delete(branches).where(eq(branches.id, branchId));
   const conversations = await connection.db.select({ id: whatsappConversations.id }).from(whatsappConversations).where(inArray(whatsappConversations.phone, phones));
   const ids = conversations.map(row => row.id);
   if (ids.length) {
@@ -506,10 +510,14 @@ describe("main menu options", () => {
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "3")); await h.whatsapp.idle();
+    expect(h.sent.map(message => message.image?.mimetype)).toEqual([undefined]);
+    const branchLine = h.sent[0]!.text.split("\n").find(line => line.endsWith(`. ${branchName}`))!;
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, branchLine.split(".")[0]!)); await h.whatsapp.idle();
     expect(h.sent.map(message => [message.chatId, message.image?.mimetype])).toEqual([[chatId, "image/png"], [chatId, undefined]]);
     expect(h.sent[0]!.image).toEqual({ mimetype: "image/png", size: statSync(new URL("../assets/salon-price-list.png", import.meta.url)).size, filename: "salon-price-list.png" });
     expect(h.sent[0]!.text).toBe("Salon service");
-    expect(h.sent[1]!.text).toContain("Salon location");
+    expect(h.sent[1]!.text).toContain(`📍 ${branchName}\nhttps://maps.google.com/maps?q=29.276134490966797%2C47.964111328125&z=17&hl=en`);
     expect(h.sent[1]!.text).toContain("1. Book an appointment");
     await deliver(h.app, ownMessage(phone, "", { type: "image" }));
     await deliver(h.app, ownMessage(phone, "Salon service", { type: "image" }));

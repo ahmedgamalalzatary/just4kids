@@ -6,7 +6,7 @@ import type { FlowContext } from "../src/modules/whatsapp/flow.js";
 const barber = { id: "b1", name: "Lenny" };
 // 12:00 in Kuwait on 30 October. Lenny's 10:00 has passed and 18:00 is taken; Heneer has no free time.
 const context: FlowContext = {
-  barbers: [barber, { id: "b2", name: "Heneer" }], areas: [{ id: "a1", name: "Hawally" }], now: new Date("2026-10-30T09:00:00.000Z"),
+  barbers: [barber, { id: "b2", name: "Heneer" }], areas: [{ id: "a1", name: "Hawally" }], branches: [{ id: "f1", name: "Fahahel salon" }, { id: "f2", name: "Farwaniya salon" }], now: new Date("2026-10-30T09:00:00.000Z"),
   free: { b1: { "2026-10-30": ["10:00", "16:00", "17:00", "19:00", "20:00", "21:00", "22:00"], "2026-11-01": ["09:00"], "2026-11-05": ["11:00"], "2026-11-06": ["11:00"] } },
 };
 const noAi = vi.fn(async () => { throw new Error("the AI must not be called"); });
@@ -365,12 +365,38 @@ describe("WhatsApp flow", () => {
     expect(turn.reply).toContain("1. Book an appointment");
   });
 
-  it("sends the salon price list photo and the salon location for the salon service, then the menu", async () => {
+  it("asks which branch for the salon service, from the dashboard's branches", async () => {
     const turn = await walk({ step: "menu", language: "en" }, "3");
-    expect(turn.image).toEqual({ media: "salon_price_list", caption: "Salon service" });
-    expect(turn.state).toEqual({ step: "menu", language: "en" });
-    expect(turn.reply).toContain("https://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en");
-    expect(turn.reply).toContain("1. Book an appointment");
+    expect(turn.image).toBeUndefined();
+    expect(turn.state).toEqual({ step: "branch", language: "en" });
+    expect(turn.reply).toBe("🏪 Which branch?\n\n1. Fahahel salon\n2. Farwaniya salon\n3. Back to the previous step");
+    expect(render({ step: "branch", language: "ar" }, context)).toBe("🏪 أي فرع؟\n\n1. Fahahel salon\n2. Farwaniya salon\n3. الرجوع للخطوة السابقة");
+    expect((await walk({ step: "branch", language: "en" }, "3")).state).toEqual({ step: "menu", language: "en" });
+    expect((await walk({ step: "branch", language: "en" }, "4")).reply).toContain("⚠️ Please send one of the numbers above.");
+  });
+
+  it("sends the salon price list photo and the chosen branch's location, then the menu", async () => {
+    const fahahel = await walk({ step: "branch", language: "en" }, "1");
+    expect(fahahel.image).toEqual({ media: "salon_price_list", caption: "Salon service" });
+    expect(fahahel.state).toEqual({ step: "menu", language: "en" });
+    expect(fahahel.reply).toContain("📍 Fahahel salon\nhttps://maps.google.com/maps?q=29.086143493652344%2C48.121238708496094&z=17&hl=en");
+    expect(fahahel.reply).toContain("1. Book an appointment");
+    const farwaniya = await walk({ step: "branch", language: "ar" }, "2");
+    expect(farwaniya.image).toEqual({ media: "salon_price_list", caption: "خدمة الصالون" });
+    expect(farwaniya.reply).toContain("📍 Farwaniya salon\nhttps://maps.google.com/maps?q=29.276134490966797%2C47.964111328125&z=17&hl=en");
+  });
+
+  it("sends a branch without a known location by name only, and the photo alone when there are no branches", async () => {
+    const other = await advance({ step: "branch", language: "en" }, "1", { ...context, branches: [{ id: "x", name: "Salmiya salon" }] }, noAi);
+    expect(other.image).toEqual({ media: "salon_price_list", caption: "Salon service" });
+    expect(other.reply).toMatch(/^📍 Salmiya salon\n\n/);
+    const none = await advance({ step: "menu", language: "en" }, "3", { ...context, branches: [] }, noAi);
+    expect(none.image).toEqual({ media: "salon_price_list", caption: "Salon service" });
+    expect(none.state).toEqual({ step: "menu", language: "en" });
+  });
+
+  it("opens the language list with the virtual assistant's line", () => {
+    expect(render({ step: "language", language: null }, context)).toMatch(/^معاك يوسف - المساعد الافتراضي 🤖\n\nSelect your language \/ اختر اللغة:/);
   });
 
   it("tells the AI to point price questions to the new menu options", () => {
