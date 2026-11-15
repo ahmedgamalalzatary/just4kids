@@ -17,8 +17,20 @@ export function formatKwd(amount: string): string {
   return `${fromFils(toFils(amount))} KWD`;
 }
 
-/** A three-decimal KWD amount with no leading zeros. */
-export const amountPattern = /^(0|[1-9][0-9]*)\.\d{3}$/;
+/**
+ * Turns a typed KWD amount into the exact three-decimal form ("1" → "1.000", "2.5" → "2.500").
+ * A blank amount counts as zero; anything that is not a non-negative amount with up to three decimals returns null.
+ */
+export function normalizeAmount(value: string): string | null {
+  const text = value.trim();
+  if (text === "") return "0.000";
+  const match = /^(\d*)(?:\.(\d{0,3}))?$/.exec(text);
+  if (!match || (match[1] === "" && !match[2])) return null;
+  return `${BigInt(match[1] || "0")}.${(match[2] ?? "").padEnd(3, "0")}`;
+}
 
-/** A blank form amount counts as zero; any other value is returned unchanged. */
-export const amountOrZero = (value: string): string => (value.trim() === "" ? "0.000" : value);
+/** A stored amount for an editable field: zero shows as an empty field so it can be typed over directly. */
+export const amountField = (amount: string): string => (toFils(amount) === 0n ? "" : amount);
+
+/** A stored count for an editable field: zero shows as an empty field so it can be typed over directly. */
+export const countField = (count: number): string => (count === 0 ? "" : String(count));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKwd, fromFils, toFils } from "@/lib/money";
+import { formatKwd, fromFils, normalizeAmount, toFils } from "@/lib/money";
 
 describe("money", () => {
   it("converts exact KWD strings to fils and back", () => {
@@ -17,5 +17,19 @@ describe("money", () => {
 
   it("formats with three decimals and the dinar symbol", () => {
     expect(formatKwd("8.5")).toBe("8.500 KWD");
+  });
+
+  it("accepts amounts typed without the three decimals", () => {
+    expect(normalizeAmount("")).toBe("0.000");
+    expect(normalizeAmount(" 1 ")).toBe("1.000");
+    expect(normalizeAmount("1.5")).toBe("1.500");
+    expect(normalizeAmount("12.25")).toBe("12.250");
+    expect(normalizeAmount("007.125")).toBe("7.125");
+    expect(normalizeAmount(".5")).toBe("0.500");
+    expect(normalizeAmount("1.")).toBe("1.000");
+    expect(normalizeAmount("1.2345")).toBeNull();
+    expect(normalizeAmount("abc")).toBeNull();
+    expect(normalizeAmount("-1")).toBeNull();
+    expect(normalizeAmount(".")).toBeNull();
   });
 });

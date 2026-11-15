@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `gender` enum('male','female');

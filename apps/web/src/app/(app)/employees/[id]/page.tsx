@@ -10,6 +10,7 @@ import { ChevronLeft, KeyRound } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { Field, FormAlert } from "@/components/field";
+import { GenderSelect } from "@/components/gender-select";
 import { ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { ExceptionsCard, WeeklyScheduleEditor } from "@/components/schedule";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +71,7 @@ function ProfileCard({ employee }: { employee: Employee }) {
   const update = useUpdateEmployee();
   const form = useForm({
     resolver: zodResolver(employeeEditFormSchema),
-    values: { displayName: employee.displayName, displayNameAr: employee.displayNameAr ?? "", phone: employee.phone, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
+    values: { displayName: employee.displayName, displayNameAr: employee.displayNameAr ?? "", gender: employee.gender ?? "", phone: employee.phone, enabled: employee.enabled, accessUntil: employee.accessUntil ?? "" },
   });
   const errors = form.formState.errors;
   const submit = form.handleSubmit(values => {
@@ -90,6 +91,7 @@ function ProfileCard({ employee }: { employee: Employee }) {
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field label="English name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="Arabic name" optional error={errors.displayNameAr?.message} hint="Shown to clients who chat on WhatsApp in Arabic. When empty, the English name is used."><Input {...form.register("displayNameAr")} dir="auto" /></Field>
+          <Field label="Gender" error={errors.gender?.message} hint="Shown next to the name when WhatsApp clients choose a barber."><Controller control={form.control} name="gender" render={({ field }) => <GenderSelect value={field.value} onChange={field.onChange} />} /></Field>
           <Field label="Phone number" error={errors.phone?.message} hint="The barber uses this to log in."><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" /></Field>
           <div className="flex items-center gap-3 self-end pb-2">
             <Controller control={form.control} name="enabled" render={({ field }) => <Switch id="employee-enabled" checked={field.value} onCheckedChange={field.onChange} />} />

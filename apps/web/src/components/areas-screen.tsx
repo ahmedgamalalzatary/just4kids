@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAreas, useCreateArea, useUpdateArea } from "@/lib/api/hooks";
 import type { Area } from "@/lib/api/types";
+import { matchesSearch } from "@/lib/search";
 import { requiredText } from "@/lib/forms";
 
 const schema = z.object({ name: requiredText(120, "Enter the area name") });
@@ -29,7 +30,7 @@ export function AreasScreen() {
     if (editing) update.mutate({ id: editing.id, ...values }, { onSuccess });
     else create.mutate(values, { onSuccess });
   });
-  const rows = (areas.data ?? []).filter(area => area.name.includes(search.trim()) && (status === "all" || area.enabled === (status === "active")));
+  const rows = (areas.data ?? []).filter(area => matchesSearch(area.name, search) && (status === "all" || area.enabled === (status === "active")));
   return (
     <>
       <PageHeader title="Areas" description="Address areas. Stopping an area prevents its use in new addresses; existing addresses and reservations keep their saved name." />

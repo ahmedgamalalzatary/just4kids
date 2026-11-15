@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useBranches, useCreateSalonEntry, useSalonReport, useUpdateSalonEntry } from "@/lib/api/hooks";
 import type { SalonEntry } from "@/lib/api/types";
 import { formatDate, kuwaitNow } from "@/lib/kuwait-time";
-import { amountOrZero, amountPattern, formatKwd } from "@/lib/money";
+import { amountField, countField, formatKwd, normalizeAmount } from "@/lib/money";
 import { salonTotal } from "@/lib/salon";
 import { cn } from "@/lib/utils";
 
@@ -29,17 +29,19 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
   const create = useCreateSalonEntry();
   const update = useUpdateSalonEntry();
   const mutation = entry ? update : create;
-  const [form, setForm] = useState<Form>(() => entry ? { branchId: entry.branchId, date: entry.date, childCount: String(entry.childCount), cash: entry.cash, link: entry.link, knet: entry.knet } : blank());
+  const [form, setForm] = useState<Form>(() => entry ? { branchId: entry.branchId, date: entry.date, childCount: countField(entry.childCount), cash: amountField(entry.cash), link: amountField(entry.link), knet: amountField(entry.knet) } : blank());
   const [problem, setProblem] = useState<string | null>(null);
   const set = <Key extends keyof Form>(key: Key) => (value: string) => setForm(current => ({ ...current, [key]: value }));
+  const [cashAmount, linkAmount, knetAmount] = [form.cash, form.link, form.knet].map(normalizeAmount);
+  const total = cashAmount == null || linkAmount == null || knetAmount == null ? null : salonTotal(cashAmount, linkAmount, knetAmount);
   const close = (value: boolean) => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); };
   const submit = () => {
     if (!entry && !form.branchId) { setProblem("Select branch"); return; }
     if (!form.date) { setProblem("Select date"); return; }
     const childCount = form.childCount.trim() === "" ? 0 : Number(form.childCount);
     if (!Number.isInteger(childCount) || childCount < 0) { setProblem("Enter a valid child count"); return; }
-    const cash = amountOrZero(form.cash), link = amountOrZero(form.link), knet = amountOrZero(form.knet);
-    if (![cash, link, knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
+    const cash = normalizeAmount(form.cash), link = normalizeAmount(form.link), knet = normalizeAmount(form.knet);
+    if (cash === null || link === null || knet === null) { setProblem("Enter valid amounts, e.g. 5 or 5.250"); return; }
     setProblem(null);
     const done = { onSuccess: () => { toast.success(entry ? "Entry saved" : "Entry added"); close(false); } };
     if (!entry) { create.mutate({ branchId: form.branchId, date: form.date, childCount, cash, link, knet }, done); return; }
@@ -80,7 +82,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: SalonEntry | null; onOpen
             <Field label="Payment link (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.link} onChange={event => set("link")(event.target.value)} /></Field>
             <Field label="KNET (KWD)"><Input inputMode="decimal" dir="ltr" className="text-start" value={form.knet} onChange={event => set("knet")(event.target.value)} /></Field>
           </div>
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amount.trim() === "" || amountPattern.test(amount)) ? <Ltr>{formatKwd(salonTotal(amountOrZero(form.cash), amountOrZero(form.link), amountOrZero(form.knet)))}</Ltr> : "—"}</div>
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {total === null ? "—" : <Ltr>{formatKwd(total)}</Ltr>}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>

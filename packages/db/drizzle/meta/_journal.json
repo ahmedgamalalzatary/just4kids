@@ -267,6 +267,13 @@
       "when": 1793882449205,
       "tag": "0037_confused_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1794770580581,
+      "tag": "0038_freezing_patriot",
+      "breakpoints": true
     }
   ]
 }

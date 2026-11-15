@@ -6,13 +6,14 @@ import { Field, FormAlert } from "@/components/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAreas } from "@/lib/api/hooks";
+import { matchesSearch } from "@/lib/search";
 
 export function AreaPicker({ registration, value, originalArea, error }: { registration: UseFormRegisterReturn; value: string; originalArea: string; error?: string | undefined }) {
   const areas = useAreas("active");
   const [search, setSearch] = useState("");
   const list = areas.data ?? [];
   const legacy = originalArea && !list.some(area => area.name === originalArea);
-  const matches = list.filter(area => area.name === value || area.name.includes(search.trim()));
+  const matches = list.filter(area => area.name === value || matchesSearch(area.name, search));
   return (
     <div className="flex flex-col gap-3 sm:col-span-3">
       <Field label="Search areas"><Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Enter part of the area name" /></Field>

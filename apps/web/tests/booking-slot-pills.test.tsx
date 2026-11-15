@@ -10,7 +10,7 @@ import { SlotPills } from "@/components/booking-slot-pills";
 
 const id = "11111111-1111-4111-8111-111111111111", blockId = "22222222-2222-4222-8222-222222222222";
 const date = "2099-01-05";
-const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", displayNameAr: null, enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
+const barber: Employee = { id, phone: "+96550000000", displayName: "أحمد", displayNameAr: null, gender: "male", enabled: true, photoUpdatedAt: null, accessUntil: null, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" };
 const block = { id: blockId, employeeId: id, date, startTime: "13:00", endTime: "13:30", reason: "موعد Special", createdBy: id, createdAt: "2026-10-13T00:00:00.000Z" };
 const initial: Schedule = { employeeId: id, days: [{ dayOfWeek: 1, active: true, intervals: [{ startTime: "09:00", endTime: "15:00" }] }], exceptions: [], blocks: [] };
 const address = { area: "الفنطاس", block: "1", street: "2", houseNumber: "3", buildingName: null, avenue: null, gate: null, blueNumber: null, floor: null, apartment: null, mapsUrl: null };

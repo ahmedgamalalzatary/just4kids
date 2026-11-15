@@ -16,7 +16,7 @@ import { useCollectionDayBookings, useCollectionHistory, useCollectionReport, us
 import { useSession } from "@/lib/api/session";
 import type { BarberCollection, BarberCollectionEvent, Booking } from "@/lib/api/types";
 import { formatDate, formatDateTime, kuwaitNow } from "@/lib/kuwait-time";
-import { amountOrZero, amountPattern, fromFils, formatKwd, toFils } from "@/lib/money";
+import { amountField, countField, fromFils, formatKwd, normalizeAmount, toFils } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 const collectionTotal = (cash: string, link: string, knet: string) => fromFils(toFils(cash) + toFils(link) + toFils(knet));
@@ -78,7 +78,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
   const create = useCreateCollection();
   const update = useUpdateCollection();
   const mutation = entry ? update : create;
-  const [form, setForm] = useState<Form>(() => entry ? { employeeId: entry.employeeId, date: entry.date, normalChildren: String(entry.normalChildren), specialChildren: String(entry.specialChildren), cash: entry.cash, link: entry.link, knet: entry.knet } : blank());
+  const [form, setForm] = useState<Form>(() => entry ? { employeeId: entry.employeeId, date: entry.date, normalChildren: countField(entry.normalChildren), specialChildren: countField(entry.specialChildren), cash: amountField(entry.cash), link: amountField(entry.link), knet: amountField(entry.knet) } : blank());
   const [problem, setProblem] = useState<string | null>(null);
   const canPrefill = !entry && Boolean(form.employeeId) && Boolean(form.date);
   const visits = useCollectionDayBookings(form.date, form.employeeId, canPrefill);
@@ -90,8 +90,8 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
   if (prefill && appliedPrefill !== prefillKey) {
     setAppliedPrefill(prefillKey);
     setForm(current => ({ ...current,
-      normalChildren: editedFields.includes("normalChildren") ? current.normalChildren : String(prefill.normalChildren),
-      specialChildren: editedFields.includes("specialChildren") ? current.specialChildren : String(prefill.specialChildren),
+      normalChildren: editedFields.includes("normalChildren") ? current.normalChildren : countField(prefill.normalChildren),
+      specialChildren: editedFields.includes("specialChildren") ? current.specialChildren : countField(prefill.specialChildren),
     }));
   }
   const set = <Key extends keyof Form>(key: Key) => (value: string) => {
@@ -104,6 +104,8 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
       setForm(current => ({ ...current, [key]: value }));
     }
   };
+  const [cashAmount, linkAmount, knetAmount] = [form.cash, form.link, form.knet].map(normalizeAmount);
+  const total = cashAmount == null || linkAmount == null || knetAmount == null ? null : collectionTotal(cashAmount, linkAmount, knetAmount);
   const prefillBlocked = canPrefill && (appliedPrefill !== prefillKey || visits.isError);
   const close = (value: boolean) => { if (!value) { create.reset(); update.reset(); } onOpenChange(value); };
   const submit = () => {
@@ -112,8 +114,8 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
     if (!form.date) { setProblem("Select date"); return; }
     const normalChildren = form.normalChildren.trim() === "" ? 0 : Number(form.normalChildren), specialChildren = form.specialChildren.trim() === "" ? 0 : Number(form.specialChildren);
     if (!Number.isInteger(normalChildren) || normalChildren < 0 || !Number.isInteger(specialChildren) || specialChildren < 0) { setProblem("Enter valid child counts"); return; }
-    const cash = amountOrZero(form.cash), link = amountOrZero(form.link), knet = amountOrZero(form.knet);
-    if (![cash, link, knet].every(amount => amountPattern.test(amount))) { setProblem("Enter amounts with three decimal places, e.g. 5.000"); return; }
+    const cash = normalizeAmount(form.cash), link = normalizeAmount(form.link), knet = normalizeAmount(form.knet);
+    if (cash === null || link === null || knet === null) { setProblem("Enter valid amounts, e.g. 5 or 5.250"); return; }
     setProblem(null);
     const done = { onSuccess: () => { toast.success(entry ? "Entry saved" : "Entry added"); close(false); } };
     if (!entry) { create.mutate({ employeeId: form.employeeId, date: form.date, normalChildren, specialChildren, cash, link, knet }, done); return; }
@@ -157,7 +159,7 @@ function EntryDialog({ entry, onOpenChange }: { entry: BarberCollection | null; 
           {canPrefill && visits.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading today&apos;s completed visits...</p> : null}
           {canPrefill && visits.isError ? <ErrorState error={visits.error} onRetry={() => visits.refetch()} /> : null}
           {appliedPrefill === prefillKey ? <p className="text-xs text-muted-foreground">Filled from today&apos;s completed visits while keeping your edits. You can adjust the counts.</p> : null}
-          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {[form.cash, form.link, form.knet].every(amount => amount.trim() === "" || amountPattern.test(amount)) ? <Ltr>{formatKwd(collectionTotal(amountOrZero(form.cash), amountOrZero(form.link), amountOrZero(form.knet)))}</Ltr> : "—"}</div>
+          <div className="rounded-md bg-muted px-4 py-3 text-center text-xl font-semibold">Total: {total === null ? "—" : <Ltr>{formatKwd(total)}</Ltr>}</div>
           {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
           <FormAlert error={mutation.error} />
         </div>

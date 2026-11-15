@@ -6,7 +6,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { AddressFields } from "@/components/address-fields";
 import { emptyAddress, type AddressForm } from "@/lib/forms";
 
-const names = ["الفنطاس", "حولي"];
+const names = ["الفنطاس", "حولي", "Adailya", "Shuhada"];
 function mount(originalArea = "", fail = false) {
   vi.stubGlobal("fetch", vi.fn(async () => fail ? new Response(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "تعذر تحميل Areas" } }), { status: 500 }) : new Response(JSON.stringify({ areas: names.map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, enabled: true, createdAt: "2026-10-13T00:00:00.000Z", updatedAt: "2026-10-13T00:00:00.000Z" })) }))));
   function Form() {
@@ -39,4 +39,12 @@ it("shows a recoverable catalogue error instead of silently permitting free text
   expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل Areas");
   expect(screen.getByRole("combobox", { name: "Area" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Reload areas" })).toBeInTheDocument();
+});
+it("matches English area names regardless of capital letters", async () => {
+  mount();
+  await screen.findByRole("option", { name: "Adailya" });
+  await userEvent.type(screen.getByRole("searchbox", { name: "Search areas" }), "ada");
+  expect(screen.getByRole("option", { name: "Adailya" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Shuhada" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "حولي" })).not.toBeInTheDocument();
 });

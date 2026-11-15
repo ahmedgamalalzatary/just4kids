@@ -45,7 +45,7 @@ async function adminSession() {
 async function createEmployee(phone: string) {
   const admin = await adminSession();
   const created = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-    .send({ displayName: "سالم", phone, password: "employee-password-123" });
+    .send({ displayName: "سالم", gender: "male", phone, password: "employee-password-123" });
   expect(created.status).toBe(201);
   return { admin, created };
 }

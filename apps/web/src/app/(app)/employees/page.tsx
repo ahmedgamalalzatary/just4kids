@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { ChevronRight, Plus, Scissors } from "lucide-react";
 import { AdminOnly } from "@/components/app-shell";
 import { EmployeeAvatar } from "@/components/avatar";
 import { Field, FormAlert } from "@/components/field";
+import { GenderSelect } from "@/components/gender-select";
 import { EmptyState, ErrorState, LoadingRows, Ltr, PageHeader } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,9 @@ import { employeeCreateFormSchema } from "@/lib/forms";
 function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const create = useCreateEmployee();
-  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", displayNameAr: "", phone: "", password: "" } });
+  const form = useForm({ resolver: zodResolver(employeeCreateFormSchema), defaultValues: { displayName: "", displayNameAr: "", gender: "", phone: "", password: "" } });
   const errors = form.formState.errors;
-  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, displayNameAr: values.displayNameAr, phone: values.phone, password: values.password }, {
+  const submit = form.handleSubmit(values => create.mutate({ displayName: values.displayName, displayNameAr: values.displayNameAr, gender: values.gender, phone: values.phone, password: values.password }, {
     onSuccess: employee => { toast.success("Barber added"); onOpenChange(false); form.reset(); router.push(`/employees/${employee.id}`); },
   }));
 
@@ -38,6 +39,7 @@ function CreateEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         <form id="employee-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
           <Field label="English name" error={errors.displayName?.message}><Input {...form.register("displayName")} /></Field>
           <Field label="Arabic name" optional error={errors.displayNameAr?.message} hint="Shown to clients who chat on WhatsApp in Arabic. When empty, the English name is used."><Input {...form.register("displayNameAr")} dir="auto" /></Field>
+          <Field label="Gender" error={errors.gender?.message} hint="Shown next to the name when WhatsApp clients choose a barber."><Controller control={form.control} name="gender" render={({ field }) => <GenderSelect value={field.value} onChange={field.onChange} />} /></Field>
           <Field label="Phone number" error={errors.phone?.message} hint="International format, e.g. +96550000000"><Input {...form.register("phone")} type="tel" dir="ltr" inputMode="tel" className="text-start" placeholder="+965" /></Field>
           <Field label="Password" error={errors.password?.message} hint="At least 8 characters."><Input {...form.register("password")} type="text" dir="ltr" autoComplete="new-password" className="text-start" /></Field>
         </form>

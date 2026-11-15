@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ADDRESS_NOT_PROVIDED, addressCreateSchema } from "@just4kids/contracts";
+import type { BarberGender } from "@just4kids/contracts";
 import type { WhatsAppAddress, WhatsAppExtra, WhatsAppFlow, WhatsAppFlowStep, WhatsAppHospital, WhatsAppMedia, WhatsAppRequestDetails, WhatsAppWho } from "@just4kids/db/schema";
 import type { Interpretation } from "./ai.js";
 import { addressText, homeLabels, hospitalLabels, parseLabeledParts } from "./address-input.js";
@@ -16,7 +17,7 @@ const BRANCH_LOCATIONS: { name: RegExp; link: string }[] = [
 const branchLocation = (name: string) => BRANCH_LOCATIONS.find(branch => branch.name.test(name))?.link ?? null;
 
 // free: each barber's free whole hours by date, for the days in bookingDays.
-export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null }[]; areas: { id: string; name: string }[]; branches: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>> };
+export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null; gender?: BarberGender | null }[]; areas: { id: string; name: string }[]; branches: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>> };
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "change"; text: string }
@@ -91,6 +92,9 @@ const extraValues: WhatsAppExtra[] = ["manicure_pedicure", "manicure", "pedicure
 const extraLabel = (extra: WhatsAppExtra, language: Language) => extraLabels[extra][language];
 /** A barber's name in the chat's language; an Arabic chat falls back to the English name. */
 export const barberName = (barber: { name: string; nameAr?: string | null }, language: Language | null) => (language ?? "ar") === "ar" ? barber.nameAr || barber.name : barber.name;
+const genderLabels: Record<BarberGender, Record<Language, string>> = { male: { en: "Male", ar: "ذكر" }, female: { en: "Female", ar: "أنثى" } };
+/** A barber as listed for the client to choose: the name, then the gender when it is recorded. */
+const barberChoice = (barber: FlowContext["barbers"][number], language: Language) => barber.gender ? `${barberName(barber, language)} (${genderLabels[barber.gender][language]})` : barberName(barber, language);
 /** The line on the staff message and the reservation's note; staff read Arabic. */
 export const extraNote = (extra: WhatsAppExtra) => `خدمة إضافية: ${extraLabel(extra, "ar")}`;
 const numbered = (options: readonly string[]) => options.map((option, index) => `${index + 1}. ${option}`).join("\n");
@@ -128,7 +132,7 @@ function options(state: WhatsAppFlow, context: FlowContext, language: Language):
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
   if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.change, text.back];
   if (state.step === "who") return [...text.whoOptions, text.back];
-  if (state.step === "barber") return [...context.barbers.map(barber => barberName(barber, language)), text.back];
+  if (state.step === "barber") return [...context.barbers.map(barber => barberChoice(barber, language)), text.back];
   if (state.step === "branch") return [...context.branches.map(branch => branch.name), text.back];
   const choices = state.offered ?? freshChoices(state, context) ?? [];
   if (state.step === "date") return [...choices.map(date => dateLabel(date, language)), text.back];

@@ -86,7 +86,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
     },
     /** The barbers, areas and salon branches the menus offer, always read from the dashboard's data. */
     async options() {
-      const barbers = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
+      const barbers = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr, gender: employees.gender }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
       const salonBranches = await db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(asc(branches.name));
       return { barbers, areas: enabledAreas, branches: salonBranches };

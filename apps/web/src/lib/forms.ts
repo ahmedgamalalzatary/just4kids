@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { addressCreateSchema, phoneSchema } from "@just4kids/contracts";
+import { addressCreateSchema, barberGenderSchema, phoneSchema } from "@just4kids/contracts";
+import type { BarberGender } from "@just4kids/contracts";
 import { normalizePhone } from "@/lib/phone";
 
 // Form schemas mirror the shared API contracts with English messages written for the people using the forms.
@@ -21,6 +22,9 @@ export const minutesField = z.string().trim().regex(/^[0-9]+$/, "Enter the numbe
 
 export const countField = z.string().trim().regex(/^[0-9]+$/, "Enter a whole number").transform(Number).pipe(z.number().int().min(0).max(99, "Maximum 99"));
 
+/** Male or female; starts empty so the administrator must choose, including for barbers saved before gender was recorded. */
+export const genderField = z.string().refine((value): value is BarberGender => barberGenderSchema.safeParse(value).success, "Select male or female");
+
 export const branchFormSchema = z.object({
   name: requiredText(120),
   address: requiredText(500),
@@ -29,6 +33,7 @@ export const branchFormSchema = z.object({
 export const employeeCreateFormSchema = z.object({
   displayName: requiredText(120),
   displayNameAr: optionalText(120),
+  gender: genderField,
   phone: phoneField,
   password: passwordField,
 });
@@ -36,6 +41,7 @@ export const employeeCreateFormSchema = z.object({
 export const employeeEditFormSchema = z.object({
   displayName: requiredText(120),
   displayNameAr: optionalText(120),
+  gender: genderField,
   phone: phoneField,
   enabled: z.boolean(),
   accessUntil: z.string().trim().transform(value => (value === "" ? null : value)).refine(value => value === null || z.iso.date().safeParse(value).success, "Enter a valid date"),

@@ -64,3 +64,16 @@ it("sends zero values when empty salon fields are saved", async () => {
   const [, request] = fetch.mock.calls.find(([url, init]) => String(url) === "/api/salon" && init?.method === "POST")!;
   expect(JSON.parse(String(request?.body))).toMatchObject({ childCount: 0, cash: "0.000", link: "0.000", knet: "0.000" });
 });
+
+it("accepts whole-dinar salon amounts without decimals", async () => {
+  const fetch = mount();
+  await userEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.click(dialog.getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: "السالمية" }));
+  await userEvent.type(dialog.getByLabelText("Cash (KWD)"), "4");
+  await userEvent.click(screen.getByRole("button", { name: "Save daily work" }));
+  await waitFor(() => expect(fetch.mock.calls.some(([url, init]) => String(url) === "/api/salon" && init?.method === "POST")).toBe(true));
+  const [, request] = fetch.mock.calls.find(([url, init]) => String(url) === "/api/salon" && init?.method === "POST")!;
+  expect(JSON.parse(String(request?.body))).toMatchObject({ cash: "4.000", link: "0.000", knet: "0.000" });
+});

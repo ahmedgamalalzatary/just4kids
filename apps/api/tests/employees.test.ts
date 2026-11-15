@@ -31,7 +31,7 @@ async function createEmployee(phone: string) {
   const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
   expect(admin.response.status).toBe(200);
   const created = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-    .send({ displayName: "سالم", phone, password: "employee-password-123" });
+    .send({ displayName: "سالم", gender: "male", phone, password: "employee-password-123" });
   expect(created.status).toBe(201);
   return { admin, created };
 }
@@ -74,7 +74,7 @@ describe("employee management", () => {
 
   it("lets the administrator create an employee who signs in and sees only own records", async () => {
     const { created } = await createEmployee(testPhones[0]!);
-    expect(created.body).toMatchObject({ displayName: "سالم", displayNameAr: null, phone: testPhones[0], enabled: true });
+    expect(created.body).toMatchObject({ displayName: "سالم", displayNameAr: null, gender: "male", phone: testPhones[0], enabled: true });
     expect(created.body).not.toHaveProperty("branchId");
     expect(created.body).not.toHaveProperty("branch");
     expect(created.body.password).toBeUndefined();
@@ -124,6 +124,10 @@ describe("employee management", () => {
     expect(arabic.body).toMatchObject({ displayName: "سالم", displayNameAr: "سالم" });
     const cleared = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ displayNameAr: null });
     expect(cleared.body.displayNameAr).toBeNull();
+    const female = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ gender: "female" });
+    expect(female.body.gender).toBe("female");
+    const unknownGender = await request(app).patch(`/employees/${created.body.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ gender: "other" });
+    expect(unknownGender.status).toBe(400);
     expect((await request(app).get("/auth/session").set("Cookie", employee.cookie)).status).toBe(401);
     expect((await signIn(testPhones[3]!, "employee-password-123")).response.status).toBe(401);
     expect((await signIn(testPhones[4]!, "employee-password-123")).response.status).toBe(200);
@@ -151,13 +155,16 @@ describe("employee management", () => {
   it("rejects duplicate phones and any branch without a partial account", async () => {
     const { admin } = await createEmployee(testPhones[6]!);
     const duplicate = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ displayName: "آخر", phone: testPhones[6], password: "employee-password-123" });
+      .send({ displayName: "آخر", gender: "female", phone: testPhones[6], password: "employee-password-123" });
     expect(duplicate.status).toBe(409);
     const invalidBranchPhone = "+96555550058";
     testPhones.push(invalidBranchPhone);
     const missingBranch = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
-      .send({ displayName: "آخر", phone: invalidBranchPhone, branchId: randomUUID(), password: "employee-password-123" });
+      .send({ displayName: "آخر", gender: "female", phone: invalidBranchPhone, branchId: randomUUID(), password: "employee-password-123" });
     expect(missingBranch.status).toBe(400);
+    const missingGender = await request(app).post("/employees").set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf)
+      .send({ displayName: "آخر", phone: invalidBranchPhone, password: "employee-password-123" });
+    expect(missingGender.status).toBe(400);
     expect(await connection.db.select().from(accounts).where(eq(accounts.phone, invalidBranchPhone))).toHaveLength(0);
     expect(await connection.db.select().from(accounts).where(eq(accounts.phone, testPhones[6]!))).toHaveLength(1);
   });

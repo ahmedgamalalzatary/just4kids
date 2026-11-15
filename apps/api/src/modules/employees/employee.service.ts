@@ -10,6 +10,7 @@ function serialize(row: Record) {
     id: row.account.id,
     displayName: row.employee.displayName,
     displayNameAr: row.employee.displayNameAr,
+    gender: row.employee.gender,
     phone: row.account.phone,
     enabled: row.account.enabled,
     accessUntil: row.account.accessUntil,
@@ -35,7 +36,7 @@ export function createEmployeeService(repository: EmployeeRepository) {
     async create(body: unknown) {
       const input = employeeCreateSchema.parse(body);
       try {
-        const row = await repository.create({ displayName: input.displayName, displayNameAr: input.displayNameAr ?? null, phone: input.phone, passwordHash: await hashPassword(input.password) });
+        const row = await repository.create({ displayName: input.displayName, displayNameAr: input.displayNameAr ?? null, gender: input.gender, phone: input.phone, passwordHash: await hashPassword(input.password) });
         if (!row) throw new Error("Created employee missing from database");
         return serialize(row);
       } catch (error) { rethrowDatabaseConflict(error); }

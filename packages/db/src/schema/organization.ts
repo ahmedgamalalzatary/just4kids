@@ -1,4 +1,4 @@
-import { datetime, mysqlTable, varchar } from "drizzle-orm/mysql-core";
+import { datetime, mysqlEnum, mysqlTable, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
 
 export const branches = mysqlTable("branches", {
@@ -14,6 +14,8 @@ export const employees = mysqlTable("employees", {
   // displayName is the English name; WhatsApp shows the Arabic name to Arabic chats, each falling back to the other.
   displayName: varchar("display_name", { length: 120 }).notNull(),
   displayNameAr: varchar("display_name_ar", { length: 120 }),
+  // Null only for barbers added before gender was recorded; the dashboard requires it on every new or edited barber.
+  gender: mysqlEnum("gender", ["male", "female"]),
   photoUpdatedAt: datetime("photo_updated_at", { mode: "date", fsp: 3 }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { mode: "date", fsp: 3 }).notNull(),

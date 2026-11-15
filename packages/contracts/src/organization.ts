@@ -13,15 +13,18 @@ export const branchResponseSchema = branchCreateSchema.extend({ id: z.uuid(), cr
 
 // The Arabic name WhatsApp shows to Arabic chats; empty means the English display name is used.
 const arabicName = label.nullable();
+export const barberGenderSchema = z.enum(["male", "female"]);
 export const employeeCreateSchema = z.strictObject({
   displayName: label,
   displayNameAr: arabicName.optional(),
+  gender: barberGenderSchema,
   phone: phoneSchema,
   password: passwordSchema,
 });
 export const employeeAdminUpdateSchema = z.strictObject({
   displayName: label.optional(),
   displayNameAr: arabicName.optional(),
+  gender: barberGenderSchema.optional(),
   phone: phoneSchema.optional(),
   enabled: z.boolean().optional(),
   accessUntil: z.iso.date().nullable().optional(),
@@ -32,6 +35,8 @@ export const employeeResponseSchema = z.strictObject({
   id: z.uuid(),
   displayName: label,
   displayNameAr: arabicName,
+  // Null for barbers added before gender was recorded.
+  gender: barberGenderSchema.nullable(),
   phone: phoneSchema,
   enabled: z.boolean(),
   accessUntil: z.iso.date().nullable(),
@@ -42,5 +47,6 @@ export const employeeResponseSchema = z.strictObject({
 
 export type BranchCreate = z.infer<typeof branchCreateSchema>;
 export type BranchUpdate = z.infer<typeof branchUpdateSchema>;
+export type BarberGender = z.infer<typeof barberGenderSchema>;
 export type EmployeeCreate = z.infer<typeof employeeCreateSchema>;
 export type EmployeeAdminUpdate = z.infer<typeof employeeAdminUpdateSchema>;

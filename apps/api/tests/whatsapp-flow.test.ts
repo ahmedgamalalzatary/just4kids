@@ -222,6 +222,12 @@ describe("WhatsApp flow", () => {
     expect(render({ ...atConfirm, language: "ar", barber: { ...barber, nameAr: "ليني" } }, named)).toContain("💈 الحلاق: ليني");
   });
 
+  it("lists each barber with their gender in the chat's language, when it is recorded", () => {
+    const gendered: FlowContext = { ...context, barbers: [{ ...barber, nameAr: "ليني", gender: "male" }, { id: "b2", name: "Heneer", gender: "female" }, { id: "b3", name: "Sara", gender: null }] };
+    expect(render({ step: "barber", language: "en" }, gendered)).toContain("1. Lenny (Male)\n2. Heneer (Female)\n3. Sara\n");
+    expect(render({ step: "barber", language: "ar" }, gendered)).toContain("1. ليني (ذكر)\n2. Heneer (أنثى)\n3. Sara\n");
+  });
+
   it("collects a full home request from a written address alone and hands it to staff once confirmed", async () => {
     const ask = vi.fn(async () => ({ reply: "", value: { block: "3", street: "5", houseNumber: "12" } }));
     const typed = (await walk({ step: "menu", language: "en" }, "1", "1", "2", "1", "1", "1", "4", "1", "hawally")).state;

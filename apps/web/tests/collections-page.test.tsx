@@ -119,8 +119,31 @@ it("clears prior totals when changing to an empty day", async () => {
   await userEvent.type(date, "2099-01-06");
   await waitFor(() => expect(fetch.mock.calls.some(([url]) => String(url).includes("date=2099-01-06"))).toBe(true));
   await waitFor(() => expect(screen.getByRole("button", { name: "Save collection" })).toBeEnabled());
-  expect(screen.getByLabelText("Other children")).toHaveValue(0);
-  expect(screen.getByLabelText("Children with special needs")).toHaveValue(0);
+  expect(screen.getByLabelText("Other children")).toHaveValue(null);
+  expect(screen.getByLabelText("Children with special needs")).toHaveValue(null);
+});
+
+it("shows stored zero values as empty fields when editing", async () => {
+  mount({ entries: [entry], events: history });
+  await userEvent.click(await screen.findByRole("button", { name: "Edit entry" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.getByLabelText("KNET (KWD)")).toHaveValue("");
+  expect(dialog.getByLabelText("Cash (KWD)")).toHaveValue("6.000");
+});
+
+it("accepts whole-dinar amounts without decimals", async () => {
+  const fetch = mount();
+  await userEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: "سالم" }));
+  await waitFor(() => expect(screen.getByLabelText("Other children")).toHaveValue(2));
+  await userEvent.type(screen.getByLabelText("Cash (KWD)"), "1");
+  await userEvent.type(screen.getByLabelText("KNET (KWD)"), "2.5");
+  expect(screen.getByText("3.500 KWD")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save collection" }));
+  await waitFor(() => expect(fetch.mock.calls.some(([url, init]) => String(url) === "/api/collections" && init?.method === "POST")).toBe(true));
+  const [, request] = fetch.mock.calls.find(([url, init]) => String(url) === "/api/collections" && init?.method === "POST")!;
+  expect(JSON.parse(String(request?.body))).toMatchObject({ cash: "1.000", link: "0.000", knet: "2.500" });
 });
 
 it("starts a new entry with empty inputs and a zero total", async () => {
