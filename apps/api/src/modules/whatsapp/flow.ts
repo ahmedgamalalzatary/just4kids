@@ -165,7 +165,7 @@ function summary(state: WhatsAppFlow, context: FlowContext, language: Language) 
 export function render(state: WhatsAppFlow, context: FlowContext) {
   const language = state.language ?? "ar", text = copy[language];
   switch (state.step) {
-    case "language": return `معاك يوسف - المساعد الافتراضي 🤖\n\nSelect your language / اختر اللغة:\n\n${numbered(options(state, context, language))}`;
+    case "language": return `معاك يوسف - المساعد الافتراضي 🤖 *الرد الآلي*\n\nSelect your language / اختر اللغة:\n\n${numbered(options(state, context, language))}`;
     case "menu": return `${text.menu}\n\n${numbered(options(state, context, language))}\n\n${text.pick}`;
     case "who": return `${text.who}\n\n${numbered(options(state, context, language))}`;
     case "adults": return text.adults;

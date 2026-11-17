@@ -402,7 +402,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("opens the language list with the virtual assistant's line", () => {
-    expect(render({ step: "language", language: null }, context)).toMatch(/^معاك يوسف - المساعد الافتراضي 🤖\n\nSelect your language \/ اختر اللغة:/);
+    expect(render({ step: "language", language: null }, context)).toMatch(/^معاك يوسف - المساعد الافتراضي 🤖 \*الرد الآلي\*\n\nSelect your language \/ اختر اللغة:/);
   });
 
   it("tells the AI to point price questions to the new menu options", () => {
