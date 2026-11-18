@@ -4,7 +4,7 @@ import { HttpError } from "../../lib/http-error.js";
 import type { BookingRepository } from "../bookings/booking.repository.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, barberName, bookingDays, clientApproved, clientRejected, extraNote, IDLE_RESET_MS, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientApproved, clientRejected, extraNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
 import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
@@ -131,7 +131,10 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
       return true;
     }
     const options = await repository.options(), today = now();
-    const context: FlowContext = { ...options, now: today, free: await repository.freeHours(options.barbers.map(barber => barber.id), bookingDays(today)) };
+    const context: FlowContext = {
+      ...options, now: today, free: await repository.freeHours(options.barbers.map(barber => barber.id), bookingDays(today)),
+      savedAddress: savedHomeAddress(await repository.reservationAddresses(conversation.phone), options.areas),
+    };
     const requests = (await repository.requests(id)).map(request => request.number);
     let flow = conversation.flow;
     let lastAt = await repository.previousInboundAt(id, inbound[0]!.id);

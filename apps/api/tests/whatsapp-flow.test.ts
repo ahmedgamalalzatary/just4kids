@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WhatsAppFlow } from "@just4kids/db/schema";
-import { advance, NOT_PROVIDED, render, stepInstructions } from "../src/modules/whatsapp/flow.js";
+import { advance, NOT_PROVIDED, render, savedHomeAddress, stepInstructions } from "../src/modules/whatsapp/flow.js";
 import type { FlowContext } from "../src/modules/whatsapp/flow.js";
 
 const barber = { id: "b1", name: "Lenny" };
@@ -19,6 +19,8 @@ const arabic: WhatsAppFlow = { step: "menu", language: "ar" };
 const address = { block: "1", street: "1", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: null };
 const chosen = { barber, date: "2026-10-30", startTime: "16:00", endTime: "17:00" };
 const atConfirm: WhatsAppFlow = { step: "confirm", language: "en", who: "boy", children: 1, ...chosen, extra: null, area: context.areas[0]!, address };
+// Both barbers have free time on 30 October.
+const bothFree: FlowContext = { ...context, free: { ...context.free, b2: { "2026-10-30": ["16:00"] } } };
 
 describe("WhatsApp flow", () => {
   it.each([
@@ -40,10 +42,13 @@ describe("WhatsApp flow", () => {
     const complete = await advance(partial.state, "street 5", context, noAi);
     expect(complete.state).toMatchObject({ step: "confirm", address: { block: "3", street: "5", houseNumber: "12", floor: "2", gate: "B" } });
   });
-  it("accepts a Maps link after partial address details and preserves what was supplied", async () => {
+  it("keeps a Maps link sent after partial details, and still asks for the missing written part", async () => {
     const partial = await advance({ ...atConfirm, step: "address" }, "gate B, floor 2, block 3", context, noAi);
-    const complete = await advance(partial.state, "https://maps.app.goo.gl/xyz", context, noAi);
-    expect(complete.state).toMatchObject({ step: "confirm", address: { block: "3", street: NOT_PROVIDED, gate: "B", floor: "2", mapsUrl: "https://maps.app.goo.gl/xyz" } });
+    const linked = await advance(partial.state, "https://maps.app.goo.gl/xyz", context, noAi);
+    expect(linked.state.step).toBe("address");
+    expect(linked.reply).toBe("📍 Please send the missing address details: street, house or building.");
+    const complete = await advance(linked.state, "street 5 house 12", context, noAi);
+    expect(complete.state).toMatchObject({ step: "confirm", address: { block: "3", street: "5", houseNumber: "12", gate: "B", floor: "2", mapsUrl: "https://maps.app.goo.gl/xyz" } });
   });
   it.each(["room 12 floor 2 wing A", "غرفة ١٢، الدور ٢، جناح A"])("accepts hospital parts in any order: %s", async input => {
     const turn = await advance({ ...atConfirm, step: "address", visitType: "hospital" }, input, context, noAi);
@@ -84,11 +89,11 @@ describe("WhatsApp flow", () => {
   it.each([
     ["menu", {}, "5", "language"],
     ["who", {}, "7", "menu"],
-    ["barber", { who: "boy", children: 1 }, "3", "children"],
-    ["barber", { who: "adults", adults: 1 }, "3", "adults"],
-    ["barber", { who: "family", adults: 1, children: 1 }, "3", "children"],
-    ["date", { barber }, "4", "barber"],
-    ["time", { barber, date: "2026-11-01" }, "2", "date"],
+    ["date", { who: "boy", children: 1 }, "4", "children"],
+    ["date", { who: "adults", adults: 1 }, "4", "adults"],
+    ["date", { who: "family", adults: 1, children: 1 }, "4", "children"],
+    ["barber", { children: 1, date: "2026-10-30" }, "2", "date"],
+    ["time", { barber, date: "2026-11-01" }, "2", "barber"],
     ["extra", { ...chosen }, "8", "time"],
   ] as const)("goes back from %s", async (step, extra, choice, previous) => {
     const turn = await advance({ step, language: "en", ...extra }, choice, context, noAi);
@@ -109,36 +114,57 @@ describe("WhatsApp flow", () => {
   });
 
   it("accepts Arabic digits in the menus", async () => {
-    expect((await walk(arabic, "١", "٢", "٣")).state).toMatchObject({ who: "girl", children: 3, step: "barber" });
+    expect((await walk(arabic, "١", "٢", "٣")).state).toMatchObject({ who: "girl", children: 3, step: "date" });
   });
 
+  const atBarber = { step: "barber" as const, language: "en" as const, date: "2026-10-30" };
   it("forces a choice of a named barber", () => {
-    const text = render({ step: "barber", language: "en" }, context);
+    const text = render(atBarber, bothFree);
     expect(text).toContain("1. Lenny\n2. Heneer\n3. Back to the previous step");
     expect(text).not.toContain("Any barber");
-    expect(render({ step: "barber", language: "ar" }, context)).not.toContain("أي حلاق\n");
+    expect(render({ ...atBarber, language: "ar" }, bothFree)).not.toContain("أي حلاق\n");
   });
 
   it("asks which barber the client chooses", () => {
-    expect(render({ step: "barber", language: "en" }, context)).toContain("Which barber do you choose?");
-    expect(render({ step: "barber", language: "ar" }, context)).toContain("أي حلاق تختار؟");
+    expect(render(atBarber, context)).toContain("Which barber do you choose?");
+    expect(render({ ...atBarber, language: "ar" }, context)).toContain("أي حلاق تختار؟");
   });
 
-  it("offers only the next 7 days on which the chosen barber is free", async () => {
-    const turn = await walk({ step: "barber", language: "en", who: "boy", children: 1 }, "1");
-    expect(turn.state).toMatchObject({ step: "date", barber, offered: ["2026-10-30", "2026-11-01", "2026-11-05"] });
-    expect(turn.reply).toContain("1. Fri 30 Oct\n2. Sun 1 Nov\n3. Thu 5 Nov\n4. Back to the previous step");
+  it("asks for the day right after the kids, offering the next 7 days on which any barber is free", async () => {
+    const turn = await walk({ step: "children", language: "en", who: "boy" }, "1");
+    expect(turn.state).toMatchObject({ step: "date", children: 1, offered: ["2026-10-30", "2026-11-01", "2026-11-05"] });
+    expect(turn.reply).toContain("📅 Preferred date:\n\n1. Fri 30 Oct\n2. Sun 1 Nov\n3. Thu 5 Nov\n4. Back to the previous step");
   });
 
-  it("stays on the barber list when that barber has no free time", async () => {
-    const turn = await walk({ step: "barber", language: "en", who: "boy", children: 1 }, "2");
-    expect(turn.state.step).toBe("barber");
-    expect(turn.reply).toContain("no free times in the next 7 days");
-    expect(turn.reply).toContain("1. Lenny");
+  it("lists only the barbers free on the chosen day, then their start times", async () => {
+    const lenny = await walk({ step: "date", language: "en", who: "boy", children: 1 }, "2");
+    expect(lenny.state).toMatchObject({ step: "barber", date: "2026-11-01", offered: ["b1"] });
+    expect(lenny.reply).toContain("💈 Which barber do you choose?\n\n1. Lenny\n2. Back to the previous step");
+    const both = await advance({ step: "date", language: "en", who: "boy", children: 1 }, "1", bothFree, noAi);
+    expect(both.state.offered).toEqual(["b1", "b2"]);
+    const times = await advance(both.state, "2", bothFree, noAi);
+    expect(times.state).toMatchObject({ step: "time", barber: { id: "b2", name: "Heneer" }, offered: ["16:00"] });
+  });
+
+  it("refuses a barber who is no longer free that day", async () => {
+    const turn = await advance({ ...atBarber, children: 1, offered: ["b2", "b1"] }, "1", context, noAi);
+    expect(turn.state).toMatchObject({ step: "barber", offered: ["b1"] });
+    expect(turn.reply).toContain("no longer free");
+  });
+
+  it("stays on the kids question when no barber is free in the next 7 days", async () => {
+    const turn = await advance({ step: "children", language: "en", who: "boy" }, "1", { ...context, free: {} }, noAi);
+    expect(turn.state.step).toBe("children");
+    expect(turn.reply).toBe("⚠️ No barber has free time for this visit in the next 7 days.\n\n🔢 How many kids?");
+  });
+
+  it("sends a client left on the old barber-first order to the day list", async () => {
+    const turn = await advance({ step: "barber", language: "en", who: "boy", children: 1 }, "1", context, noAi);
+    expect(turn.state).toMatchObject({ step: "date", offered: ["2026-10-30", "2026-11-01", "2026-11-05"] });
   });
 
   it("offers only that barber's free future start times", async () => {
-    const turn = await walk({ step: "date", language: "en", barber }, "1");
+    const turn = await walk({ ...atBarber, children: 1 }, "1");
     expect(turn.state).toMatchObject({ step: "time", date: "2026-10-30", offered: ["16:00", "17:00", "19:00", "20:00", "21:00", "22:00"] });
     expect(turn.reply).toContain("1. 4 pm\n2. 5 pm\n3. 7 pm\n4. 8 pm\n5. 9 pm\n6. 10 pm\n7. Back to the previous step");
     expect(turn.reply).not.toContain("10 am");
@@ -165,7 +191,7 @@ describe("WhatsApp flow", () => {
     expect(kept.state).toMatchObject({ step: "extra", startTime: "16:00", endTime: "17:00" });
   });
 
-  it("sends a client still on the old any-barber path back to the barber list", async () => {
+  it("sends a client still on the old any-barber path to the barber list of the day", async () => {
     for (const step of ["date", "time"] as const) {
       const turn = await advance({ step, language: "en", barber: null, date: "2026-10-30", startTime: "16:00" }, "1", context, noAi);
       expect(turn.state.step).toBe("barber");
@@ -176,7 +202,7 @@ describe("WhatsApp flow", () => {
     const later = vi.fn(async () => ({ reply: "", value: { date: "2026-11-06" } }));
     expect((await advance({ step: "date", language: "en", barber }, "next Friday", context, later)).state.step).toBe("date");
     const last = vi.fn(async () => ({ reply: "", value: { date: "2026-11-05" } }));
-    expect((await advance({ step: "date", language: "en", barber }, "Thursday", context, last)).state).toMatchObject({ step: "time", date: "2026-11-05" });
+    expect((await advance({ step: "date", language: "en", barber }, "Thursday", context, last)).state).toMatchObject({ step: "barber", date: "2026-11-05" });
   });
 
   it("no longer accepts a typed time window", async () => {
@@ -215,22 +241,59 @@ describe("WhatsApp flow", () => {
     expect(none.state.extraHourBusy).toBeUndefined();
   });
 
+  describe("two kids", () => {
+    const twoKids = { language: "en" as const, who: "both" as const, children: 2, barber };
+    it.each([2, 3])("offers only dates and start times with two free hours in a row for %i kids", async children => {
+      const dates = await walk({ step: "children", language: "en", who: "both" }, String(children));
+      expect(dates.state.offered).toEqual(["2026-10-30"]);
+      const barbers = await advance(dates.state, "1", context, noAi);
+      expect(barbers.state.offered).toEqual(["b1"]);
+      const times = await advance(barbers.state, "1", context, noAi);
+      expect(times.state).toMatchObject({ step: "time", offered: ["16:00", "19:00", "20:00", "21:00"] });
+    });
+    it("books two hours, and three with an extra service", async () => {
+      const picked = await walk({ step: "time", ...twoKids, date: "2026-10-30" }, "2");
+      expect(picked.state).toMatchObject({ step: "extra", startTime: "19:00", endTime: "21:00" });
+      const extra = await advance(picked.state, "1", context, noAi);
+      expect(extra.state).toMatchObject({ step: "visitType", extra: "manicure_pedicure", endTime: "22:00" });
+      expect(extra.state.extraHourBusy).toBeUndefined();
+      const none = await walk({ ...extra.state, step: "extra" }, "7");
+      expect(none.state).toMatchObject({ step: "visitType", extra: null, endTime: "21:00" });
+    });
+    it("refuses an extra service when the third hour is not free", async () => {
+      // 16:00 and 17:00 are free, 18:00 is taken.
+      const atExtra: WhatsAppFlow = { step: "extra", ...twoKids, date: "2026-10-30", startTime: "16:00", endTime: "18:00" };
+      const refused = await advance(atExtra, "6", context, noAi);
+      expect(refused.state).toMatchObject({ step: "extra", endTime: "18:00" });
+      expect(refused.state.extra).toBeUndefined();
+      expect(refused.reply).toContain("does not fit");
+      expect((await advance(atExtra, "7", context, noAi)).state).toMatchObject({ step: "visitType", extra: null, endTime: "18:00" });
+    });
+    it("books two hours for three kids too, and keeps one hour for one or four kids", async () => {
+      expect((await walk({ step: "time", ...twoKids, children: 3, date: "2026-10-30" }, "2")).state).toMatchObject({ startTime: "19:00", endTime: "21:00" });
+      for (const children of [1, 4]) {
+        const turn = await walk({ step: "time", ...twoKids, children, date: "2026-10-30" }, "2");
+        expect(turn.state).toMatchObject({ startTime: "17:00", endTime: "18:00" });
+      }
+    });
+  });
+
   it("shows each barber's Arabic name to Arabic chats, and the English name otherwise", () => {
     const named: FlowContext = { ...context, barbers: [{ ...barber, nameAr: "ليني" }, { id: "b2", name: "Heneer", nameAr: null }] };
-    expect(render({ step: "barber", language: "ar" }, named)).toContain("1. ليني\n2. Heneer");
-    expect(render({ step: "barber", language: "en" }, named)).toContain("1. Lenny\n2. Heneer");
+    expect(render({ ...atBarber, language: "ar" }, { ...named, free: bothFree.free })).toContain("1. ليني\n2. Heneer");
+    expect(render(atBarber, { ...named, free: bothFree.free })).toContain("1. Lenny\n2. Heneer");
     expect(render({ ...atConfirm, language: "ar", barber: { ...barber, nameAr: "ليني" } }, named)).toContain("💈 الحلاق: ليني");
   });
 
   it("lists each barber with their gender in the chat's language, when it is recorded", () => {
-    const gendered: FlowContext = { ...context, barbers: [{ ...barber, nameAr: "ليني", gender: "male" }, { id: "b2", name: "Heneer", gender: "female" }, { id: "b3", name: "Sara", gender: null }] };
-    expect(render({ step: "barber", language: "en" }, gendered)).toContain("1. Lenny (Male)\n2. Heneer (Female)\n3. Sara\n");
-    expect(render({ step: "barber", language: "ar" }, gendered)).toContain("1. ليني (ذكر)\n2. Heneer (أنثى)\n3. Sara\n");
+    const gendered: FlowContext = { ...context, barbers: [{ ...barber, nameAr: "ليني", gender: "male" }, { id: "b2", name: "Heneer", gender: "female" }, { id: "b3", name: "Sara", gender: null }], free: { ...bothFree.free, b3: { "2026-10-30": ["20:00"] } } };
+    expect(render(atBarber, gendered)).toContain("1. Lenny (Male)\n2. Heneer (Female)\n3. Sara\n");
+    expect(render({ ...atBarber, language: "ar" }, gendered)).toContain("1. ليني (ذكر)\n2. Heneer (أنثى)\n3. Sara\n");
   });
 
   it("collects a full home request from a written address alone and hands it to staff once confirmed", async () => {
     const ask = vi.fn(async () => ({ reply: "", value: { block: "3", street: "5", houseNumber: "12" } }));
-    const typed = (await walk({ step: "menu", language: "en" }, "1", "1", "2", "1", "1", "1", "4", "1", "hawally")).state;
+    const typed = (await walk({ step: "menu", language: "en" }, "1", "1", "1", "1", "1", "1", "4", "1", "hawally")).state;
     expect(typed).toMatchObject({ step: "address", visitType: "home" });
     const confirm = await advance(typed, "block 3 street 5 house 12", context, ask);
     expect(confirm.state.step).toBe("confirm");
@@ -238,7 +301,7 @@ describe("WhatsApp flow", () => {
     expect(confirm.reply).toContain("Hair wash with treatment");
     expect(confirm.reply).toContain("This is a request — our team will confirm the exact time.");
     const sent = await advance(confirm.state, "1", context, noAi);
-    expect(sent.staff).toMatchObject({ type: "new_request", details: { language: "en", who: "boy", adults: 0, children: 2, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", extra: "hair_wash_treatment", visitType: "home", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12", mapsUrl: null } } });
+    expect(sent.staff).toMatchObject({ type: "new_request", details: { language: "en", who: "boy", adults: 0, children: 1, specialChildren: 0, barberId: "b1", barberName: "Lenny", date: "2026-10-30", startTime: "16:00", endTime: "18:00", extra: "hair_wash_treatment", visitType: "home", areaId: "a1", area: "Hawally", address: { block: "3", street: "5", houseNumber: "12", mapsUrl: null } } });
     expect(sent.reply).not.toContain("Select your language");
   });
 
@@ -264,13 +327,17 @@ describe("WhatsApp flow", () => {
     expect((await advance(sent.state, "Hello", context, noAi)).state).toEqual({ step: "language", language: null });
   });
 
-  it("confirms a home request with only a Google Maps link and leaves the home fields unused", async () => {
+  it("does not accept a Google Maps link alone: it keeps the link and asks for the written address", async () => {
     const link = "https://www.google.com/maps?q=29.3,48.0";
     const linked = await walk({ step: "address", language: "en", who: "adults", adults: 1, ...chosen, area: context.areas[0]! }, link);
-    expect(linked.state.step).toBe("confirm");
-    expect(linked.state.address).toEqual({ block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED, buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: link });
-    expect(linked.reply).toContain(link);
-    expect(linked.reply).not.toContain("block, street");
+    expect(linked.state).toMatchObject({ step: "address", draft: { mapsUrl: link } });
+    expect(linked.state.address).toBeUndefined();
+    expect(linked.reply).toBe("📍 Please send the missing address details: block, street, house or building.");
+    const arabic = await advance({ step: "address", language: "ar", ...chosen, area: context.areas[0]! }, link, context, noAi);
+    expect(arabic.reply).toBe("📍 أرسل تفاصيل العنوان الناقصة: القطعة، الشارع، المنزل أو البناية.");
+    const written = await advance(linked.state, "block 3 street 5 house 12", context, noAi);
+    expect(written.state).toMatchObject({ step: "confirm", address: { block: "3", street: "5", houseNumber: "12", mapsUrl: link } });
+    expect(written.reply).toContain(link);
   });
 
   it("reads the written address and the link from one message", async () => {
@@ -280,12 +347,12 @@ describe("WhatsApp flow", () => {
     expect(turn.state).toMatchObject({ step: "confirm", address: { block: "3", houseNumber: "12", mapsUrl: link } });
   });
 
-  it("confirms with a link even when the AI cannot read the text beside it", async () => {
+  it("keeps a link and asks for the written address when the AI cannot read the text beside it", async () => {
     const link = "https://maps.app.goo.gl/xyz";
     const ask = vi.fn(async () => ({ reply: "Thanks", value: null }));
     const turn = await advance({ step: "address", language: "en", area: context.areas[0]! }, `here ${link}`, context, ask);
-    expect(turn.state).toMatchObject({ step: "confirm", address: { block: NOT_PROVIDED, mapsUrl: link } });
-    expect(turn.reply).toContain(link);
+    expect(turn.state).toMatchObject({ step: "address", draft: { mapsUrl: link } });
+    expect(turn.reply).toBe("📍 Please send the missing address details: block, street, house or building.");
   });
 
   it("refuses a link that is not Google Maps", async () => {
@@ -302,21 +369,21 @@ describe("WhatsApp flow", () => {
   });
 
   it("marks every child as special needs, and lets a client already asked about adults finish", async () => {
-    expect((await walk({ step: "who", language: "en" }, "4", "2")).state).toMatchObject({ who: "special", children: 2, step: "barber" });
-    expect((await walk({ step: "adults", language: "en", who: "family" }, "1", "3")).state).toMatchObject({ adults: 1, children: 3, step: "barber" });
+    expect((await walk({ step: "who", language: "en" }, "4", "2")).state).toMatchObject({ who: "special", children: 2, step: "date" });
+    expect((await walk({ step: "adults", language: "en", who: "family" }, "1", "3")).state).toMatchObject({ adults: 1, children: 3, step: "date" });
   });
 
   it("offers the medical condition service sixth, asks for the kids, and no longer offers adults", async () => {
     expect(render({ step: "who", language: "en" }, context)).toBe("👶 Who is this for?\n\n1. Boy\n2. Girl\n3. Baby\n4. Special needs\n5. Both (Girl & Boy)\n6. Medical condition service\n7. Back to the previous step");
     expect(render({ step: "who", language: "ar" }, context)).toContain("6. خدمة حالة مرضية\n7. الرجوع للخطوة السابقة");
-    expect((await walk({ step: "who", language: "en" }, "6", "2")).state).toMatchObject({ who: "medical", children: 2, step: "barber" });
+    expect((await walk({ step: "who", language: "en" }, "6", "2")).state).toMatchObject({ who: "medical", children: 2, step: "date" });
     expect(render({ step: "who", language: "ar" }, context)).not.toContain("كبار");
   });
 
-  it("asks for hospital wing, floor, and room, or a Google Maps link", () => {
+  it("asks for the written hospital wing, floor, and room, with an optional Google Maps link", () => {
     const hospital = { step: "address" as const, language: "en" as const, visitType: "hospital" as const, ...chosen, area: context.areas[0]! };
-    expect(render(hospital, context)).toBe("📍 Please send the hospital location: wing, floor, and room, or send a Google Maps link.");
-    expect(render({ ...hospital, language: "ar" }, context)).toBe("📍 أرسل موقع المستشفى: الجناح، الدور، والغرفة، أو أرسل رابط خرائط Google.");
+    expect(render(hospital, context)).toBe("📍 Please write the hospital location: wing, floor, and room. You can also add a Google Maps link.");
+    expect(render({ ...hospital, language: "ar" }, context)).toBe("📍 اكتب موقع المستشفى: الجناح، الدور، والغرفة. يمكنك أيضاً إضافة رابط خرائط Google.");
   });
 
   it("confirms a hospital request from wing, floor, and room, and puts them in the request", async () => {
@@ -330,12 +397,15 @@ describe("WhatsApp flow", () => {
     expect(sent.staff).toMatchObject({ type: "new_request", details: { visitType: "hospital", hospital: { wing: "A", floor: "2", room: "12" }, area: "Hawally", address: { block: NOT_PROVIDED, mapsUrl: null } } });
   });
 
-  it("confirms a hospital request from a Google Maps link alone", async () => {
+  it("does not accept a hospital Google Maps link alone: it keeps the link and asks for wing, floor, and room", async () => {
     const link = "https://maps.app.goo.gl/xyz";
-    const turn = await walk({ step: "address", language: "en", visitType: "hospital", ...chosen, area: context.areas[0]! }, link);
-    expect(turn.state).toMatchObject({ step: "confirm", address: { block: NOT_PROVIDED, mapsUrl: link } });
-    expect(turn.state.hospital).toBeUndefined();
-    expect(turn.reply).toContain("🏥 Hospital location: Hawally");
+    const linked = await walk({ step: "address", language: "en", visitType: "hospital", ...chosen, area: context.areas[0]! }, link);
+    expect(linked.state).toMatchObject({ step: "address", draft: { mapsUrl: link } });
+    expect(linked.reply).toContain("⚠️ Please write the hospital wing, floor, and room.");
+    const turn = await walk(linked.state, "wing A floor 2 room 12");
+    expect(turn.state).toMatchObject({ step: "confirm", hospital: { wing: "A", floor: "2", room: "12" }, address: { block: NOT_PROVIDED, mapsUrl: link } });
+    expect(turn.state.draft).toBeUndefined();
+    expect(turn.reply).toContain("🏥 Hospital location: Hawally, Wing A, Floor 2, Room 12");
     expect(turn.reply).toContain(link);
   });
 
@@ -343,7 +413,7 @@ describe("WhatsApp flow", () => {
     const ask = vi.fn(async () => ({ reply: "", value: { wing: "A", floor: "2" } }));
     const turn = await advance({ step: "address", language: "en", visitType: "hospital", ...chosen, area: context.areas[0]! }, "wing A floor 2", context, ask);
     expect(turn.state.step).toBe("address");
-    expect(turn.reply).toContain("⚠️ Please send the hospital wing, floor, and room, or a Google Maps link.");
+    expect(turn.reply).toContain("⚠️ Please write the hospital wing, floor, and room.");
   });
 
   it("tells the AI to read hospital parts for a hospital address", () => {
@@ -352,10 +422,59 @@ describe("WhatsApp flow", () => {
     expect(rules).not.toContain('"block":');
   });
 
-  it("asks for the written address or a Google Maps link, not both", () => {
-    const text = render({ step: "address", language: "en", visitType: "home" }, context);
-    expect(text).toBe("📍 Please write your address (block, street, house or building) or send your location as a Google Maps link.");
-    expect(render({ step: "address", language: "ar", visitType: "home" }, context)).toContain("أو أرسل موقعك كرابط خرائط Google");
+  it("asks for the written address, with an optional Google Maps link", () => {
+    expect(render({ step: "address", language: "en", visitType: "home" }, context)).toBe("📍 Please write your address: block, street, and house or building. You can also add a Google Maps link.");
+    expect(render({ step: "address", language: "ar", visitType: "home" }, context)).toBe("📍 اكتب عنوانك: القطعة، الشارع، والمنزل أو البناية. يمكنك أيضاً إضافة رابط خرائط Google.");
+  });
+
+  describe("saved address", () => {
+    const link = "https://maps.app.goo.gl/home";
+    const savedAddress = { area: context.areas[0]!, address: { ...address, block: "3", street: "5", houseNumber: "12", floor: "2", mapsUrl: link } };
+    const remembered: FlowContext = { ...context, savedAddress };
+    const atVisitType: WhatsAppFlow = { step: "visitType", language: "en", who: "boy", children: 1, ...chosen, extra: null };
+    it("offers the last reservation's address for a home visit instead of asking for it", async () => {
+      const turn = await advance(atVisitType, "1", remembered, noAi);
+      expect(turn.state.step).toBe("savedAddress");
+      expect(turn.reply).toBe(`📍 Should the barber come to this address?\nHawally, Block 3, Street 5, House 12, Floor 2\n${link}\n\n1. Yes\n2. No, a new address\n3. Back to the previous step`);
+      expect((await advance({ ...atVisitType, language: "ar" }, "1", remembered, noAi)).reply).toBe(`📍 هل يأتي الحلاق إلى هذا العنوان؟\nHawally، قطعة 3، شارع 5، منزل 12، دور 2\n${link}\n\n1. نعم\n2. لا، عنوان جديد\n3. الرجوع للخطوة السابقة`);
+    });
+    it("uses the saved address on yes, and goes back to the question from the confirmation", async () => {
+      const offered = await advance(atVisitType, "1", remembered, noAi);
+      const yes = await advance(offered.state, "1", remembered, noAi);
+      expect(yes.state).toMatchObject({ step: "confirm", area: savedAddress.area, address: savedAddress.address });
+      expect(yes.reply).toContain("📍 Address: Hawally, Block 3, Street 5, House 12, Floor 2");
+      const sent = await advance(yes.state, "1", remembered, noAi);
+      expect(sent.staff).toMatchObject({ type: "new_request", details: { areaId: "a1", area: "Hawally", address: savedAddress.address } });
+      expect((await advance(yes.state, "3", remembered, noAi)).state.step).toBe("savedAddress");
+    });
+    it("asks for a new area and written address on no", async () => {
+      const offered = await advance(atVisitType, "1", remembered, noAi);
+      const no = await advance(offered.state, "2", remembered, noAi);
+      expect(no.state.step).toBe("area");
+      const atAddress = await advance(no.state, "hawally", remembered, noAi);
+      const typed = await advance(atAddress.state, "block 7 street 9 house 1", remembered, noAi);
+      expect(typed.state).toMatchObject({ step: "confirm", address: { block: "7", street: "9", houseNumber: "1", mapsUrl: null } });
+      expect((await advance(typed.state, "3", remembered, noAi)).state.step).toBe("address");
+    });
+    it("goes back from the question to home or hospital", async () => {
+      const offered = await advance(atVisitType, "1", remembered, noAi);
+      expect((await advance(offered.state, "3", remembered, noAi)).state.step).toBe("visitType");
+    });
+    it("never offers it for a hospital visit, or when there is none", async () => {
+      expect((await advance(atVisitType, "2", remembered, noAi)).state.step).toBe("area");
+      expect((await advance(atVisitType, "1", context, noAi)).state.step).toBe("area");
+    });
+    it("asks for the area when the saved address is gone since the question was sent", async () => {
+      expect((await advance({ ...atVisitType, step: "savedAddress", visitType: "home" }, "1", context, noAi)).state.step).toBe("area");
+    });
+    it("picks the newest usable home address from the reservations, newest first", () => {
+      const home = { area: "hawally", block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, gate: "B", blueNumber: null, floor: null, apartment: null, mapsUrl: null };
+      const hospital = { ...home, area: "Hawally", block: NOT_PROVIDED, street: NOT_PROVIDED, houseNumber: NOT_PROVIDED };
+      const unknownArea = { ...home, area: "Nowhere", block: "9" };
+      expect(savedHomeAddress([hospital, unknownArea, home], context.areas)).toEqual({ area: { id: "a1", name: "Hawally" }, address: { block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, gate: "B", blueNumber: null, floor: null, apartment: null, mapsUrl: null } });
+      expect(savedHomeAddress([hospital, unknownArea], context.areas)).toBeNull();
+      expect(savedHomeAddress([], context.areas)).toBeNull();
+    });
   });
 
   it("lists the salon service as one option, without a talk-to-an-employee option", () => {

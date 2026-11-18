@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, areas, bookings, branches, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookings, branches, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import type { WhatsAppRequestDetails, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
@@ -90,6 +90,12 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
       const salonBranches = await db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(asc(branches.name));
       return { barbers, areas: enabledAreas, branches: salonBranches };
+    },
+    /** The addresses of the client's reservations, newest first, so the last home address can be offered again. */
+    async reservationAddresses(phone: string) {
+      const rows = await db.select({ address: bookings.addressSnapshot }).from(bookings).innerJoin(clients, eq(clients.id, bookings.clientId))
+        .where(eq(clients.phone, phone)).orderBy(desc(bookings.createdAt)).limit(20);
+      return rows.map(row => row.address);
     },
     /** Each barber's free whole hours on each date, for the lists the client chooses from. */
     async freeHours(barberIds: string[], dates: string[]) {

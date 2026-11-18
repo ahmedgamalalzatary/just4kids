@@ -32,7 +32,8 @@ export type WhatsAppStaffAction =
   | { type: "talk" }
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "area" | "address" | "confirm" | "change" | "branch";
+// savedAddress asks whether the barber comes to the address of the client's last reservation.
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
@@ -45,10 +46,12 @@ export type WhatsAppFlow = {
   visitType?: WhatsAppVisitType;
   // The hospital location, used as the reservation note; home-address fields stay unused.
   hospital?: WhatsAppHospital;
-  // What the numbers of the last sent date, time or duration list stand for, so a list that changed since keeps its meaning.
+  // What the numbers of the last sent date, barber (ids) or time list stand for, so a list that changed since keeps its meaning.
   offered?: string[];
   area?: { id: string; name: string }; address?: WhatsAppAddress;
-  // Keep supplied details while asking for missing required fields. A Maps link alone is also accepted.
+  // True when the client chose the saved address, so the confirmation's back option returns to that question.
+  savedAddressUsed?: boolean;
+  // Keep supplied details while asking for missing required fields. A Maps link alone is kept but not enough.
   draft?: { written?: Partial<Omit<WhatsAppAddress, "mapsUrl">>; mapsUrl?: string };
 };
 

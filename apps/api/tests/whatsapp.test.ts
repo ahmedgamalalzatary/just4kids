@@ -10,7 +10,6 @@ import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
 import { createWhatsApp } from "../src/modules/whatsapp/index.js";
-import { createWhatsAppRepository } from "../src/modules/whatsapp/whatsapp.repository.js";
 
 const secret = "w".repeat(32);
 const sessionId = "8f3c2b1a-9d4e-4c7a-8b2f-1e6d5a4c3b2a";
@@ -101,10 +100,7 @@ beforeAll(async () => {
     await connection.db.insert(employeeWorkDays).values({ employeeId: barberId, dayOfWeek: day, active: true });
     await connection.db.insert(employeeWorkIntervals).values({ employeeId: barberId, dayOfWeek: day, startTime: "00:00", endTime: "23:59" });
   }
-  const { barbers } = await createWhatsAppRepository(connection).options();
-  barberOption = String(barbers.findIndex(barber => barber.id === barberId) + 1);
 });
-let barberOption = "1";
 let h: ReturnType<typeof harness>;
 // Workers pick up every due conversation, so no test may inherit another test's unfinished work (test database only).
 beforeEach(async () => { await connection.db.update(whatsappMessages).set({ status: "failed" }).where(eq(whatsappMessages.status, "pending")); h = harness(); });
@@ -164,23 +160,30 @@ describe("WhatsApp webhook", () => {
   });
 });
 
-// Walks a client from the first message to the start-time list, using another date when the wanted time is taken.
-async function toTimes(phone: string, barberChoice: string, wanted?: string) {
-  for (const text of ["مرحبا", "1", "1", "1", "1", barberChoice]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+// Walks a client from the first message to this file's barber's start-time list (day first, then barber), using another day when the wanted time is taken.
+async function toTimes(phone: string, wanted?: string) {
+  for (const text of ["مرحبا", "1", "1", "1", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
   for (const dateChoice of ["4", "5", "6", "7"]) {
     await deliver(h.app, payload(phone, dateChoice)); await h.whatsapp.idle();
+    const barber = listOption(barberName);
+    if (!barber) throw new Error(`Barber "${barberName}" was not offered:\n${h.sent.at(-1)?.text}`);
+    await deliver(h.app, payload(phone, barber)); await h.whatsapp.idle();
     if (!wanted || timeOption(wanted)) return;
-    const back = /^(\d+)\. Back to the previous step$/m.exec(h.sent.at(-1)!.text)?.[1];
-    if (!back) throw new Error(`No back option on the start-time list:\n${h.sent.at(-1)?.text}`);
-    await deliver(h.app, payload(phone, back)); await h.whatsapp.idle();
+    // Back from the start times to the barbers, then to the days.
+    for (const list of ["start-time", "barber"]) {
+      const back = listOption("Back to the previous step");
+      if (!back) throw new Error(`No back option on the ${list} list:\n${h.sent.at(-1)?.text}`);
+      await deliver(h.app, payload(phone, back)); await h.whatsapp.idle();
+    }
   }
   throw new Error(`Time "${wanted}" was not offered on any date.`);
 }
-// The number of a start time in the list the client was just sent.
-const timeOption = (time: string) => new RegExp(`^(\\d+)\\. ${time}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
+// The number of an option in the list the client was just sent.
+const listOption = (label: string) => new RegExp(`^(\\d+)\\. ${label}$`, "m").exec(h.sent.at(-1)!.text)?.[1];
+const timeOption = listOption;
 // Labeled address details can arrive in any order, with a Maps link in the same message.
-async function toConfirm(phone: string, barberChoice: string, time = nextWindow(), extra = "7") {
-  await toTimes(phone, barberChoice, time);
+async function toConfirm(phone: string, time = nextWindow(), extra = "7") {
+  await toTimes(phone, time);
   const chosen = timeOption(time);
   if (!chosen) throw new Error(`Time "${time}" was not offered. Last message:\n${h.sent.at(-1)?.text}`);
   for (const text of [chosen, extra, "1", areaName]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
@@ -192,8 +195,8 @@ const nextWindow = () => {
   const hour = windowHour++ % 23;
   return hour === 0 ? "12 am" : hour < 12 ? `${hour} am` : hour === 12 ? "12 pm" : `${hour - 12} pm`;
 };
-async function confirmed(phone: string, barberChoice = barberOption, time = nextWindow()) {
-  await toConfirm(phone, barberChoice, time);
+async function confirmed(phone: string, time = nextWindow()) {
+  await toConfirm(phone, time);
   await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
   return (await stored(phone)).requests.at(-1)!.number;
 }
@@ -214,7 +217,7 @@ describe("WhatsApp booking flow", () => {
 
   it("offers barbers from the dashboard and tells staff first once the client confirms", async () => {
     const { phone, chatId } = client();
-    await toConfirm(phone, barberOption);
+    await toConfirm(phone);
     expect(h.sent.some(message => message.text.includes(barberName))).toBe(true);
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
@@ -319,7 +322,7 @@ describe("WhatsApp booking flow", () => {
 
   it("holds the client reply until staff got the request, retrying with the same key", async () => {
     const { phone } = client();
-    await toConfirm(phone, barberOption);
+    await toConfirm(phone);
     h.sent.length = 0;
     h.failSends(message => message.chatId === staffChat ? { status: 503, body: { statusCode: 503 } } : { status: 201 });
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
@@ -332,7 +335,7 @@ describe("WhatsApp booking flow", () => {
 
   it("never tells the client staff know when the staff send may have failed", async () => {
     const { phone } = client();
-    await toConfirm(phone, barberOption);
+    await toConfirm(phone);
     h.sent.length = 0;
     h.failSends(message => message.chatId === staffChat ? { status: 409, body: { statusCode: 409, code: "IDEMPOTENCY_OUTCOME_UNKNOWN" } } : { status: 201 });
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
@@ -389,8 +392,8 @@ describe("staff approval", () => {
     const { phone } = client();
     const time = nextWindow();
     // Both requests were sent while the hour was free; a request does not hold it until staff approve.
-    const first = await confirmed(phone, barberOption, time);
-    const second = await confirmed(phone, barberOption, time);
+    const first = await confirmed(phone, time);
+    const second = await confirmed(phone, time);
     expect(second).not.toBe(first);
     await fromStaff(`yes ${first}`);
     h.sent.length = 0;
@@ -404,9 +407,9 @@ describe("staff approval", () => {
   it("stops offering an hour once it is reserved", async () => {
     const { phone } = client();
     const time = nextWindow();
-    await fromStaff(`yes ${await confirmed(phone, barberOption, time)}`);
+    await fromStaff(`yes ${await confirmed(phone, time)}`);
     const other = client();
-    await toTimes(other.phone, barberOption);
+    await toTimes(other.phone);
     expect(timeOption(time)).toBeUndefined();
     expect(timeOption(nextWindow())).toBeDefined();
   });
@@ -415,7 +418,7 @@ describe("staff approval", () => {
     const { phone } = client();
     // The extra service takes the next hour too, so no later test may use it.
     const time = nextWindow(); nextWindow();
-    await toConfirm(phone, barberOption, time, "1");
+    await toConfirm(phone, time, "1");
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
     const number = (await stored(phone)).requests.at(-1)!.number;
     expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain("خدمة إضافية: مانيكير + باديكير");
@@ -426,10 +429,22 @@ describe("staff approval", () => {
     expect(Number(booking!.endTime.slice(0, 2)) - Number(booking!.startTime.slice(0, 2))).toBe(2);
   });
 
+  it("offers the address of the client's last reservation next time, and books with it on yes", async () => {
+    const { phone } = client();
+    await fromStaff(`yes ${await confirmed(phone)}`);
+    const time = nextWindow();
+    await toTimes(phone, time);
+    for (const text of [timeOption(time)!, "7", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect(h.sent.at(-1)!.text).toBe(`📍 Should the barber come to this address?\n${areaName}, Block 3, Street 5, House 12, Floor 2, Gate B, Blue number 123\nhttps://www.google.com/maps?q=29.3,48.0\n\n1. Yes\n2. No, a new address\n3. Back to the previous step`);
+    for (const text of ["1", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect((await stored(phone)).requests.at(-1)!.details).toMatchObject({ area: areaName, address: { block: "3", street: "5", houseNumber: "12", floor: "2", gate: "B", blueNumber: "123", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" } });
+    expect(h.aiCalls).toHaveLength(0);
+  });
+
   it("puts a hospital location in the reservation notes and leaves the home address unused", async () => {
     const { phone } = client();
     const time = nextWindow();
-    await toTimes(phone, barberOption, time);
+    await toTimes(phone, time);
     for (const text of [timeOption(time)!, "7", "2", areaName]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.answer({ reply: "", value: { wing: "B", floor: "3", room: "7" }, forward: null });
     await deliver(h.app, payload(phone, "wing B floor 3 room 7")); await h.whatsapp.idle();
@@ -546,7 +561,7 @@ describe("two staff numbers", () => {
 
   it("sends a new request to both", async () => {
     const { phone, chatId } = client();
-    await toConfirm(phone, barberOption);
+    await toConfirm(phone);
     h.sent.length = 0;
     await from(phone, "1");
     expect(h.sent.map(message => message.chatId)).toEqual([staffChat, secondChat, chatId]);
