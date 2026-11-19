@@ -1,0 +1,1 @@
+ALTER TABLE `whatsapp_requests` MODIFY COLUMN `status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending';

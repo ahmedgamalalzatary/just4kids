@@ -182,6 +182,18 @@ describe("staff messages", () => {
 
   it("copies a change request as written, and alerts when the AI fails", () => {
     expect(staffMessage({ type: "change", text: "ألغ الأحد" }, "+96550000001", null, [7])).toBe(["Client wants to change or cancel", "Client: +96550000001", "Requests: #7", "Message: ألغ الأحد"].join("\n"));
+    const reservation = { kind: "booking" as const, id: "k1", reference: "J4K-AAA", date: "2026-11-01", startTime: "09:00", endTime: "10:00", barber: { name: "Lenny" } };
+    expect(staffMessage({ type: "change", text: "اجعله الخامسة", reservation }, "+96550000001", null)).toBe(["Client wants to change a reservation", "Client: +96550000001", "Reservation: J4K-AAA · 2026-11-01 · 09:00 - 10:00 · Lenny", "Message: اجعله الخامسة"].join("\n"));
+  });
+
+  it("asks staff to approve or refuse a cancellation, for a reservation or a request still waiting", () => {
+    const booked = { kind: "booking" as const, id: "k1", reference: "J4K-AAA", date: "2026-11-01", startTime: "09:00", endTime: "10:00", barber: { name: "Lenny" } };
+    expect(staffMessage({ type: "cancel", reservation: booked, language: "ar" }, "+96550000001", 15)).toBe([
+      "طلب إلغاء حجز من واتساب #15", "العميل: +96550000001", "الحجز: J4K-AAA", "الحلاق: Lenny", "التاريخ: 2026-11-01", "الوقت: 09:00 - 10:00", "",
+      "لإلغاء الحجز: yes 15", "للرفض والتواصل مع العميل: no 15 <السبب>",
+    ].join("\n"));
+    const waiting = { kind: "request" as const, number: 7, date: "2026-11-05", startTime: "11:00", endTime: "12:00", barber: null };
+    expect(staffMessage({ type: "cancel", reservation: waiting, language: "ar" }, "+96550000001", 16).split("\n").slice(2, 4)).toEqual(["الحجز: طلب واتساب #7 (لم تتم الموافقة عليه بعد)", "الحلاق: أي حلاق"]);
     expect(aiFailureMessage("+96550000001", "the AI account has no credit", ["أبي موعد", "بكرة"])).toBe(["WhatsApp AI could not answer", "Client: +96550000001", "Reason: the AI account has no credit", "The client got no reply. Please contact them.", "Client's messages:", "أبي موعد", "بكرة"].join("\n"));
   });
 });

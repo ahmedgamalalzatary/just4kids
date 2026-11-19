@@ -10,6 +10,8 @@ export type WhatsAppHospital = { wing: string; floor: string; room: string };
 // hair_wash is no longer offered; older requests keep it.
 export type WhatsAppExtra = "manicure_pedicure" | "manicure" | "pedicure" | "hair_wash" | "hair_wash_treatment" | "blow_dry_styling" | "wavy_hair";
 export type WhatsAppRequestDetails = {
+  // Set only on a cancellation's details; a reservation request has none.
+  type?: undefined;
   // The language of this request, for the client's approval or rejection; the chat's language restarts after each request. Older requests have none.
   language?: "en" | "ar" | null;
   // Null when the flow has no answer; requests saved before this field have none either.
@@ -26,14 +28,20 @@ export type WhatsAppRequestDetails = {
   // An extra service adds an hour; true when the barber was not free in that hour, so staff arrange the visit by hand.
   extraHourBusy?: boolean;
 };
+// An upcoming visit of the client: a reservation in the dashboard, or a WhatsApp request staff have not decided yet.
+export type WhatsAppReservation = { date: string; startTime: string; endTime: string; barber: { name: string; nameAr?: string | null } | null }
+  & ({ kind: "booking"; id: string; reference: string } | { kind: "request"; number: number });
+// A client's cancellation of a reservation, waiting for staff to approve or refuse it.
+export type WhatsAppCancelDetails = { type: "cancel"; reservation: WhatsAppReservation; language: "en" | "ar" | null };
 export type WhatsAppStaffAction =
-  | ({ type: "new_request"; requestNumber: number } & WhatsAppRequestDetails)
-  | { type: "change"; text: string }
+  | ({ type: "new_request"; requestNumber: number } & Omit<WhatsAppRequestDetails, "type">)
+  | { type: "cancel"; requestNumber: number; reservation: WhatsAppReservation }
+  | { type: "change"; text: string; reservation?: WhatsAppReservation }
   | { type: "talk" }
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
 // savedAddress asks whether the barber comes to the address of the client's last reservation.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch";
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch" | "reservations" | "reservation" | "cancelConfirm";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
@@ -53,6 +61,8 @@ export type WhatsAppFlow = {
   savedAddressUsed?: boolean;
   // Keep supplied details while asking for missing required fields. A Maps link alone is kept but not enough.
   draft?: { written?: Partial<Omit<WhatsAppAddress, "mapsUrl">>; mapsUrl?: string };
+  // The upcoming reservation the client chose to cancel or change.
+  reservation?: WhatsAppReservation;
 };
 
 export const whatsappConversations = mysqlTable("whatsapp_conversations", {
@@ -75,8 +85,10 @@ export const whatsappRequests = mysqlTable("whatsapp_requests", {
   // The number staff see in summaries and updates ("WhatsApp request #12").
   number: int("number").autoincrement().primaryKey(),
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
-  details: json("details").$type<WhatsAppRequestDetails>().notNull(),
-  status: mysqlEnum("status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  // A reservation request, or a cancellation (type "cancel") of an upcoming reservation.
+  details: json("details").$type<WhatsAppRequestDetails | WhatsAppCancelDetails>().notNull(),
+  // cancelled: the client's cancellation of this request was approved before staff decided it.
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   bookingId: varchar("booking_id", { length: 36 }),
   decidedAt: datetime("decided_at", { mode: "date", fsp: 3 }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),

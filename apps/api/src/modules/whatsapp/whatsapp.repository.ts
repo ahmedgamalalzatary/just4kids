@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
 import { accounts, areas, bookings, branches, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
-import type { WhatsAppRequestDetails, WhatsAppStaffAction } from "@just4kids/db/schema";
+import type { WhatsAppRequestDetails, WhatsAppReservation, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
 import { freeWholeHours } from "../availability/availability.service.js";
@@ -82,7 +82,21 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       return row?.createdAt ?? null;
     },
     async requests(id: string) {
-      return db.select({ number: whatsappRequests.number, details: whatsappRequests.details }).from(whatsappRequests).where(eq(whatsappRequests.conversationId, id)).orderBy(asc(whatsappRequests.number));
+      return db.select({ number: whatsappRequests.number, details: whatsappRequests.details, status: whatsappRequests.status }).from(whatsappRequests).where(eq(whatsappRequests.conversationId, id)).orderBy(asc(whatsappRequests.number));
+    },
+    /** The client's upcoming booked reservations and undecided WhatsApp reservation requests, soonest first. */
+    async openReservations(conversationId: string, phone: string, now: Date): Promise<WhatsAppReservation[]> {
+      const future = (date: string, time: string) => new Date(`${date}T${time}:00+03:00`).getTime() > now.getTime();
+      const booked = await db.select({ id: bookings.id, reference: bookings.reference, date: bookings.date, startTime: bookings.startTime, endTime: bookings.endTime, name: employees.displayName, nameAr: employees.displayNameAr })
+        .from(bookings).innerJoin(clients, eq(clients.id, bookings.clientId)).innerJoin(employees, eq(employees.accountId, bookings.employeeId))
+        .where(and(eq(clients.phone, phone), eq(bookings.visitStatus, "booked"), gte(bookings.date, new Date(now.getTime() + 3 * 3_600_000 - 86_400_000).toISOString().slice(0, 10))));
+      const waiting = await db.select({ number: whatsappRequests.number, details: whatsappRequests.details }).from(whatsappRequests)
+        .where(and(eq(whatsappRequests.conversationId, conversationId), eq(whatsappRequests.status, "pending")));
+      const reservations: WhatsAppReservation[] = [
+        ...booked.map(row => ({ kind: "booking" as const, id: row.id, reference: row.reference, date: row.date, startTime: row.startTime, endTime: row.endTime, barber: { name: row.name, nameAr: row.nameAr } })),
+        ...waiting.flatMap(({ number, details }) => details.type === "cancel" ? [] : [{ kind: "request" as const, number, date: details.date, startTime: details.startTime, endTime: details.endTime, barber: details.barberName ? { name: details.barberName } : null }]),
+      ];
+      return reservations.filter(item => future(item.date, item.startTime)).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
     },
     /** The barbers, areas and salon branches the menus offer, always read from the dashboard's data. */
     async options() {
@@ -142,7 +156,12 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
           if (turn.staff.type === "new_request") {
             const [created] = await transaction.insert(whatsappRequests).values({ conversationId: conversation.id, details: turn.staff.details, createdAt: now }).$returningId();
             requestNumber = created!.number;
-            action = { type: "new_request", requestNumber, ...turn.staff.details };
+            action = { ...turn.staff.details, type: "new_request", requestNumber };
+          } else if (turn.staff.type === "cancel") {
+            const { reservation, language } = turn.staff;
+            const [created] = await transaction.insert(whatsappRequests).values({ conversationId: conversation.id, details: { type: "cancel", reservation, language }, createdAt: now }).$returningId();
+            requestNumber = created!.number;
+            action = { type: "cancel", requestNumber, reservation };
           } else action = turn.staff;
           await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ ...outbound, audience: "staff" as const, body: staffMessage(turn.staff!, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId, action, requestNumber })));
         }
@@ -173,6 +192,36 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         { ...outbound, conversationId: client.id, audience: "client", turnId: randomUUID(), body: clientReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: client.chatId, requestNumber: number },
         ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, audience: "staff" as const, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
       ]);
+    },
+    /**
+     * Inside the cancellation's transaction (the reservation's own when one is cancelled): records the approval, marks a cancelled
+     * request that was still waiting, tells the client, and finishes the staff message. An earlier decision rolls everything back.
+     */
+    async settleCancel(transaction: Transaction, number: number, bookingId: string | null, waitingRequest: number | null, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, others: { chatIds: string[]; text: string }, now: Date) {
+      const updated = await transaction.update(whatsappRequests).set({ status: "approved", bookingId, decidedAt: now }).where(and(eq(whatsappRequests.number, number), eq(whatsappRequests.status, "pending")));
+      if (affected(updated) !== 1) transaction.rollback();
+      if (waitingRequest !== null) {
+        const cancelled = await transaction.update(whatsappRequests).set({ status: "cancelled", decidedAt: now }).where(and(eq(whatsappRequests.number, waitingRequest), eq(whatsappRequests.status, "pending")));
+        if (affected(cancelled) !== 1) transaction.rollback();
+      }
+      await transaction.update(whatsappMessages).set({ status: "done", completedAt: now }).where(eq(whatsappMessages.id, staffInboundId));
+      const outbound = { direction: "outbound" as const, status: "pending" as const, createdAt: now };
+      await transaction.insert(whatsappMessages).values([
+        { ...outbound, conversationId: staff.id, audience: "staff", turnId: randomUUID(), body: staffReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: staff.chatId },
+        { ...outbound, conversationId: client.id, audience: "client", turnId: randomUUID(), body: clientReply, idempotencyKey: `j4k-${randomUUID()}`, chatId: client.chatId, requestNumber: number },
+        ...others.chatIds.map(chatId => ({ ...outbound, conversationId: client.id, audience: "staff" as const, turnId: randomUUID(), body: others.text, idempotencyKey: `j4k-${randomUUID()}`, chatId })),
+      ]);
+    },
+    /** Runs work in a transaction of its own; false when it rolled back because a decision came first. */
+    async inTransaction(work: (transaction: Transaction) => Promise<void>) {
+      return db.transaction(work).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
+    },
+    /** The time of the chat's last message between the client and the business number before this one, from either side. */
+    async lastChatAt(id: string, beforeId: number) {
+      const [row] = await db.select({ createdAt: whatsappMessages.createdAt }).from(whatsappMessages)
+        .where(and(eq(whatsappMessages.conversationId, id), eq(whatsappMessages.audience, "client"), ne(whatsappMessages.status, "failed"), lt(whatsappMessages.id, beforeId)))
+        .orderBy(desc(whatsappMessages.id)).limit(1);
+      return row?.createdAt ?? null;
     },
     async reject(number: number, client: { id: string; chatId: string }, clientReply: string, staff: { id: string; chatId: string }, staffInboundId: number, staffReply: string, others: { chatIds: string[]; text: string }, now: Date) {
       return db.transaction(async transaction => {
@@ -223,6 +272,9 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       }
     },
     /** True when the AI will answer this client again; false when the number has no conversation. */
+    async resumeConversation(id: string, now: Date) {
+      await db.update(whatsappConversations).set({ aiPaused: false, updatedAt: now }).where(eq(whatsappConversations.id, id));
+    },
     async resume(phone: string, now: Date) {
       const result = await db.update(whatsappConversations).set({ aiPaused: false, updatedAt: now }).where(eq(whatsappConversations.phone, phone));
       return affected(result) === 1;

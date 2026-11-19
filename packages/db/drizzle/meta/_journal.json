@@ -274,6 +274,13 @@
       "when": 1794770580581,
       "tag": "0038_freezing_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1795101563724,
+      "tag": "0039_low_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

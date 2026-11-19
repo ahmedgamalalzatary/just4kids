@@ -6,6 +6,7 @@ import type { Account, VisitStatus, VisitCorrection, VisitTransition } from "@ju
 import { visitCorrectionSchema, visitTransitionSchema, visitEventResponseSchema, bookingMessageResponseSchema } from "@just4kids/contracts";
 import { ForbiddenError, HttpError } from "../../lib/http-error.js";
 import { lockEmployee, readBlockingBookings, readWorkingHours, readTimeBlocks } from "../availability/availability.repository.js";
+import type { Transaction } from "../availability/availability.repository.js";
 import { isWindowAvailable } from "../availability/availability.service.js";
 import { serializeBooking } from "./booking.service.js";
 
@@ -23,7 +24,8 @@ export function serializeVisitHistory(booking: Pick<typeof bookings.$inferSelect
 }
 export function createVisitService(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
-  async function change(id: string, input: VisitTransition | VisitCorrection, account: Account, correction: boolean) {
+  // after: runs in the same transaction once the status changed, so its own records commit or roll back with it.
+  async function change(id: string, input: VisitTransition | VisitCorrection, account: Pick<Account, "id" | "role">, correction: boolean, after?: (transaction: Transaction) => Promise<void>) {
     const [identity] = await db.select({ employeeId: bookings.employeeId }).from(bookings).where(eq(bookings.id, id));
     if (!identity) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
     return db.transaction(async transaction => {
@@ -50,11 +52,18 @@ export function createVisitService(connection: ReturnType<typeof createDatabase>
       await transaction.insert(bookingVisitEvents).values({ id: randomUUID(), bookingId: id, version, fromStatus: booking.visitStatus, toStatus: input.status,
         actorType: account.role, actorAccountId: account.id,
         reason: input.reason ?? null, correction, occurredAt: new Date(now) });
+      if (after) await after(transaction);
       return serializeBooking({ ...booking, visitStatus: input.status, visitVersion: version });
     });
   }
   return {
     transition: (id: string, body: unknown, account: Account) => change(id, visitTransitionSchema.parse(body), account, false),
+    /** Cancels a reservation for a client's WhatsApp cancellation that staff approved, recorded as the administrator. */
+    async cancelForClient(id: string, administratorId: string, reason: string, after: (transaction: Transaction) => Promise<void>) {
+      const [booking] = await db.select({ version: bookings.visitVersion }).from(bookings).where(eq(bookings.id, id));
+      if (!booking) throw new HttpError(404, "NOT_FOUND", "Reservation not found");
+      return change(id, { status: "cancelled", expectedVersion: booking.version, reason }, { id: administratorId, role: "admin" }, false, after);
+    },
     correct: (id: string, body: unknown, account: Account) => change(id, visitCorrectionSchema.parse(body), account, true),
     async history(id: string, account: Account) {
       return db.transaction(async transaction => {

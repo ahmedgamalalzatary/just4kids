@@ -1,10 +1,13 @@
-import type { WhatsAppMedia } from "@just4kids/db/schema";
+import { TransactionRollbackError } from "drizzle-orm";
+import type { WhatsAppCancelDetails, WhatsAppMedia } from "@just4kids/db/schema";
 import type { WhatsAppSettings } from "../../configs/env.js";
 import { HttpError } from "../../lib/http-error.js";
+import type { Transaction } from "../availability/availability.repository.js";
 import type { BookingRepository } from "../bookings/booking.repository.js";
+import type { createVisitService } from "../bookings/visit.service.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, barberName, bookingDays, clientApproved, clientRejected, extraNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
 import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
@@ -18,8 +21,10 @@ const HISTORY_LIMIT = 12;
 const MAX_AI_FAILURES = 12;
 const MAX_SEND_ATTEMPTS = 12;
 const backoff = (failures: number) => Math.min(30_000 * 2 ** (failures - 1), 10 * 60_000);
+// After staff take over a chat, the AI answers again once this long passes with no message between staff and the client.
+const TAKEOVER_MS = 15 * 60_000;
 
-export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<WhatsAppMedia, Photo>, now: () => Date) {
+export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, visits: ReturnType<typeof createVisitService>, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<WhatsAppMedia, Photo>, now: () => Date) {
   const staffChatId = (phone: string) => `${phone.slice(1)}@c.us`;
   const staffChatIds = settings.staffPhones.map(staffChatId);
   /** The other staff numbers, told about a decision one of them made. */
@@ -49,6 +54,35 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     await repository.giveUp(id, inbound.map(message => message.id), `No AI answer: ${reason}`, aiFailureMessage(conversation.phone, reason, inbound.map(message => message.body)), staffChatIds, now());
   }
 
+  /** Cancels what the client asked to cancel: the reservation, or the request staff had not decided yet. */
+  async function approveCancel(number: number, details: WhatsAppCancelDetails, client: { id: string; chatId: string }, staff: { id: string; phone: string; chatId: string }, staffInboundId: number) {
+    const { reservation } = details;
+    let bookingId = reservation.kind === "booking" ? reservation.id : null, waiting: number | null = null;
+    let outcome = reservation.kind === "booking" ? `Reservation ${reservation.reference} no longer exists.` : "";
+    if (reservation.kind === "request") {
+      const target = await repository.requestForDecision(reservation.number);
+      if (target?.request.status === "pending") { waiting = reservation.number; outcome = `Request #${reservation.number} was cancelled.`; }
+      else if (target?.request.status === "approved" && target.request.bookingId) bookingId = target.request.bookingId;
+      else outcome = `Request #${reservation.number} was already ${target?.request.status ?? "removed"}.`;
+    }
+    const booking = bookingId ? await bookings.get(bookingId) : undefined;
+    if (booking) outcome = `Reservation ${booking.reference} was cancelled.`;
+    const others = { chatIds: otherStaff(staff.phone), text: `Cancellation #${number} was approved by ${staff.phone}. ${outcome}\nIt can no longer be changed here.` };
+    const settle = (transaction: Transaction) => repository.settleCancel(transaction, number, booking?.id ?? null, waiting, client, clientCancelled(details.language, reservation), staff, staffInboundId, `Cancellation #${number} approved. ${outcome} The client was told.`, others, now());
+    const decidedFirst = () => repository.answerPlainly(staff, staffInboundId, `Request #${number} was already decided.`, now());
+    if (!booking) { if (!await repository.inTransaction(settle)) await decidedFirst(); return; }
+    const administrator = await repository.administrator();
+    if (!administrator) { await repository.answerPlainly(staff, staffInboundId, "No enabled administrator account exists. Cancel the reservation in the dashboard.", now()); return; }
+    try {
+      await visits.cancelForClient(booking.id, administrator, `Cancelled by the client on WhatsApp (#${number})`, settle);
+    } catch (error) {
+      if (error instanceof TransactionRollbackError) { await decidedFirst(); return; }
+      // The reservation can no longer be cancelled, for example the visit is over: nothing was saved, so staff can refuse it instead.
+      if (!(error instanceof HttpError)) throw error;
+      await repository.answerPlainly(staff, staffInboundId, `Cancellation #${number} was not done: ${error.message}. Check the reservation in the dashboard, or refuse with: no ${number}`, now());
+    }
+  }
+
   /** Runs one command from the staff number; approving creates the reservation and tells the client. */
   async function staffTurn(staff: { id: string; phone: string; chatId: string }, message: { id: number; body: string }) {
     const command = parseStaffCommand(message.body);
@@ -62,6 +96,15 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const { request, conversation: client } = found;
     if (request.status !== "pending") { await repository.answerPlainly(staff, message.id, `Request #${command.number} was already ${request.status}.`, now()); return; }
     const language = request.details.language ?? client.flow?.language ?? null;
+    if (request.details.type === "cancel") {
+      if (command.type === "address") { await repository.answerPlainly(staff, message.id, `Request #${command.number} is a cancellation. It has no address to change.`, now()); return; }
+      if (command.type === "reject") {
+        await repository.reject(command.number, client, clientCancelRefused(language, command.reason), staff, message.id, `Cancellation #${command.number} refused. The client was told a staff member will contact them.`, { chatIds: otherStaff(staff.phone), text: `Cancellation #${command.number} was refused by ${staff.phone}${command.reason ? `: ${command.reason}` : "."}\nIt can no longer be changed here.` }, now());
+      } else await approveCancel(command.number, { ...request.details, language }, client, staff, message.id);
+      await sendPending(staff.id);
+      await process(client.id, false);
+      return;
+    }
     if (command.type === "address") {
       const parsed = parseStaffAddress(command.text);
       if (!parsed) { await repository.answerPlainly(staff, message.id, `The address of #${command.number} was not changed.\n${addressHelp()}`, now()); return; }
@@ -126,14 +169,20 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
       return true;
     }
     if (conversation.aiPaused) {
-      // Staff are handling this chat: its messages stay stored but the AI does not answer.
-      for (const message of inbound) await repository.answerPlainly(conversation, message.id, null, now());
-      return true;
+      // Staff are handling this chat: its messages stay stored but the AI does not answer,
+      // until 15 minutes pass with no message between staff and the client.
+      const lastAt = await repository.lastChatAt(id, inbound[0]!.id);
+      if (lastAt && inbound[0]!.createdAt.getTime() - lastAt.getTime() <= TAKEOVER_MS) {
+        for (const message of inbound) await repository.answerPlainly(conversation, message.id, null, now());
+        return true;
+      }
+      await repository.resumeConversation(id, now());
     }
     const options = await repository.options(), today = now();
     const context: FlowContext = {
       ...options, now: today, free: await repository.freeHours(options.barbers.map(barber => barber.id), bookingDays(today)),
       savedAddress: savedHomeAddress(await repository.reservationAddresses(conversation.phone), options.areas),
+      reservations: await repository.openReservations(id, conversation.phone, today),
     };
     const requests = (await repository.requests(id)).map(request => request.number);
     let flow = conversation.flow;

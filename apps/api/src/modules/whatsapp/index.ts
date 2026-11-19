@@ -5,6 +5,7 @@ import type { WhatsAppSettings } from "../../configs/env.js";
 import { deny } from "../../lib/security.js";
 import { createAi } from "./ai.js";
 import { createBookingRepository } from "../bookings/booking.repository.js";
+import { createVisitService } from "../bookings/visit.service.js";
 import type { WhatsAppMedia } from "@just4kids/db/schema";
 import { createOpenWa, parseInbound, parseOwnMessage, verifySignature } from "./openwa.js";
 import type { Photo } from "./openwa.js";
@@ -26,7 +27,7 @@ export function readPriceLists(): Record<WhatsAppMedia, Photo> {
 export function createWhatsApp(connection: ReturnType<typeof createDatabase>, settings: WhatsAppSettings, options: { fetch?: typeof fetch; prompt?: string; now?: () => Date } = {}) {
   const now = options.now ?? (() => new Date());
   const repository = createWhatsAppRepository(connection);
-  const service = createWhatsAppService(repository, createBookingRepository(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceLists(), now);
+  const service = createWhatsAppService(repository, createBookingRepository(connection), createVisitService(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceLists(), now);
   const running = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     const tracked = work.catch((error: unknown) => { console.error("WhatsApp processing failed", error instanceof Error ? error.message : error); }).finally(() => running.delete(tracked));

@@ -5,6 +5,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
 import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
+import type { WhatsAppRequestDetails } from "@just4kids/db/schema";
 import { accounts, areas, bookingVisitEvents, branches, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
@@ -380,7 +381,7 @@ describe("staff approval", () => {
     const { phone } = client();
     const number = await confirmed(phone);
     const { requests: [saved] } = await stored(phone);
-    await connection.db.update(whatsappRequests).set({ details: { ...saved!.details, barberId: null, barberName: null } }).where(eq(whatsappRequests.number, number));
+    await connection.db.update(whatsappRequests).set({ details: { ...(saved!.details as WhatsAppRequestDetails), barberId: null, barberName: null } }).where(eq(whatsappRequests.number, number));
     h.sent.length = 0;
     await fromStaff(`yes ${number}`);
     expect(h.sent[0]!.text).toContain(`Choose a barber for #${number}`);
@@ -388,20 +389,17 @@ describe("staff approval", () => {
     expect((await stored(phone)).requests[0]!.status).toBe("pending");
   });
 
-  it("uses the existing client and keeps the request open when the barber is busy", async () => {
-    const { phone } = client();
+  it("keeps the request open when the barber is busy", async () => {
+    const one = client(), other = client();
     const time = nextWindow();
     // Both requests were sent while the hour was free; a request does not hold it until staff approve.
-    const first = await confirmed(phone, time);
-    const second = await confirmed(phone, time);
-    expect(second).not.toBe(first);
+    const first = await confirmed(one.phone, time);
+    const second = await confirmed(other.phone, time);
     await fromStaff(`yes ${first}`);
     h.sent.length = 0;
     await fromStaff(`yes ${second}`);
     expect(h.sent[0]!.text).toContain(`Request #${second} was not created`);
-    const { requests } = await stored(phone);
-    expect(requests.find(request => request.number === second)!.status).toBe("pending");
-    expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(1);
+    expect((await stored(other.phone)).requests[0]!.status).toBe("pending");
   });
 
   it("stops offering an hour once it is reserved", async () => {
@@ -432,6 +430,8 @@ describe("staff approval", () => {
   it("offers the address of the client's last reservation next time, and books with it on yes", async () => {
     const { phone } = client();
     await fromStaff(`yes ${await confirmed(phone)}`);
+    // The first visit is over, so a new one can be booked.
+    await connection.db.update(bookings).set({ visitStatus: "completed" }).where(eq(bookings.id, (await stored(phone)).requests[0]!.bookingId!));
     const time = nextWindow();
     await toTimes(phone, time);
     for (const text of [timeOption(time)!, "7", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
@@ -439,6 +439,8 @@ describe("staff approval", () => {
     for (const text of ["1", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     expect((await stored(phone)).requests.at(-1)!.details).toMatchObject({ area: areaName, address: { block: "3", street: "5", houseNumber: "12", floor: "2", gate: "B", blueNumber: "123", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" } });
     expect(h.aiCalls).toHaveLength(0);
+    await fromStaff(`yes ${(await stored(phone)).requests.at(-1)!.number}`);
+    expect(await connection.db.select().from(clients).where(eq(clients.phone, phone))).toHaveLength(1);
   });
 
   it("puts a hospital location in the reservation notes and leaves the home address unused", async () => {
@@ -549,8 +551,84 @@ describe("main menu options", () => {
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
     expect(h.sent.map(message => message.chatId)).toEqual([chatId]);
-    expect(h.sent[0]!.text).toBe("✏️ What would you like to change or cancel? Send it in one message.");
+    expect(h.sent[0]!.text).toBe("We found no upcoming reservation on this number.\n\n✏️ What would you like to change or cancel? Send it in one message.");
     expect((await stored(phone)).conversation!.aiPaused).toBe(false);
+  });
+});
+
+describe("one upcoming reservation, and cancelling it", () => {
+  const send = async (phone: string, ...texts: string[]) => { for (const text of texts) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); } };
+  /** A client with an approved reservation, and its booking. */
+  async function approved() {
+    const { phone, chatId } = client();
+    await fromStaff(`yes ${await confirmed(phone)}`);
+    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, (await stored(phone)).requests[0]!.bookingId!));
+    return { phone, chatId, booking: booking! };
+  }
+  const bookingStatus = async (id: string) => (await connection.db.select({ status: bookings.visitStatus }).from(bookings).where(eq(bookings.id, id)))[0]!.status;
+
+  it("cancels the reservation once staff approve the client's cancellation", async () => {
+    const { phone, chatId, booking } = await approved();
+    await send(phone, "hi", "1", "4");
+    expect(h.sent.at(-1)!.text).toContain("1. Cancel this reservation");
+    h.sent.length = 0;
+    await send(phone, "1", "1");
+    const cancel = (await stored(phone)).requests.at(-1)!;
+    expect(cancel).toMatchObject({ status: "pending", details: { type: "cancel", reservation: { kind: "booking", id: booking.id, reference: booking.reference } } });
+    const toStaff = h.sent.find(message => message.chatId === staffChat)!;
+    expect(toStaff.text).toContain(`طلب إلغاء حجز من واتساب #${cancel.number}`);
+    expect(toStaff.text).toContain(`الحجز: ${booking.reference}`);
+    expect(await bookingStatus(booking.id)).toBe("booked");
+    h.sent.length = 0;
+    await fromStaff(`yes ${cancel.number}`);
+    expect(await bookingStatus(booking.id)).toBe("cancelled");
+    expect((await stored(phone)).requests.at(-1)!.status).toBe("approved");
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toBe(`Cancellation #${cancel.number} approved. Reservation ${booking.reference} was cancelled. The client was told.`);
+    expect(h.sent[1]!.text).toContain("✅ Your reservation");
+    expect(h.sent[1]!.text).toContain("was cancelled.");
+    // With the reservation cancelled, the client can book again.
+    await send(phone, "hi", "1", "1");
+    expect(h.sent.at(-1)!.text).toContain("👶 Who is this for?");
+  });
+
+  it("keeps the reservation when staff refuse, and tells the client staff will contact them", async () => {
+    const { phone, chatId, booking } = await approved();
+    await send(phone, "hi", "1", "4", "1", "1");
+    const cancel = (await stored(phone)).requests.at(-1)!;
+    h.sent.length = 0;
+    await fromStaff(`no ${cancel.number}`);
+    expect(await bookingStatus(booking.id)).toBe("booked");
+    expect((await stored(phone)).requests.at(-1)!.status).toBe("rejected");
+    expect(h.sent.at(-1)).toMatchObject({ chatId, text: "❌ We could not cancel your reservation.\nA staff member will contact you." });
+  });
+
+  it("cancels a request staff have not approved yet, so it can no longer be approved", async () => {
+    const { phone } = client();
+    const first = await confirmed(phone);
+    await send(phone, "hi", "1", "4", "1", "1");
+    const cancel = (await stored(phone)).requests.at(-1)!;
+    expect(cancel.details).toMatchObject({ type: "cancel", reservation: { kind: "request", number: first } });
+    await fromStaff(`yes ${cancel.number}`);
+    expect((await stored(phone)).requests.find(request => request.number === first)!.status).toBe("cancelled");
+    await fromStaff(`yes ${first}`);
+    expect(h.sent.at(-1)!.text).toBe(`Request #${first} was already cancelled.`);
+  });
+
+  it("refuses a new booking while a reservation or a request is upcoming", async () => {
+    const { phone } = client();
+    await confirmed(phone);
+    await send(phone, "hi", "1", "1");
+    expect(h.sent.at(-1)!.text).toContain("⚠️ You already have an upcoming reservation, so a new one cannot be booked.");
+    expect(h.sent.at(-1)!.text).toContain("(waiting for confirmation)");
+  });
+
+  it("refuses an address change for a cancellation", async () => {
+    const { phone } = await approved();
+    await send(phone, "hi", "1", "4", "1", "1");
+    const cancel = (await stored(phone)).requests.at(-1)!;
+    await fromStaff(`address ${cancel.number} street 9`);
+    expect(h.sent.at(-1)!.text).toBe(`Request #${cancel.number} is a cancellation. It has no address to change.`);
   });
 });
 
@@ -630,6 +708,25 @@ describe("staff takeover", () => {
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
     expect(h.sent).toHaveLength(1);
+  });
+
+  it("answers again on its own after 15 minutes with no message between staff and the client", async () => {
+    const { phone } = client();
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    await deliver(h.app, ownMessage(phone, "أهلاً، معك الموظف"));
+    h.advance(10 * 60_000);
+    h.sent.length = 0;
+    await deliver(h.app, payload(phone, "شكراً")); await h.whatsapp.idle();
+    expect(h.sent).toEqual([]);
+    // Ten minutes after the client's last message: still within 15 minutes of the chat's last message.
+    h.advance(10 * 60_000);
+    await deliver(h.app, payload(phone, "1")); await h.whatsapp.idle();
+    expect(h.sent).toEqual([]);
+    h.advance(16 * 60_000);
+    await deliver(h.app, payload(phone, "مرحبا")); await h.whatsapp.idle();
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.text).toContain("1. English\n2. العربية");
+    expect((await stored(phone)).conversation!.aiPaused).toBe(false);
   });
 
   it("keeps answering when OpenWA reports the AI's own replies as sent", async () => {
