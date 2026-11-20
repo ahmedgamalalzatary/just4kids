@@ -33,7 +33,7 @@ type Language = "en" | "ar";
 const copy = {
   en: {
     back: "Back to the previous step", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a reservation", salonService: "Salon service", homePrices: "Home service price list", branch: "🏪 Which branch?", pick: "Send a number to choose.",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel or change a reservation", salonService: "Salon service", homePrices: "Home service price list", branch: "🏪 Which branch?", pick: "Please choose the right number.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Medical condition service"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ Available start times on ${date}:`,
@@ -42,7 +42,7 @@ const copy = {
     extra: "💅 Any extra service? It adds one hour to the visit.", noExtra: "No service", extraLine: "💅 Extra service:",
     extraNoFit: "⚠️ An extra service does not fit at this time: the barber is not free for the extra hour. Choose \"No service\" or go back to pick another time.",
     visitType: "🏠 Is this visit at home or in a hospital?", home: "Home", hospital: "Hospital",
-    savedAddress: "📍 Should the barber come to this address?", savedYes: "Yes", savedNo: "No, a new address",
+    savedAddress: "📍 Is this location correct?", savedYes: "Yes", savedNo: "No",
     area: "📍 Which area in Kuwait?", areaInvalid: "⚠️ We could not find that area in Kuwait. Please send the area name again.",
     address: "📍 Please write your address: block, street, and house or building. You can also add a Google Maps link.",
     addressInvalid: "⚠️ Please write the block, street and house or building.",
@@ -69,7 +69,7 @@ const copy = {
   },
   ar: {
     back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل حجز", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", branch: "🏪 أي فرع؟", pick: "أرسل رقماً للاختيار.",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء أو تعديل حجز", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", branch: "🏪 أي فرع؟", pick: "برجاء اختيار الرقم المناسب",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "خدمة حالة مرضية"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`,
@@ -78,7 +78,7 @@ const copy = {
     extra: "💅 هل تريد خدمة إضافية؟ تضيف ساعة إلى مدة الزيارة.", noExtra: "بدون خدمة", extraLine: "💅 خدمة إضافية:",
     extraNoFit: "⚠️ لا يمكن إضافة خدمة في هذا الوقت: الحلاق غير متاح في الساعة الإضافية. اختر \"بدون خدمة\" أو ارجع لاختيار وقت آخر.",
     visitType: "🏠 هل الزيارة في المنزل أم في المستشفى؟", home: "المنزل", hospital: "المستشفى",
-    savedAddress: "📍 هل يأتي الحلاق إلى هذا العنوان؟", savedYes: "نعم", savedNo: "لا، عنوان جديد",
+    savedAddress: "📍 هل هذا الموقع صحيح؟", savedYes: "نعم", savedNo: "لا",
     area: "📍 في أي منطقة في الكويت؟", areaInvalid: "⚠️ لم نجد هذه المنطقة في الكويت. أرسل اسم المنطقة مرة أخرى.",
     address: "📍 اكتب عنوانك: القطعة، الشارع، والمنزل أو البناية. يمكنك أيضاً إضافة رابط خرائط Google.",
     addressInvalid: "⚠️ اكتب القطعة والشارع والمنزل أو البناية.",
@@ -119,8 +119,10 @@ export const barberName = (barber: { name: string; nameAr?: string | null }, lan
 const genderLabels: Record<BarberGender, Record<Language, string>> = { male: { en: "Male", ar: "ذكر" }, female: { en: "Female", ar: "أنثى" } };
 /** A barber as listed for the client to choose: the name, then the gender when it is recorded. */
 const barberChoice = (barber: FlowContext["barbers"][number], language: Language) => barber.gender ? `${barberName(barber, language)} (${genderLabels[barber.gender][language]})` : barberName(barber, language);
-/** The line on the staff message and the reservation's note; staff read Arabic. */
+/** The line on the staff message; staff read Arabic. */
 export const extraNote = (extra: WhatsAppExtra) => `خدمة إضافية: ${extraLabel(extra, "ar")}`;
+/** The reservation's note, always in English whatever the chat's language. */
+export const extraReservationNote = (extra: WhatsAppExtra) => `Extra service: ${extraLabel(extra, "en")}`;
 const numbered = (options: readonly string[]) => options.map((option, index) => `${index + 1}. ${option}`).join("\n");
 const westernDigits = (text: string) => text.replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 const kuwaitDate = (now: Date, offset = 0) => new Date(now.getTime() + 3 * 3_600_000 + offset * 86_400_000).toISOString().slice(0, 10);
@@ -217,12 +219,18 @@ function summary(state: WhatsAppFlow, context: FlowContext, language: Language) 
   ].join("\n");
 }
 
-/** The exact text of a step; menus are always sent word for word. */
+/** The exact text of a step; menus are always sent word for word. Every numbered list ends by asking for a number. */
 export function render(state: WhatsAppFlow, context: FlowContext) {
-  const language = state.language ?? "ar", text = copy[language];
+  const language = state.language ?? "ar", body = stepText(state, context, language);
+  if (!options(state, context, language).length) return body;
+  // The language list is shown before a language is chosen, so it asks in both.
+  return `${body}\n\n${state.step === "language" && !state.language ? `${copy.ar.pick}\n${copy.en.pick}` : copy[language].pick}`;
+}
+function stepText(state: WhatsAppFlow, context: FlowContext, language: Language) {
+  const text = copy[language];
   switch (state.step) {
     case "language": return `معاك يوسف - المساعد الافتراضي 🤖 *الرد الآلي*\n\nSelect your language / اختر اللغة:\n\n${numbered(options(state, context, language))}`;
-    case "menu": return `${text.menu}\n\n${numbered(options(state, context, language))}\n\n${text.pick}`;
+    case "menu": return `${text.menu}\n\n${numbered(options(state, context, language))}`;
     case "who": return `${text.who}\n\n${numbered(options(state, context, language))}`;
     case "adults": return text.adults;
     case "children": return text.children;
@@ -276,7 +284,7 @@ function details(state: WhatsAppFlow): WhatsAppRequestDetails {
 }
 
 /** The step the "back" option of a list returns to. */
-function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
+function previousStep(state: WhatsAppFlow, hasSavedAddress: boolean): WhatsAppFlowStep {
   switch (state.step) {
     case "language": return "menu";
     case "menu": return "language";
@@ -286,8 +294,8 @@ function previousStep(state: WhatsAppFlow): WhatsAppFlowStep {
     case "barber": return "date";
     case "time": return "barber";
     case "extra": return "time";
-    case "visitType": return "extra";
-    case "savedAddress": return "visitType";
+    case "visitType": return hasSavedAddress ? "savedAddress" : "extra";
+    case "savedAddress": return "extra";
     case "confirm": return state.savedAddressUsed ? "savedAddress" : "address";
     default: return state.step;
   }
@@ -316,7 +324,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     const { resume, ...rest } = state;
     // A single reservation was shown without a list, so its way back is the menu.
     if (state.step === "reservation" || state.step === "reservations") return move(freshBooking(rest), state.step === "reservation" && (context.reservations?.length ?? 0) > 1 ? "reservations" : "menu", context);
-    return move(rest, resume ?? previousStep(state), context);
+    return move(rest, resume ?? previousStep(state, Boolean(context.savedAddress)), context);
   }
   const value = state.offered?.[choice - 1] ?? freshChoices(state, context)?.[choice - 1];
   switch (state.step) {
@@ -361,22 +369,26 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       const extra = extraValues[choice - 1] ?? null, hours = visitHours(state), end = hourOf(state.startTime!) + hours;
       const rest = { ...state };
       delete rest.extraHourBusy;
-      if (!extra) return move({ ...rest, extra, endTime: clock(end) }, "visitType", context);
+      // A returning client is asked whether the last reservation's location is right, not home or hospital.
+      const where = context.savedAddress ? "savedAddress" : "visitType";
+      if (!extra) return move({ ...rest, extra, endTime: clock(end) }, where, context);
       const busy = !(barberFree(state.barber?.id, context)[state.date!] ?? []).includes(clock(end));
       // Two or three kids with an extra service need the third hour free; otherwise the request is still sent, flagged for staff to arrange.
       if (busy && hours === 2) return stay(state, context, copy[language].extraNoFit);
-      return move({ ...rest, extra, endTime: clock((end + 1) % 24), ...(busy ? { extraHourBusy: true } : {}) }, "visitType", context);
+      return move({ ...rest, extra, endTime: clock((end + 1) % 24), ...(busy ? { extraHourBusy: true } : {}) }, where, context);
     }
     case "visitType": {
       const visitType = choice === 1 ? "home" as const : "hospital" as const;
       const next = { ...state, visitType };
       if (visitType === "home") delete next.hospital;
-      return move(next, visitType === "home" && context.savedAddress ? "savedAddress" : "area", context);
+      return move(next, "area", context);
     }
     case "savedAddress": {
-      if (choice === 2) return move(state, "area", context);
-      const next: WhatsAppFlow = { ...state, ...context.savedAddress!, savedAddressUsed: true };
+      if (choice === 2) return move(state, "visitType", context);
+      // The saved location is the home address of the last reservation.
+      const next: WhatsAppFlow = { ...state, ...context.savedAddress!, visitType: "home", savedAddressUsed: true };
       delete next.draft;
+      delete next.hospital;
       return move(next, "confirm", context);
     }
     case "confirm":
@@ -587,7 +599,7 @@ export async function advance(state: WhatsAppFlow | null, text: string, context:
   if (step === "barber" && !state.date) return move(state, "date", context);
   if (step === "duration") return move(state, "time", context);
   // The saved address was removed since the question was sent.
-  if (step === "savedAddress" && !context.savedAddress) return move(state, "area", context);
+  if (step === "savedAddress" && !context.savedAddress) return move(state, "visitType", context);
   const handled = direct(state, text, context);
   if (handled) return handled;
   const answer = await ask(state);

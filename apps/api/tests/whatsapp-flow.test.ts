@@ -79,7 +79,7 @@ describe("WhatsApp flow", () => {
     for (const step of ["language", "who", "barber", "date", "time", "extra", "confirm"] as const) {
       expect(render({ ...booking, step }, context)).toMatch(/\d+\. الرجوع للخطوة السابقة(\n\n.*)?$/);
     }
-    expect(render({ step: "who", language: "en" }, context).split("\n").at(-1)).toMatch(/^\d\. Back to the previous step$/);
+    expect(render({ step: "who", language: "en" }, context).split("\n").at(-3)).toMatch(/^\d\. Back to the previous step$/);
   });
 
   it("offers no way back before a language was ever chosen", () => {
@@ -213,14 +213,14 @@ describe("WhatsApp flow", () => {
   });
 
   it("offers exactly the extra services", () => {
-    expect(render({ step: "extra", language: "en" }, context)).toBe("💅 Any extra service? It adds one hour to the visit.\n\n1. Manicure + Pedicure\n2. Manicure only\n3. Pedicure only\n4. Hair wash with treatment\n5. Blow-dry with styling\n6. Wavy hair\n7. No service\n8. Back to the previous step");
+    expect(render({ step: "extra", language: "en" }, context)).toBe("💅 Any extra service? It adds one hour to the visit.\n\n1. Manicure + Pedicure\n2. Manicure only\n3. Pedicure only\n4. Hair wash with treatment\n5. Blow-dry with styling\n6. Wavy hair\n7. No service\n8. Back to the previous step\n\nPlease choose the right number.");
     expect(render({ step: "extra", language: "ar" }, context)).toContain("1. مانيكير + باديكير\n2. مانيكير فقط\n3. باديكير فقط\n4. غسيل شعر مع علاج\n5. استشوار مع تسريحة\n6. شعر ويفي\n7. بدون خدمة");
   });
 
   it("asks whether the visit is at home or in a hospital before the area", async () => {
     const asked = await walk({ step: "extra", language: "en", ...chosen }, "7");
     expect(asked.state.step).toBe("visitType");
-    expect(asked.reply).toBe("🏠 Is this visit at home or in a hospital?\n\n1. Home\n2. Hospital\n3. Back to the previous step");
+    expect(asked.reply).toBe("🏠 Is this visit at home or in a hospital?\n\n1. Home\n2. Hospital\n3. Back to the previous step\n\nPlease choose the right number.");
     const home = await advance(asked.state, "1", context, noAi);
     expect(home.state).toMatchObject({ step: "area", visitType: "home" });
     const hospital = await advance(asked.state, "2", context, noAi);
@@ -374,7 +374,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("offers the medical condition service sixth, asks for the kids, and no longer offers adults", async () => {
-    expect(render({ step: "who", language: "en" }, context)).toBe("👶 Who is this for?\n\n1. Boy\n2. Girl\n3. Baby\n4. Special needs\n5. Both (Girl & Boy)\n6. Medical condition service\n7. Back to the previous step");
+    expect(render({ step: "who", language: "en" }, context)).toBe("👶 Who is this for?\n\n1. Boy\n2. Girl\n3. Baby\n4. Special needs\n5. Both (Girl & Boy)\n6. Medical condition service\n7. Back to the previous step\n\nPlease choose the right number.");
     expect(render({ step: "who", language: "ar" }, context)).toContain("6. خدمة حالة مرضية\n7. الرجوع للخطوة السابقة");
     expect((await walk({ step: "who", language: "en" }, "6", "2")).state).toMatchObject({ who: "medical", children: 2, step: "date" });
     expect(render({ step: "who", language: "ar" }, context)).not.toContain("كبار");
@@ -431,41 +431,47 @@ describe("WhatsApp flow", () => {
     const link = "https://maps.app.goo.gl/home";
     const savedAddress = { area: context.areas[0]!, address: { ...address, block: "3", street: "5", houseNumber: "12", floor: "2", mapsUrl: link } };
     const remembered: FlowContext = { ...context, savedAddress };
-    const atVisitType: WhatsAppFlow = { step: "visitType", language: "en", who: "boy", children: 1, ...chosen, extra: null };
-    it("offers the last reservation's address for a home visit instead of asking for it", async () => {
-      const turn = await advance(atVisitType, "1", remembered, noAi);
+    const atExtra: WhatsAppFlow = { step: "extra", language: "en", who: "boy", children: 1, ...chosen };
+    it("asks whether the last reservation's location is correct instead of home or hospital", async () => {
+      const turn = await advance(atExtra, "7", remembered, noAi);
       expect(turn.state.step).toBe("savedAddress");
-      expect(turn.reply).toBe(`📍 Should the barber come to this address?\nHawally, Block 3, Street 5, House 12, Floor 2\n${link}\n\n1. Yes\n2. No, a new address\n3. Back to the previous step`);
-      expect((await advance({ ...atVisitType, language: "ar" }, "1", remembered, noAi)).reply).toBe(`📍 هل يأتي الحلاق إلى هذا العنوان؟\nHawally، قطعة 3، شارع 5، منزل 12، دور 2\n${link}\n\n1. نعم\n2. لا، عنوان جديد\n3. الرجوع للخطوة السابقة`);
+      expect(turn.reply).toBe(`📍 Is this location correct?\nHawally, Block 3, Street 5, House 12, Floor 2\n${link}\n\n1. Yes\n2. No\n3. Back to the previous step\n\nPlease choose the right number.`);
+      expect((await advance({ ...atExtra, language: "ar" }, "7", remembered, noAi)).reply).toBe(`📍 هل هذا الموقع صحيح؟\nHawally، قطعة 3، شارع 5، منزل 12، دور 2\n${link}\n\n1. نعم\n2. لا\n3. الرجوع للخطوة السابقة\n\nبرجاء اختيار الرقم المناسب`);
     });
-    it("uses the saved address on yes, and goes back to the question from the confirmation", async () => {
-      const offered = await advance(atVisitType, "1", remembered, noAi);
+    it("uses the saved address as a home visit on yes, and goes back to the question from the confirmation", async () => {
+      const offered = await advance(atExtra, "7", remembered, noAi);
       const yes = await advance(offered.state, "1", remembered, noAi);
-      expect(yes.state).toMatchObject({ step: "confirm", area: savedAddress.area, address: savedAddress.address });
+      expect(yes.state).toMatchObject({ step: "confirm", visitType: "home", area: savedAddress.area, address: savedAddress.address });
       expect(yes.reply).toContain("📍 Address: Hawally, Block 3, Street 5, House 12, Floor 2");
       const sent = await advance(yes.state, "1", remembered, noAi);
-      expect(sent.staff).toMatchObject({ type: "new_request", details: { areaId: "a1", area: "Hawally", address: savedAddress.address } });
+      expect(sent.staff).toMatchObject({ type: "new_request", details: { visitType: "home", areaId: "a1", area: "Hawally", address: savedAddress.address } });
       expect((await advance(yes.state, "3", remembered, noAi)).state.step).toBe("savedAddress");
     });
-    it("asks for a new area and written address on no", async () => {
-      const offered = await advance(atVisitType, "1", remembered, noAi);
+    it("asks home or hospital on no, then a new area and written address", async () => {
+      const offered = await advance(atExtra, "7", remembered, noAi);
       const no = await advance(offered.state, "2", remembered, noAi);
-      expect(no.state.step).toBe("area");
-      const atAddress = await advance(no.state, "hawally", remembered, noAi);
+      expect(no.state.step).toBe("visitType");
+      expect((await advance(no.state, "3", remembered, noAi)).state.step).toBe("savedAddress");
+      const home = await advance(no.state, "1", remembered, noAi);
+      expect(home.state.step).toBe("area");
+      const atAddress = await advance(home.state, "hawally", remembered, noAi);
       const typed = await advance(atAddress.state, "block 7 street 9 house 1", remembered, noAi);
-      expect(typed.state).toMatchObject({ step: "confirm", address: { block: "7", street: "9", houseNumber: "1", mapsUrl: null } });
+      expect(typed.state).toMatchObject({ step: "confirm", visitType: "home", address: { block: "7", street: "9", houseNumber: "1", mapsUrl: null } });
       expect((await advance(typed.state, "3", remembered, noAi)).state.step).toBe("address");
+      expect((await advance(no.state, "2", remembered, noAi)).state).toMatchObject({ step: "area", visitType: "hospital" });
     });
-    it("goes back from the question to home or hospital", async () => {
-      const offered = await advance(atVisitType, "1", remembered, noAi);
-      expect((await advance(offered.state, "3", remembered, noAi)).state.step).toBe("visitType");
+    it("goes back from the question to the extra service", async () => {
+      const offered = await advance(atExtra, "7", remembered, noAi);
+      expect((await advance(offered.state, "3", remembered, noAi)).state.step).toBe("extra");
     });
-    it("never offers it for a hospital visit, or when there is none", async () => {
-      expect((await advance(atVisitType, "2", remembered, noAi)).state.step).toBe("area");
-      expect((await advance(atVisitType, "1", context, noAi)).state.step).toBe("area");
+    it("asks home or hospital when there is no saved address", async () => {
+      const visitType = await advance(atExtra, "7", context, noAi);
+      expect(visitType.state.step).toBe("visitType");
+      expect((await advance(visitType.state, "3", context, noAi)).state.step).toBe("extra");
+      expect((await advance(visitType.state, "1", context, noAi)).state.step).toBe("area");
     });
-    it("asks for the area when the saved address is gone since the question was sent", async () => {
-      expect((await advance({ ...atVisitType, step: "savedAddress", visitType: "home" }, "1", context, noAi)).state.step).toBe("area");
+    it("asks home or hospital when the saved address is gone since the question was sent", async () => {
+      expect((await advance({ ...atExtra, step: "savedAddress", extra: null }, "1", context, noAi)).state.step).toBe("visitType");
     });
     it("picks the newest usable home address from the reservations, newest first", () => {
       const home = { area: "hawally", block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, gate: "B", blueNumber: null, floor: null, apartment: null, mapsUrl: null };
@@ -494,8 +500,8 @@ describe("WhatsApp flow", () => {
     const turn = await walk({ step: "menu", language: "en" }, "3");
     expect(turn.image).toBeUndefined();
     expect(turn.state).toEqual({ step: "branch", language: "en" });
-    expect(turn.reply).toBe("🏪 Which branch?\n\n1. Fahahel salon\n2. Farwaniya salon\n3. Back to the previous step");
-    expect(render({ step: "branch", language: "ar" }, context)).toBe("🏪 أي فرع؟\n\n1. Fahahel salon\n2. Farwaniya salon\n3. الرجوع للخطوة السابقة");
+    expect(turn.reply).toBe("🏪 Which branch?\n\n1. Fahahel salon\n2. Farwaniya salon\n3. Back to the previous step\n\nPlease choose the right number.");
+    expect(render({ step: "branch", language: "ar" }, context)).toBe("🏪 أي فرع؟\n\n1. Fahahel salon\n2. Farwaniya salon\n3. الرجوع للخطوة السابقة\n\nبرجاء اختيار الرقم المناسب");
     expect((await walk({ step: "branch", language: "en" }, "3")).state).toEqual({ step: "menu", language: "en" });
     expect((await walk({ step: "branch", language: "en" }, "4")).reply).toContain("⚠️ Please send one of the numbers above.");
   });
@@ -574,12 +580,12 @@ describe("WhatsApp flow", () => {
     it("shows the only reservation and asks to cancel or change it", async () => {
       const turn = await advance(menu, "4", one, noAi);
       expect(turn.state).toMatchObject({ step: "reservation", reservation: booked });
-      expect(turn.reply).toBe("📋 Your reservation:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Cancel this reservation\n2. Change this reservation\n3. Back to the previous step");
+      expect(turn.reply).toBe("📋 Your reservation:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Cancel this reservation\n2. Change this reservation\n3. Back to the previous step\n\nPlease choose the right number.");
     });
 
     it("lists several reservations, marks one still waiting, and opens the chosen one", async () => {
       const list = await advance(menu, "4", two, noAi);
-      expect(list.reply).toBe("📋 Which reservation?\n\n1. Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n2. Thu 5 Nov · 11:00 - 12:00 · 💈 Lenny (waiting for confirmation)\n3. Back to the previous step");
+      expect(list.reply).toBe("📋 Which reservation?\n\n1. Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n2. Thu 5 Nov · 11:00 - 12:00 · 💈 Lenny (waiting for confirmation)\n3. Back to the previous step\n\nPlease choose the right number.");
       const chosen = await advance(list.state, "2", two, noAi);
       expect(chosen.state).toMatchObject({ step: "reservation", reservation: waiting });
       expect((await advance(chosen.state, "3", two, noAi)).state.step).toBe("reservations");
@@ -588,7 +594,7 @@ describe("WhatsApp flow", () => {
     it("asks yes or no before a cancellation, and sends it to staff only on yes", async () => {
       const shown = await advance(menu, "4", one, noAi);
       const sure = await advance(shown.state, "1", one, noAi);
-      expect(sure.reply).toBe("❓ Are you sure you want to cancel this reservation?\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Yes, cancel it\n2. No, keep it");
+      expect(sure.reply).toBe("❓ Are you sure you want to cancel this reservation?\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Yes, cancel it\n2. No, keep it\n\nPlease choose the right number.");
       const yes = await advance(sure.state, "1", one, noAi);
       expect(yes.staff).toEqual({ type: "cancel", reservation: booked, language: "en" });
       expect(yes.reply).toBe("✅ Your cancellation request was sent to our team. We will tell you once it is cancelled.");
@@ -630,5 +636,18 @@ describe("WhatsApp flow", () => {
     expect((await advance(atConfirm, "ok send it", context, skipped)).staff?.type).toBe("new_request");
     const count = vi.fn(async () => ({ reply: "", value: { count: 99 } }));
     expect((await advance({ step: "children", language: "en" }, "lots", context, count)).state.step).toBe("children");
+  });
+});
+
+describe("numbered messages", () => {
+  it("end every numbered list with the line asking the client to choose a number", () => {
+    const steps: WhatsAppFlow[] = [
+      { step: "menu", language: "en" }, { step: "who", language: "en" }, { step: "branch", language: "en" }, { step: "visitType", language: "en" },
+      { step: "extra", language: "en", ...chosen }, atConfirm,
+    ];
+    for (const state of steps) expect(render(state, context).endsWith("\n\nPlease choose the right number.")).toBe(true);
+    for (const state of steps) expect(render({ ...state, language: "ar" }, context).endsWith("\n\nبرجاء اختيار الرقم المناسب")).toBe(true);
+    expect(render({ step: "language", language: null }, context).endsWith("\n\nبرجاء اختيار الرقم المناسب\nPlease choose the right number.")).toBe(true);
+    expect(render({ step: "children", language: "en" }, context)).not.toContain("Please choose");
   });
 });

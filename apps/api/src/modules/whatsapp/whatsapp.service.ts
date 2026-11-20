@@ -7,7 +7,7 @@ import type { BookingRepository } from "../bookings/booking.repository.js";
 import type { createVisitService } from "../bookings/visit.service.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraReservationNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
 import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
@@ -141,7 +141,7 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     const administrator = await repository.administrator();
     if (!administrator) { await repository.answerPlainly(staff, message.id, "No enabled administrator account exists. Create the reservation in the dashboard.", now()); return; }
     const { address } = details;
-    const notes = [details.extra ? extraNote(details.extra) : null, details.hospital ? hospitalNote(details.hospital) : null].filter(Boolean).join("\n") || undefined;
+    const notes = [details.extra ? extraReservationNote(details.extra) : null, details.hospital ? hospitalNote(details.hospital) : null].filter(Boolean).join("\n") || undefined;
     try {
       await bookings.createForPhone(
         { employeeId: barber.id, date: details.date, startTime: details.startTime, endTime: details.endTime, adultCount: details.adults, childCount: details.children, specialChildCount: details.specialChildren, ...(notes ? { notes } : {}) },

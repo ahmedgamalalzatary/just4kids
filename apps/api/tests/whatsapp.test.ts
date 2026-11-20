@@ -423,7 +423,7 @@ describe("staff approval", () => {
     await fromStaff(`yes ${number}`);
     const { requests: [request] } = await stored(phone);
     const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, request!.bookingId!));
-    expect(booking!.notes).toBe("خدمة إضافية: مانيكير + باديكير");
+    expect(booking!.notes).toBe("Extra service: Manicure + Pedicure");
     expect(Number(booking!.endTime.slice(0, 2)) - Number(booking!.startTime.slice(0, 2))).toBe(2);
   });
 
@@ -434,8 +434,9 @@ describe("staff approval", () => {
     await connection.db.update(bookings).set({ visitStatus: "completed" }).where(eq(bookings.id, (await stored(phone)).requests[0]!.bookingId!));
     const time = nextWindow();
     await toTimes(phone, time);
-    for (const text of [timeOption(time)!, "7", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
-    expect(h.sent.at(-1)!.text).toBe(`📍 Should the barber come to this address?\n${areaName}, Block 3, Street 5, House 12, Floor 2, Gate B, Blue number 123\nhttps://www.google.com/maps?q=29.3,48.0\n\n1. Yes\n2. No, a new address\n3. Back to the previous step`);
+    // No home-or-hospital question: the saved location is offered right after the extra service.
+    for (const text of [timeOption(time)!, "7"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect(h.sent.at(-1)!.text).toBe(`📍 Is this location correct?\n${areaName}, Block 3, Street 5, House 12, Floor 2, Gate B, Blue number 123\nhttps://www.google.com/maps?q=29.3,48.0\n\n1. Yes\n2. No\n3. Back to the previous step\n\nPlease choose the right number.`);
     for (const text of ["1", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     expect((await stored(phone)).requests.at(-1)!.details).toMatchObject({ area: areaName, address: { block: "3", street: "5", houseNumber: "12", floor: "2", gate: "B", blueNumber: "123", mapsUrl: "https://www.google.com/maps?q=29.3,48.0" } });
     expect(h.aiCalls).toHaveLength(0);
