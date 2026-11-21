@@ -9,6 +9,8 @@ services:
       MYSQL_USER: just4kids
       MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the production env file}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in the production env file}
+    command:
+      - --performance-schema=OFF
     volumes:
       - db-data:/var/lib/mysql
     restart: unless-stopped
