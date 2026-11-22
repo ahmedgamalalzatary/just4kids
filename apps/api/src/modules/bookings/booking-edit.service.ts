@@ -42,7 +42,7 @@ export function createBookingEditService(connection: ReturnType<typeof createDat
         if (!correction) assertFutureStart(merged);
         const reassigned = targetId !== booking.employeeId;
         const windowChanged = merged.date !== booking.date || merged.startTime !== booking.startTime || merged.endTime !== booking.endTime;
-        if (windowChanged && !correction && !isReservationWindow(merged)) throw new HttpError(400, "INVALID_BOOKING_WINDOW", "Reservations must start on the hour or half hour and last 1 to 4 whole hours");
+        if (windowChanged && !correction && !isReservationWindow(merged)) throw new HttpError(400, "INVALID_BOOKING_WINDOW", "Reservations must start on the hour or half hour and last 1 to 4 hours in half-hour steps");
         const barber = barbers.get(targetId)!;
         const employeeSnapshot = reassigned ? { id: targetId, displayName: barber.employee.displayName } : booking.employeeSnapshot;
         if (reassigned || windowChanged) {

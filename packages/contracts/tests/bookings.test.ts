@@ -3,11 +3,12 @@ import { bookingCreateSchema, bookingEditSchema, bookingResponseSchema, visitTra
 
 const input = { clientId: "11111111-1111-4111-8111-111111111111", addressId: "22222222-2222-4222-8222-222222222222", employeeId: "33333333-3333-4333-8333-333333333333", date: "2030-01-07", startTime: "09:00", endTime: "10:00", adultCount: 3, childCount: 0, specialChildCount: 0 };
 describe("booking contracts", () => {
-  it.each([{ endTime: "09:30" }, { startTime: "09:15", endTime: "10:15" }, { endTime: "10:30" }])("refuses a new reservation off the half-hour grid or without a whole-hour duration: %j", patch => {
+  it.each([{ endTime: "09:30" }, { startTime: "09:15", endTime: "10:15" }, { endTime: "10:10" }])("refuses a new reservation off the half-hour grid or shorter than an hour: %j", patch => {
     expect(bookingCreateSchema.safeParse({ ...input, ...patch }).success).toBe(false);
   });
-  it("accepts a whole-hour visit starting on the half hour", () => {
+  it("accepts half-hour durations of at least an hour, starting on the hour or half hour", () => {
     expect(bookingCreateSchema.safeParse({ ...input, startTime: "09:30", endTime: "10:30" }).success).toBe(true);
+    expect(bookingCreateSchema.safeParse({ ...input, startTime: "09:00", endTime: "10:30" }).success).toBe(true);
   });
   it("accepts a reservation address edit", () => {
     expect(bookingEditSchema.safeParse({ expectedVersion: 0, address: { area: "Hawally", block: "3", street: "5", houseNumber: "12", buildingName: null, avenue: null, gate: "B", blueNumber: "123", floor: "2", apartment: null, mapsUrl: null } }).success).toBe(true);

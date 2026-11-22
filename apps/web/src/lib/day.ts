@@ -79,10 +79,10 @@ export function buildSlots<T extends Visit>({ date, schedule, bookings, now = ne
   });
 }
 
-/** Whole-hour durations from an on-the-hour or half-hour start, bounded by working hours, visits, and locks. */
+/** Half-hour steps from one hour after an on-the-hour or half-hour start, bounded by working hours, visits, and locks. */
 export function buildEndOptions<T extends Visit>(args: EndOptionsArgs<T>): string[] {
   if (minuteOfDay(args.startTime) % SLOT_MINUTES !== 0) return [];
-  return endOptions(args, MAX_VISIT_MINUTES, MIN_VISIT_MINUTES);
+  return endOptions(args, MAX_VISIT_MINUTES, SLOT_MINUTES).filter(end => minuteOfDay(end) - minuteOfDay(args.startTime) >= MIN_VISIT_MINUTES);
 }
 
 /** The valid end times for locking from `startTime`: half-hour steps until the shift ends or a visit or another lock starts. */

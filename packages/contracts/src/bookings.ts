@@ -36,10 +36,10 @@ function validateBooking(value: Pick<z.infer<typeof bookingFields>, "date" | "st
 }
 function validateNewBooking(value: Parameters<typeof validateBooking>[0], context: z.RefinementCtx) {
   validateBooking(value, context);
-  if (!isReservationWindow(value)) context.addIssue({ code: "custom", message: "Reservations must start on the hour or half hour and last 1 to 4 whole hours" });
+  if (!isReservationWindow(value)) context.addIssue({ code: "custom", message: "Reservations must start on the hour or half hour and last 1 to 4 hours in half-hour steps" });
 }
 export const bookingCreateSchema = bookingFields.superRefine(validateNewBooking);
-// What an edit re-checks: an older visit or a correction may keep a window that is not whole hours.
+// What an edit re-checks: an older visit or a correction may keep a window off the half-hour grid.
 export const bookingEditedSchema = bookingFields.superRefine(validateBooking);
 export const bookingWithClientCreateSchema = bookingFields.omit({ clientId: true, addressId: true }).extend({
   client: z.strictObject({ phone: phoneSchema, address: addressCreateSchema.safeExtend({ areaId: z.uuid() }) }),

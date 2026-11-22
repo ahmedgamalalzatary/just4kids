@@ -224,9 +224,15 @@ describe("reservation edits and revisions", () => {
     const results = await Promise.all([edit({ employeeId: otherId }), write("patch", `/bookings/${second.body.id}`, { expectedVersion: 0, employeeId })]);
     expect(results.map(result => result.status)).toEqual([409, 409]); expect((await detail()).body.employeeId).toBe(employeeId);
   });
-  it("keeps whole-hour durations and half-hour starts, without blocking older visits or corrections", async () => {
+  it("allows an hour and a half", async () => {
+    const longer = await edit({ startTime: "09:00", endTime: "10:30" });
+    expect(longer.status).toBe(200);
+    expect(longer.body).toMatchObject({ startTime: "09:00", endTime: "10:30" });
+  });
+  it("keeps half-hour durations of at least an hour and half-hour starts, without blocking older visits or corrections", async () => {
     expect((await edit({ startTime: "09:15", endTime: "10:15" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
     expect((await edit({ startTime: "09:00", endTime: "09:30" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
+    expect((await edit({ startTime: "09:00", endTime: "10:10" })).body.error.code).toBe("INVALID_BOOKING_WINDOW");
     await connection.db.update(bookings).set({ endTime: "09:30" }).where(eq(bookings.id, booking.id));
     const notes = await edit({ notes: "older half-hour visit" });
     expect(notes.status).toBe(200);

@@ -10,7 +10,7 @@ export function windowProblem(window: { date: string; startTime: string; endTime
   if (minutes < 20) return "Appointments must be at least 20 minutes";
   if (minutes > 240) return "Appointments cannot exceed 4 hours";
   // Corrections record what really happened; future reservations use the dashboard's half-hour grid.
-  if (requireFuture && !isReservationWindow(window)) return "Appointments must start on the hour or half hour and last 1 to 4 whole hours";
+  if (requireFuture && !isReservationWindow(window)) return "Appointments must start on the hour or half hour and last 1 to 4 hours in half-hour steps";
   if (requireFuture && kuwaitInstant(window.date, window.startTime) <= now) return "The appointment must start after the current Kuwait time";
   return null;
 }

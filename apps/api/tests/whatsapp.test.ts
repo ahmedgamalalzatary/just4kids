@@ -64,6 +64,7 @@ function harness(whatsappSettings = settings) {
     answer: (...next: (Decision | Error | number)[]) => { decisions.push(...next); },
     failSends: (next: typeof sendStatus) => { sendStatus = next; },
     advance: (ms: number) => { clock = new Date(clock.getTime() + ms); },
+    at: (time: Date) => { clock = time; },
   };
 }
 let keyCounter = 0;
@@ -552,28 +553,83 @@ describe("main menu options", () => {
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
     expect(h.sent.map(message => message.chatId)).toEqual([chatId]);
-    expect(h.sent[0]!.text).toBe("We found no upcoming reservation on this number.\n\n✏️ What would you like to change or cancel? Send it in one message.");
+    expect(h.sent[0]!.text).toBe("We found no upcoming reservation on this number.\n\n✏️ What would you like to change? Send it in one message.");
     expect((await stored(phone)).conversation!.aiPaused).toBe(false);
   });
 });
 
-describe("one upcoming reservation, and cancelling it", () => {
+describe("one upcoming reservation, the reservation-day reminder, and cancelling", () => {
   const send = async (phone: string, ...texts: string[]) => { for (const text of texts) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); } };
-  /** A client with an approved reservation, and its booking. */
+  // Each test moves its reservation to its own day, far from the days other tests book.
+  let dayOffset = 40;
+  const kuwait = (day: string, time: string) => new Date(`${day}T${time}:00+03:00`);
+  /** A client with an approved reservation moved to 12:00 on a day of its own, and its booking. */
   async function approved() {
     const { phone, chatId } = client();
     await fromStaff(`yes ${await confirmed(phone)}`);
-    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, (await stored(phone)).requests[0]!.bookingId!));
-    return { phone, chatId, booking: booking! };
+    const day = new Date(Date.now() + 3 * 3_600_000 + dayOffset++ * 86_400_000).toISOString().slice(0, 10);
+    const id = (await stored(phone)).requests[0]!.bookingId!;
+    await connection.db.update(bookings).set({ date: day, startTime: "12:00", endTime: "13:00" }).where(eq(bookings.id, id));
+    const [booking] = await connection.db.select().from(bookings).where(eq(bookings.id, id));
+    return { phone, chatId, booking: booking!, day };
+  }
+  /** Runs the reminder sweep at this Kuwait time on the day and sends what it queued. */
+  async function sweepAt(day: string, time: string) {
+    h.at(kuwait(day, time));
+    await h.whatsapp.remind(); await h.whatsapp.drain(); await h.whatsapp.idle();
+  }
+  /** A client who received the reminder of today's reservation. */
+  async function reminded() {
+    const found = await approved();
+    await sweepAt(found.day, "08:00");
+    return found;
   }
   const bookingStatus = async (id: string) => (await connection.db.select({ status: bookings.visitStatus }).from(bookings).where(eq(bookings.id, id)))[0]!.status;
+  const to = (chatId: string) => h.sent.filter(message => message.chatId === chatId);
+
+  it("reminds the client at 8am on the reservation day, once, asking to confirm or cancel", async () => {
+    const { chatId, day } = await approved();
+    h.sent.length = 0;
+    await sweepAt(day, "07:59");
+    expect(to(chatId)).toEqual([]);
+    await sweepAt(day, "08:00");
+    expect(to(chatId).map(message => message.text)).toEqual([expect.stringMatching(/^⏰ Reminder: you have a reservation today\.\n📅 .+ · 12:00 - 13:00 · 💈 .+\n\n1\. Confirm ✅\n2\. Cancel the reservation ❌\n\nPlease choose the right number\.$/)]);
+    await sweepAt(day, "09:00");
+    expect(to(chatId)).toHaveLength(1);
+  });
+
+  it("does not remind a reservation made after 8am on its day, or one that has started", async () => {
+    const late = await approved();
+    await connection.db.update(bookings).set({ createdAt: kuwait(late.day, "08:30") }).where(eq(bookings.id, late.booking.id));
+    const started = await approved();
+    h.sent.length = 0;
+    await sweepAt(late.day, "09:00");
+    await sweepAt(started.day, "12:00");
+    expect([...to(late.chatId), ...to(started.chatId)]).toEqual([]);
+  });
+
+  it("only thanks the client who confirms, even hours after the reminder", async () => {
+    const { phone, chatId } = await reminded();
+    h.advance(3 * 3_600_000);
+    h.sent.length = 0;
+    await send(phone, "1");
+    expect(h.sent).toEqual([expect.objectContaining({ chatId, text: "✅ Thank you for confirming. See you today!" })]);
+    expect((await stored(phone)).requests).toHaveLength(1);
+  });
+
+  it("checks the reservation with option 5, and offers to book when there is none", async () => {
+    const { phone } = await approved();
+    await send(phone, "hi", "1", "5");
+    expect(h.sent.at(-1)!.text).toMatch(/^📋 Your reservation:\n📅 .+ · 12:00 - 13:00 · 💈 .+\n\n✂️ \*J4Kids Salon\*/);
+    const other = client();
+    await send(other.phone, "hi", "1", "5");
+    expect(h.sent.at(-1)!.text).toContain("You have no upcoming reservation. Would you like to book one?");
+  });
 
   it("cancels the reservation once staff approve the client's cancellation", async () => {
-    const { phone, chatId, booking } = await approved();
-    await send(phone, "hi", "1", "4");
-    expect(h.sent.at(-1)!.text).toContain("1. Cancel this reservation");
+    const { phone, chatId, booking } = await reminded();
     h.sent.length = 0;
-    await send(phone, "1", "1");
+    await send(phone, "2");
     const cancel = (await stored(phone)).requests.at(-1)!;
     expect(cancel).toMatchObject({ status: "pending", details: { type: "cancel", reservation: { kind: "booking", id: booking.id, reference: booking.reference } } });
     const toStaff = h.sent.find(message => message.chatId === staffChat)!;
@@ -594,8 +650,8 @@ describe("one upcoming reservation, and cancelling it", () => {
   });
 
   it("keeps the reservation when staff refuse, and tells the client staff will contact them", async () => {
-    const { phone, chatId, booking } = await approved();
-    await send(phone, "hi", "1", "4", "1", "1");
+    const { phone, chatId, booking } = await reminded();
+    await send(phone, "2");
     const cancel = (await stored(phone)).requests.at(-1)!;
     h.sent.length = 0;
     await fromStaff(`no ${cancel.number}`);
@@ -604,16 +660,13 @@ describe("one upcoming reservation, and cancelling it", () => {
     expect(h.sent.at(-1)).toMatchObject({ chatId, text: "❌ We could not cancel your reservation.\nA staff member will contact you." });
   });
 
-  it("cancels a request staff have not approved yet, so it can no longer be approved", async () => {
-    const { phone } = client();
-    const first = await confirmed(phone);
-    await send(phone, "hi", "1", "4", "1", "1");
-    const cancel = (await stored(phone)).requests.at(-1)!;
-    expect(cancel.details).toMatchObject({ type: "cancel", reservation: { kind: "request", number: first } });
-    await fromStaff(`yes ${cancel.number}`);
-    expect((await stored(phone)).requests.find(request => request.number === first)!.status).toBe("cancelled");
-    await fromStaff(`yes ${first}`);
-    expect(h.sent.at(-1)!.text).toBe(`Request #${first} was already cancelled.`);
+  it("edits the reservation with option 4: no cancel option, and the change goes to staff", async () => {
+    const { phone, booking } = await approved();
+    await send(phone, "hi", "1", "4");
+    expect(h.sent.at(-1)!.text).toMatch(/^📋 Your reservation:\n📅 .+\n\n✏️ What would you like to change\? Send it in one message\.$/);
+    h.sent.length = 0;
+    await send(phone, "Make it 5 pm");
+    expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain(booking.reference);
   });
 
   it("refuses a new booking while a reservation or a request is upcoming", async () => {
@@ -625,8 +678,8 @@ describe("one upcoming reservation, and cancelling it", () => {
   });
 
   it("refuses an address change for a cancellation", async () => {
-    const { phone } = await approved();
-    await send(phone, "hi", "1", "4", "1", "1");
+    const { phone } = await reminded();
+    await send(phone, "2");
     const cancel = (await stored(phone)).requests.at(-1)!;
     await fromStaff(`address ${cancel.number} street 9`);
     expect(h.sent.at(-1)!.text).toBe(`Request #${cancel.number} is a cancellation. It has no address to change.`);

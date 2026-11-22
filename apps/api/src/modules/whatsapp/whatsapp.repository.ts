@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { TransactionRollbackError, and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
+import { TransactionRollbackError, and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, areas, bookings, branches, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
-import type { WhatsAppRequestDetails, WhatsAppReservation, WhatsAppStaffAction } from "@just4kids/db/schema";
+import { accounts, areas, bookings, branches, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappReminders, whatsappRequests } from "@just4kids/db/schema";
+import type { WhatsAppFlow, WhatsAppRequestDetails, WhatsAppReservation, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
 import { freeWholeHours } from "../availability/availability.service.js";
@@ -97,6 +97,33 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         ...waiting.flatMap(({ number, details }) => details.type === "cancel" ? [] : [{ kind: "request" as const, number, date: details.date, startTime: details.startTime, endTime: details.endTime, barber: details.barberName ? { name: details.barberName } : null }]),
       ];
       return reservations.filter(item => future(item.date, item.startTime)).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
+    },
+    /** Today's booked reservations made before the reminder time that have not started and were not reminded yet. */
+    async dueReminders(today: string, time: string, madeBefore: Date) {
+      return db.select({ id: bookings.id, reference: bookings.reference, date: bookings.date, startTime: bookings.startTime, endTime: bookings.endTime, name: employees.displayName, nameAr: employees.displayNameAr, phone: clients.phone })
+        .from(bookings).innerJoin(clients, eq(clients.id, bookings.clientId)).innerJoin(employees, eq(employees.accountId, bookings.employeeId))
+        .leftJoin(whatsappReminders, eq(whatsappReminders.bookingId, bookings.id))
+        .where(and(eq(bookings.date, today), eq(bookings.visitStatus, "booked"), gt(bookings.startTime, time), lt(bookings.createdAt, madeBefore), isNull(whatsappReminders.bookingId)));
+    },
+    /**
+     * Queues a reservation's reminder once, in the client's last known language (Arabic when unknown), and sets the client's flow to it.
+     * A client who never wrote gets a conversation with the phone's own chat. False when it was already queued.
+     */
+    async queueReminder(bookingId: string, phone: string, build: (language: "en" | "ar") => { state: WhatsAppFlow; reply: string }, now: Date) {
+      return db.transaction(async transaction => {
+        await transaction.insert(whatsappConversations).values({ id: randomUUID(), phone, chatId: `${phone.slice(1)}@c.us`, createdAt: now, updatedAt: now }).onDuplicateKeyUpdate({ set: { phone } });
+        const [conversation] = await transaction.select().from(whatsappConversations).where(eq(whatsappConversations.phone, phone));
+        try {
+          await transaction.insert(whatsappReminders).values({ bookingId, conversationId: conversation!.id, createdAt: now });
+        } catch (error) {
+          if (isDuplicate(error)) transaction.rollback();
+          throw error;
+        }
+        const [last] = await transaction.select({ details: whatsappRequests.details }).from(whatsappRequests).where(eq(whatsappRequests.conversationId, conversation!.id)).orderBy(desc(whatsappRequests.number)).limit(1);
+        const { state, reply } = build(conversation!.flow?.language ?? last?.details.language ?? "ar");
+        await transaction.update(whatsappConversations).set({ flow: state, updatedAt: now }).where(eq(whatsappConversations.id, conversation!.id));
+        await transaction.insert(whatsappMessages).values({ conversationId: conversation!.id, direction: "outbound", audience: "client", status: "pending", turnId: randomUUID(), body: reply, idempotencyKey: `${OUR_KEY}${randomUUID()}`, chatId: conversation!.chatId, createdAt: now });
+      }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
     /** The barbers, areas and salon branches the menus offer, always read from the dashboard's data. */
     async options() {

@@ -281,6 +281,13 @@
       "when": 1795101563724,
       "tag": "0039_low_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1795358801767,
+      "tag": "0040_whatsapp_reminders",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { bigint, boolean, datetime, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { bookings } from "./bookings.js";
 
 // WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
 // price_list is the home list; the salon list has its own photo.
@@ -41,7 +42,9 @@ export type WhatsAppStaffAction =
   | { type: "forward"; summary: string };
 // Where one client is in the numbered menus.
 // savedAddress asks whether the barber comes to the address of the client's last reservation.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch" | "reservations" | "reservation" | "cancelConfirm";
+// noUpcoming offers a booking when the client checks a reservation and has none; reminder is the reservation-day message (confirm or cancel).
+// reservation and cancelConfirm are no longer used; older saved chats may still be on them and go back to the menu.
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch" | "reservations" | "reservation" | "cancelConfirm" | "noUpcoming" | "reminder";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
@@ -61,7 +64,7 @@ export type WhatsAppFlow = {
   savedAddressUsed?: boolean;
   // Keep supplied details while asking for missing required fields. A Maps link alone is kept but not enough.
   draft?: { written?: Partial<Omit<WhatsAppAddress, "mapsUrl">>; mapsUrl?: string };
-  // The upcoming reservation the client chose to cancel or change.
+  // The upcoming reservation the client chose to change, or the one today's reminder is about.
   reservation?: WhatsAppReservation;
 };
 
@@ -95,6 +98,16 @@ export const whatsappRequests = mysqlTable("whatsapp_requests", {
 }, table => [
   index("whatsapp_requests_conversation_index").on(table.conversationId),
   foreignKey({ name: "whatsapp_request_conversation_fk", columns: [table.conversationId], foreignColumns: [whatsappConversations.id] }).onDelete("restrict"),
+]);
+
+// One row per reservation whose reservation-day reminder was queued, so it is sent once.
+export const whatsappReminders = mysqlTable("whatsapp_reminders", {
+  bookingId: varchar("booking_id", { length: 36 }).primaryKey(),
+  conversationId: varchar("conversation_id", { length: 36 }).notNull(),
+  createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
+}, table => [
+  foreignKey({ name: "whatsapp_reminder_booking_fk", columns: [table.bookingId], foreignColumns: [bookings.id] }).onDelete("cascade"),
+  foreignKey({ name: "whatsapp_reminder_conversation_fk", columns: [table.conversationId], foreignColumns: [whatsappConversations.id] }).onDelete("cascade"),
 ]);
 
 export const whatsappMessages = mysqlTable("whatsapp_messages", {

@@ -35,6 +35,8 @@ export function createWhatsApp(connection: ReturnType<typeof createDatabase>, se
     return tracked;
   };
   const drain = async () => { await Promise.all((await service.due()).map(id => track(service.process(id, true)))); };
+  // Each sweep first queues any reservation-day reminders that are due, then sends and answers.
+  const sweep = async () => { await service.remind(); await drain(); };
   let timer: NodeJS.Timeout | undefined;
 
   const router = Router();
@@ -64,10 +66,12 @@ export function createWhatsApp(connection: ReturnType<typeof createDatabase>, se
   return {
     router,
     /** Resumes stored work now and then sweeps for retries. */
-    start() { void track(drain()); timer = setInterval(() => { void track(drain()); }, SWEEP_MS); timer.unref(); },
+    start() { void track(sweep()); timer = setInterval(() => { void track(sweep()); }, SWEEP_MS); timer.unref(); },
     async stop() { clearInterval(timer); await Promise.all(running); },
     /** Processes every conversation whose work is due. */
     drain,
+    /** Queues the reservation-day reminders that are due. */
+    remind: () => service.remind(),
     /** Resolves once all work started so far has finished. */
     async idle() { while (running.size) await Promise.all(running); },
   };

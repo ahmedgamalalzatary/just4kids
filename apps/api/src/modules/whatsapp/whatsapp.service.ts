@@ -1,5 +1,5 @@
 import { TransactionRollbackError } from "drizzle-orm";
-import type { WhatsAppCancelDetails, WhatsAppMedia } from "@just4kids/db/schema";
+import type { WhatsAppCancelDetails, WhatsAppMedia, WhatsAppReservation } from "@just4kids/db/schema";
 import type { WhatsAppSettings } from "../../configs/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { Transaction } from "../availability/availability.repository.js";
@@ -7,7 +7,7 @@ import type { BookingRepository } from "../bookings/booking.repository.js";
 import type { createVisitService } from "../bookings/visit.service.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraReservationNote, IDLE_RESET_MS, savedHomeAddress, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraReservationNote, IDLE_RESET_MS, reminder, savedHomeAddress, stepInstructions } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
 import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
@@ -23,6 +23,8 @@ const MAX_SEND_ATTEMPTS = 12;
 const backoff = (failures: number) => Math.min(30_000 * 2 ** (failures - 1), 10 * 60_000);
 // After staff take over a chat, the AI answers again once this long passes with no message between staff and the client.
 const TAKEOVER_MS = 15 * 60_000;
+// Kuwait time of the reservation-day reminder.
+const REMINDER_TIME = "08:00";
 
 export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, visits: ReturnType<typeof createVisitService>, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<WhatsAppMedia, Photo>, now: () => Date) {
   const staffChatId = (phone: string) => `${phone.slice(1)}@c.us`;
@@ -188,8 +190,8 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     let flow = conversation.flow;
     let lastAt = await repository.previousInboundAt(id, inbound[0]!.id);
     for (const message of inbound) {
-      // After a long silence the chat starts over, so a half-finished booking does not continue.
-      if (lastAt && message.createdAt.getTime() - lastAt.getTime() > IDLE_RESET_MS) flow = null;
+      // After a long silence the chat starts over, so a half-finished booking does not continue. The reminder waits for its answer all day.
+      if (lastAt && message.createdAt.getTime() - lastAt.getTime() > IDLE_RESET_MS && flow?.step !== "reminder") flow = null;
       lastAt = message.createdAt;
       try {
         const turn = await advance(flow, message.body, context, async state => {
@@ -241,5 +243,19 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
   return {
     process,
     async due() { return repository.due(now()); },
+    /**
+     * From 8am Kuwait time, queues the reminder of each reservation booked for today, once. A reservation made after 8am on its day,
+     * or one that has started, gets none. The sweep sends what was queued.
+     */
+    async remind() {
+      const current = now(), kuwait = new Date(current.getTime() + 3 * 3_600_000).toISOString();
+      const today = kuwait.slice(0, 10), time = kuwait.slice(11, 16);
+      if (time < REMINDER_TIME) return;
+      for (const row of await repository.dueReminders(today, time, new Date(`${today}T${REMINDER_TIME}:00+03:00`))) {
+        if (settings.staffPhones.includes(row.phone)) continue;
+        const reservation: WhatsAppReservation = { kind: "booking", id: row.id, reference: row.reference, date: row.date, startTime: row.startTime, endTime: row.endTime, barber: { name: row.name, nameAr: row.nameAr } };
+        await repository.queueReminder(row.id, row.phone, language => reminder(reservation, language), current);
+      }
+    },
   };
 }
