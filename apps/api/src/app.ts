@@ -15,6 +15,7 @@ import { createBookings } from "./modules/bookings/index.js";
 import { createSalon } from "./modules/salon/index.js";
 import { createCollections } from "./modules/collections/index.js";
 import { createReports } from "./modules/reports/index.js";
+import { createLocations } from "./modules/locations/index.js";
 import type { WhatsAppModule } from "./modules/whatsapp/index.js";
 
 export function createApp(options?: { auth: AuthModule; connection?: ReturnType<typeof createDatabase>; env?: ApiEnv; whatsapp?: WhatsAppModule }) {
@@ -37,6 +38,7 @@ export function createApp(options?: { auth: AuthModule; connection?: ReturnType<
     if (options.connection) app.use("/salon", createSalon(options.connection, options.auth));
     if (options.connection) app.use("/collections", createCollections(options.connection, options.auth));
     if (options.connection) app.use("/reports", createReports(options.connection, options.auth));
+    if (options.connection) app.use("/locations", createLocations(options.connection, options.auth));
     if (options.connection) {
       const schedules = createSchedules(options.connection, options.auth);
       app.use("/schedules", schedules.router);

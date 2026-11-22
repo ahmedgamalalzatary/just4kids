@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { BookingWithClientCreate } from "@just4kids/contracts";
+import type { BarberLocation, BookingWithClientCreate } from "@just4kids/contracts";
 import type { ClientLookup } from "./types";
 import type {
   AreaCreate, AreaUpdate,
@@ -435,4 +435,11 @@ export function useBookingTrackingReport(filters: ReportFilters, enabled: boolea
     queryFn: ({ signal }) => apiRequest<BookingTrackingResponse>("/reports/tracking", { query, signal }),
     enabled, placeholderData: keepPreviousData,
   });
+}
+
+// Live location ---------------------------------------------------------------
+
+/** Every active barber's last reported position, refreshed every 15 seconds while the page is open. */
+export function useBarberLocations() {
+  return useQuery({ queryKey: ["locations"], queryFn: ({ signal }) => apiRequest<{ barbers: BarberLocation[] }>("/locations", { signal }).then(result => result.barbers), refetchInterval: 15_000 });
 }

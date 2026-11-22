@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarClock, CalendarDays, CalendarPlus, ChartColumn, ChartPie, ClipboardList, Coins, House, LogOut, MapPin, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
+import { CalendarClock, CalendarDays, CalendarPlus, ChartColumn, ChartPie, ClipboardList, Coins, House, LocateFixed, LogOut, MapPin, Menu, Scissors, Store, UserRound, Users, type LucideIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand";
+import { LocationGate } from "@/components/location-gate";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Ltr } from "@/components/page";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ const home: NavItem = { href: "/", label: "Home", icon: House };
 // Grouped like the old dashboard sidebar the team is used to: barbers, system, reports.
 const adminNav: NavGroup[] = [
   { items: [home, { href: "/bookings", label: "Reservation dispatch", icon: CalendarDays }] },
-  { label: "Barbers", items: [{ href: "/employees", label: "Barbers and working hours", icon: Scissors }, { href: "/bookings/new", label: "Book a barber", icon: CalendarPlus }] },
+  { label: "Barbers", items: [{ href: "/employees", label: "Barbers and working hours", icon: Scissors }, { href: "/bookings/new", label: "Book a barber", icon: CalendarPlus }, { href: "/locations", label: "Live location", icon: LocateFixed }] },
   { label: "System", items: [{ href: "/clients", label: "Clients", icon: Users }, { href: "/areas", label: "Areas", icon: MapPin }, { href: "/branches", label: "Branches", icon: Store }, { href: "/salon", label: "Salon work", icon: Coins }, { href: "/collections", label: "Barber collections", icon: Coins }] },
   { label: "Reports", items: [{ href: "/reports", label: "Reports", icon: ChartColumn }, { href: "/reports/salon", label: "Salon report", icon: ChartPie }, { href: "/reports/comprehensive", label: "Combined report", icon: ClipboardList }] },
 ];
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const quick = account.role === "admin" ? adminQuick : employeeQuick;
   const quickActive = activeHref(pathname, quick);
 
-  return (
+  const layout = (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-5 border-e border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex" data-print-hidden>
         <Link href="/" className="px-2"><Wordmark /></Link>
@@ -173,6 +174,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+  // Barbers use the app only while sharing their live location with the administrator.
+  return account.role === "employee" ? <LocationGate>{layout}</LocationGate> : layout;
 }
 
 /** Shows a clear message instead of an administrator page when an employee opens its address directly. */
