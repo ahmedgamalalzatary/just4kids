@@ -33,7 +33,7 @@ type Language = "en" | "ar";
 const copy = {
   en: {
     back: "Back to the previous step", languageSet: "✅ Language: English",
-    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Edit a reservation", verify: "Check my reservation", salonService: "Salon service", homePrices: "Home service price list", branch: "🏪 Which branch?", pick: "Please choose the right number.",
+    menu: "✂️ *J4Kids Salon* — how can we help?", book: "Book an appointment", change: "Cancel a reservation", verify: "Check my reservation", salonService: "Salon service", homePrices: "Home service price list", branch: "🏪 Which branch?", pick: "Please choose the right number.",
     who: "👶 Who is this for?", whoOptions: ["Boy", "Girl", "Baby", "Special needs", "Both (Girl & Boy)", "Medical condition service"],
     adults: "🔢 How many adults?", children: "🔢 How many kids?", barber: "💈 Which barber do you choose?", any: "Any barber", date: "📅 Preferred date:",
     time: (date: string) => `⏰ Available start times on ${date}:`,
@@ -60,7 +60,8 @@ const copy = {
     noUpcoming: "You have no upcoming reservation. Would you like to book one?",
     reminder: "⏰ Reminder: you have a reservation today.", reminderCancel: "Cancel the reservation ❌", reminderThanks: "✅ Thank you for confirming. See you today!",
     cancelSent: "✅ Your cancellation request was sent to our team. We will tell you once it is cancelled.",
-    alreadyBooked: "⚠️ You already have an upcoming reservation, so a new one cannot be booked. You can edit it from option 4.",
+    cancelSure: "❓ Are you sure you want to cancel this reservation?", cancelYes: "Yes, cancel it", cancelNo: "No, keep it",
+    alreadyBooked: "⚠️ You already have an upcoming reservation, so a new one cannot be booked. You can cancel it from option 4.",
     invalid: "⚠️ Please send one of the numbers above.", countInvalid: "⚠️ Please send a number from 1 to 50.",
     approved: (date: string, time: string, barber: string) => `✅ Your reservation is confirmed.\n📅 ${date} · ${time}\n💈 Barber: ${barber}`,
     rejected: (reason: string | null) => `❌ We could not confirm your request.${reason ? `\n${reason}` : ""}\nA staff member will contact you if needed.`,
@@ -69,7 +70,7 @@ const copy = {
   },
   ar: {
     back: "الرجوع للخطوة السابقة", languageSet: "✅ اللغة: العربية",
-    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "تعديل حجز", verify: "التأكد من الحجز", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", branch: "🏪 أي فرع؟", pick: "برجاء اختيار الرقم المناسب",
+    menu: "✂️ *صالون J4Kids* — كيف يمكننا مساعدتك؟", book: "حجز موعد", change: "إلغاء حجز", verify: "التأكد من الحجز", salonService: "خدمة الصالون", homePrices: "قائمة أسعار الخدمة المنزلية", branch: "🏪 أي فرع؟", pick: "برجاء اختيار الرقم المناسب",
     who: "👶 لمن الحجز؟", whoOptions: ["ولد", "بنت", "رضيع", "ذوو احتياجات خاصة", "ولد وبنت", "خدمة حالة مرضية"],
     adults: "🔢 كم عدد الكبار؟", children: "🔢 كم عدد الأطفال؟", barber: "💈 أي حلاق تختار؟", any: "أي حلاق", date: "📅 التاريخ المفضل:",
     time: (date: string) => `⏰ أوقات البدء المتاحة يوم ${date}:`,
@@ -96,7 +97,8 @@ const copy = {
     noUpcoming: "ليس لديك حجز قادم. هل تريد حجز موعد جديد؟",
     reminder: "⏰ تذكير: لديك حجز اليوم.", reminderCancel: "إلغاء الحجز ❌", reminderThanks: "✅ شكراً لتأكيدك. نراك اليوم!",
     cancelSent: "✅ تم إرسال طلب الإلغاء إلى فريقنا. سنخبرك عند إلغاء الحجز.",
-    alreadyBooked: "⚠️ لديك حجز قادم، لذلك لا يمكن حجز موعد جديد. يمكنك تعديله من الخيار 4.",
+    cancelSure: "❓ هل أنت متأكد أنك تريد إلغاء هذا الحجز؟", cancelYes: "نعم، ألغِ الحجز", cancelNo: "لا، أبقِ الحجز",
+    alreadyBooked: "⚠️ لديك حجز قادم، لذلك لا يمكن حجز موعد جديد. يمكنك إلغاؤه من الخيار 4.",
     invalid: "⚠️ أرسل أحد الأرقام أعلاه.", countInvalid: "⚠️ أرسل رقماً من 1 إلى 50.",
     approved: (date: string, time: string, barber: string) => `✅ تم تأكيد حجزك.\n📅 ${date} · ${time}\n💈 الحلاق: ${barber}`,
     rejected: (reason: string | null) => `❌ لم نتمكن من تأكيد طلبك.${reason ? `\n${reason}` : ""}\nسيتواصل معك موظف عند الحاجة.`,
@@ -187,6 +189,7 @@ function options(state: WhatsAppFlow, context: FlowContext, language: Language):
   if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.change, text.verify, text.back];
   if (state.step === "noUpcoming") return [text.book, text.back];
   if (state.step === "reminder") return [text.confirm, text.reminderCancel];
+  if (state.step === "cancelConfirm") return [text.cancelYes, text.cancelNo];
   if (state.step === "who") return [...text.whoOptions, text.back];
   if (state.step === "barber") return [...offeredBarbers(state, context).map(barber => barberChoice(barber, language)), text.back];
   if (state.step === "branch") return [...context.branches.map(branch => branch.name), text.back];
@@ -251,22 +254,20 @@ function stepText(state: WhatsAppFlow, context: FlowContext, language: Language)
     case "reservations": return `${text.whichReservation}\n\n${numbered(options(state, context, language))}`;
     case "noUpcoming": return `${text.noUpcoming}\n\n${numbered(options(state, context, language))}`;
     case "reminder": return `${text.reminder}\n📅 ${reservationLine(state.reservation!, language)}\n\n${numbered(options(state, context, language))}`;
-    // Removed steps: advance sends a client still on them to the menu first.
-    case "reservation": case "cancelConfirm": return "";
+    case "cancelConfirm": return `${text.cancelSure}\n📅 ${reservationLine(state.reservation!, language)}\n\n${numbered(options(state, context, language))}`;
+    // A removed step: advance sends a client still on it to the menu first.
+    case "reservation": return "";
   }
 }
 
 /** The client's upcoming reservations, one per line. */
 const reservationLines = (reservations: WhatsAppReservation[], language: Language) => reservations.map(item => `📅 ${reservationLine(item, language)}`).join("\n");
-/** Asks what to change in one reservation, shown first. */
-function toChange(state: WhatsAppFlow, reservation: WhatsAppReservation, context: FlowContext) {
-  const language = state.language ?? "ar";
-  return move({ ...freshBooking(state), reservation }, "change", context, `${copy[language].yourReservation}\n${reservationLines([reservation], language)}`);
-}
-/** Option 4: the only reservation is shown at once, several are listed first. Null when there is none. */
+/** Asks the client to be sure before one reservation's cancellation goes to staff. */
+const toCancel = (state: WhatsAppFlow, reservation: WhatsAppReservation, context: FlowContext) => move({ ...freshBooking(state), reservation }, "cancelConfirm", context);
+/** Option 4: the only reservation is asked about at once, several are listed first. Null when there is none. */
 function toReservations(state: WhatsAppFlow, context: FlowContext): Turn | null {
   const reservations = context.reservations ?? [];
-  if (reservations.length === 1) return toChange(state, reservations[0]!, context);
+  if (reservations.length === 1) return toCancel(state, reservations[0]!, context);
   return reservations.length ? move(freshBooking(state), "reservations", context) : null;
 }
 
@@ -349,7 +350,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     }
     case "menu":
       switch (choice) {
-        // One upcoming reservation at a time: it is shown, and can be edited from option 4, but another cannot be booked.
+        // One upcoming reservation at a time: it is shown, and can be cancelled from option 4, but another cannot be booked.
         case 1: {
           const reservations = context.reservations ?? [];
           if (reservations.length) return move(freshBooking(state), "menu", context, `${copy[language].alreadyBooked}\n${reservationLines(reservations, language)}`);
@@ -358,8 +359,8 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
         case 2: return { ...move(state, "menu", context), image: { media: "price_list", caption: copy[language].homePrices } };
         // With no branch in the dashboard there is nothing to choose: the price list is sent alone.
         case 3: return context.branches.length ? move(state, "branch", context) : salonService(state, context, null);
-        // With no upcoming reservation found, the client writes what to change and staff read it.
-        case 4: return toReservations(state, context) ?? move(freshBooking(state), "change", context, copy[language].noReservation);
+        // A cancellation goes to staff, like the reminder's; with no upcoming reservation there is nothing to cancel.
+        case 4: return toReservations(state, context) ?? move(freshBooking(state), "menu", context, copy[language].noReservation);
         case 5: {
           const reservations = context.reservations ?? [];
           if (!reservations.length) return move(freshBooking(state), "noUpcoming", context);
@@ -370,7 +371,10 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
     case "noUpcoming":
       return move(freshBooking(state), "who", context);
     case "reservations":
-      return toChange(state, offeredReservations(state, context)[choice - 1]!, context);
+      return toCancel(state, offeredReservations(state, context)[choice - 1]!, context);
+    case "cancelConfirm":
+      if (choice === 2) return move(freshBooking(state), "menu", context);
+      return { state: finished, reply: copy[language].cancelSent, staff: { type: "cancel", reservation: state.reservation!, language } };
     // The reservation was booked before; the reminder only asks the client to confirm it, or sends a cancellation to staff.
     case "reminder":
       if (choice === 1) return { state: finished, reply: copy[language].reminderThanks };
@@ -624,9 +628,9 @@ export async function advance(state: WhatsAppFlow | null, text: string, context:
   if (step === "duration") return move(state, "time", context);
   // The saved address was removed since the question was sent.
   if (step === "savedAddress" && !context.savedAddress) return move(state, "visitType", context);
-  // The cancel steps were removed from the menu; a reminder whose reservation was cancelled or has started has nothing to answer.
-  const stale = step === "reservation" || step === "cancelConfirm"
-    || (step === "reminder" && !(context.reservations ?? []).some(item => state.reservation && reservationKey(item) === reservationKey(state.reservation)));
+  // The single-reservation step was removed; a reminder or cancellation whose reservation was cancelled or has started has nothing to answer.
+  const stale = step === "reservation"
+    || ((step === "reminder" || step === "cancelConfirm") && !(context.reservations ?? []).some(item => state.reservation && reservationKey(item) === reservationKey(state.reservation)));
   if (stale) return move(freshBooking(state), "menu", context);
   const handled = direct(state, text, context);
   if (handled) return handled;

@@ -275,10 +275,11 @@ describe("WhatsApp booking flow", () => {
     expect(h.sent[0]!.text).toBe(`WhatsApp message for staff\nClient: ${phone}\nAsks about the price`);
   });
 
-  it("sends a change request to staff as written", async () => {
+  it("tells a client with nothing to cancel so, and sends staff nothing", async () => {
     const { phone } = client();
-    for (const text of ["مرحبا", "1", "4", "ألغ موعد الأحد"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
-    expect(h.sent.find(message => message.chatId === staffChat)?.text).toBe(`Client wants to change or cancel\nClient: ${phone}\nMessage: ألغ موعد الأحد`);
+    for (const text of ["مرحبا", "2", "4"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
+    expect(h.sent.at(-1)!.text).toMatch(/^لم نجد حجزاً قادماً على هذا الرقم\.\n\n✂️/);
+    expect(h.sent.some(message => message.chatId === staffChat)).toBe(false);
   });
 
   it("sends nothing while the AI fails, answers once it recovers", async () => {
@@ -547,13 +548,13 @@ describe("main menu options", () => {
     expect(h.sent[0]!.image).toEqual({ mimetype: "image/jpeg", size: statSync(new URL("../assets/home-price-list.jpg", import.meta.url)).size, filename: "home-price-list.jpg" });
   });
 
-  it("has no talk-to-an-employee option: 4 asks what to change and the AI keeps running", async () => {
+  it("has no talk-to-an-employee option: 4 is cancelling and the AI keeps running", async () => {
     const { phone, chatId } = client();
     for (const text of ["مرحبا", "1"]) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); }
     h.sent.length = 0;
     await deliver(h.app, payload(phone, "4")); await h.whatsapp.idle();
     expect(h.sent.map(message => message.chatId)).toEqual([chatId]);
-    expect(h.sent[0]!.text).toBe("We found no upcoming reservation on this number.\n\n✏️ What would you like to change? Send it in one message.");
+    expect(h.sent[0]!.text).toMatch(/^We found no upcoming reservation on this number\.\n\n✂️ \*J4Kids Salon\*/);
     expect((await stored(phone)).conversation!.aiPaused).toBe(false);
   });
 });
@@ -660,13 +661,17 @@ describe("one upcoming reservation, the reservation-day reminder, and cancelling
     expect(h.sent.at(-1)).toMatchObject({ chatId, text: "❌ We could not cancel your reservation.\nA staff member will contact you." });
   });
 
-  it("edits the reservation with option 4: no cancel option, and the change goes to staff", async () => {
+  it("cancels the reservation with option 4 once the client is sure and staff approve", async () => {
     const { phone, booking } = await approved();
     await send(phone, "hi", "1", "4");
-    expect(h.sent.at(-1)!.text).toMatch(/^📋 Your reservation:\n📅 .+\n\n✏️ What would you like to change\? Send it in one message\.$/);
+    expect(h.sent.at(-1)!.text).toMatch(/^❓ Are you sure you want to cancel this reservation\?\n📅 .+\n\n1\. Yes, cancel it\n2\. No, keep it\n\nPlease choose the right number\.$/);
     h.sent.length = 0;
-    await send(phone, "Make it 5 pm");
-    expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain(booking.reference);
+    await send(phone, "1");
+    const cancel = (await stored(phone)).requests.at(-1)!;
+    expect(cancel).toMatchObject({ status: "pending", details: { type: "cancel", reservation: { kind: "booking", id: booking.id } } });
+    expect(h.sent.find(message => message.chatId === staffChat)!.text).toContain(`طلب إلغاء حجز من واتساب #${cancel.number}`);
+    await fromStaff(`yes ${cancel.number}`);
+    expect(await bookingStatus(booking.id)).toBe("cancelled");
   });
 
   it("refuses a new booking while a reservation or a request is upcoming", async () => {

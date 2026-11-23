@@ -63,7 +63,7 @@ describe("WhatsApp flow", () => {
   it("puts the home service price list second and the salon service third in the main menu", async () => {
     const turn = await walk({ step: "language", language: null }, "2");
     expect(turn.reply).toContain("✅ اللغة: العربية");
-    expect(turn.reply).toContain("1. حجز موعد\n2. قائمة أسعار الخدمة المنزلية\n3. خدمة الصالون\n4. تعديل حجز\n5. التأكد من الحجز\n6. الرجوع للخطوة السابقة");
+    expect(turn.reply).toContain("1. حجز موعد\n2. قائمة أسعار الخدمة المنزلية\n3. خدمة الصالون\n4. إلغاء حجز\n5. التأكد من الحجز\n6. الرجوع للخطوة السابقة");
     expect(render({ step: "menu", language: "en" }, context)).toContain("2. Home service price list\n");
   });
 
@@ -484,7 +484,7 @@ describe("WhatsApp flow", () => {
   });
 
   it("lists the salon service as one option, without a talk-to-an-employee option", () => {
-    expect(render({ step: "menu", language: "en" }, context)).toContain("1. Book an appointment\n2. Home service price list\n3. Salon service\n4. Edit a reservation\n5. Check my reservation\n6. Back to the previous step");
+    expect(render({ step: "menu", language: "en" }, context)).toContain("1. Book an appointment\n2. Home service price list\n3. Salon service\n4. Cancel a reservation\n5. Check my reservation\n6. Back to the previous step");
     expect(render({ step: "menu", language: "ar" }, context)).not.toContain("التحدث مع موظف");
     expect(render({ step: "menu", language: "ar" }, context)).toContain("3. خدمة الصالون");
   });
@@ -563,11 +563,11 @@ describe("WhatsApp flow", () => {
     expect((await walk({ step: "date", language: "ar", who: "boy" }, "القائمة")).state).toEqual({ step: "menu", language: "ar" });
   });
 
-  it("forwards a change request as written, without the AI, when no upcoming reservation is found", async () => {
-    const asked = await walk({ step: "menu", language: "en" }, "4");
-    expect(asked.reply).toBe("We found no upcoming reservation on this number.\n\n✏️ What would you like to change? Send it in one message.");
-    const sent = await walk(asked.state, "Cancel Sunday please");
-    expect(sent.staff).toEqual({ type: "change", text: "Cancel Sunday please" });
+  it("has nothing to cancel with option 4 when no upcoming reservation is found, and shows the menu again", async () => {
+    const turn = await walk({ step: "menu", language: "en" }, "4");
+    expect(turn.state).toEqual({ step: "menu", language: "en" });
+    expect(turn.reply).toMatch(/^We found no upcoming reservation on this number\.\n\n✂️ \*J4Kids Salon\*/);
+    expect(turn.staff).toBeUndefined();
   });
 
   describe("upcoming reservations", () => {
@@ -577,35 +577,45 @@ describe("WhatsApp flow", () => {
     const two: FlowContext = { ...context, reservations: [booked, waiting] };
     const menu: WhatsAppFlow = { step: "menu", language: "en" };
 
-    it("edits the only reservation: shows it and asks what to change, with no cancel option", async () => {
+    it("cancels the only reservation with option 4: asks to be sure, then sends the cancellation to staff", async () => {
       const turn = await advance(menu, "4", one, noAi);
-      expect(turn.state).toMatchObject({ step: "change", reservation: booked });
-      expect(turn.reply).toBe("📋 Your reservation:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n✏️ What would you like to change? Send it in one message.");
-      const sent = await advance(turn.state, "Make it 5 pm", one, noAi);
-      expect(sent.staff).toEqual({ type: "change", text: "Make it 5 pm", reservation: booked });
+      expect(turn.state).toMatchObject({ step: "cancelConfirm", reservation: booked });
+      expect(turn.reply).toBe("❓ Are you sure you want to cancel this reservation?\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Yes, cancel it\n2. No, keep it\n\nPlease choose the right number.");
+      const sent = await advance(turn.state, "1", one, noAi);
+      expect(sent.staff).toEqual({ type: "cancel", reservation: booked, language: "en" });
+      expect(sent.reply).toBe("✅ Your cancellation request was sent to our team. We will tell you once it is cancelled.");
+      expect(sent.state).toEqual({ step: "menu", language: null });
     });
 
-    it("lists several reservations to edit, marks one still waiting, and asks what to change in the chosen one", async () => {
+    it("keeps the reservation and shows the menu when the client answers no", async () => {
+      const turn = await advance({ step: "cancelConfirm", language: "ar", reservation: booked }, "2", one, noAi);
+      expect(turn.state).toEqual({ step: "menu", language: "ar" });
+      expect(turn.staff).toBeUndefined();
+      expect((await advance({ step: "menu", language: "ar" }, "4", one, noAi)).reply).toContain("1. نعم، ألغِ الحجز\n2. لا، أبقِ الحجز");
+    });
+
+    it("lists several reservations to cancel, marks one still waiting, and asks to be sure of the chosen one", async () => {
       const list = await advance(menu, "4", two, noAi);
       expect(list.reply).toBe("📋 Which reservation?\n\n1. Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n2. Thu 5 Nov · 11:00 - 12:00 · 💈 Lenny (waiting for confirmation)\n3. Back to the previous step\n\nPlease choose the right number.");
       const chosen = await advance(list.state, "2", two, noAi);
-      expect(chosen.state).toMatchObject({ step: "change", reservation: waiting });
-      expect(chosen.reply).toContain("✏️ What would you like to change?");
+      expect(chosen.state).toMatchObject({ step: "cancelConfirm", reservation: waiting });
+      expect((await advance(chosen.state, "1", two, noAi)).staff).toEqual({ type: "cancel", reservation: waiting, language: "en" });
       expect((await advance(list.state, "3", two, noAi)).state.step).toBe("menu");
     });
 
-    it("sends a client left on the removed cancel steps back to the menu", async () => {
-      for (const step of ["reservation", "cancelConfirm"] as const) {
-        const turn = await advance({ step, language: "en", reservation: booked }, "1", one, noAi);
-        expect(turn.state).toEqual({ step: "menu", language: "en" });
-        expect(turn.staff).toBeUndefined();
-      }
+    it("sends a client back to the menu when the reservation to cancel is gone, or from the removed reservation step", async () => {
+      const gone = await advance({ step: "cancelConfirm", language: "en", reservation: waiting }, "1", one, noAi);
+      expect(gone.state).toEqual({ step: "menu", language: "en" });
+      expect(gone.staff).toBeUndefined();
+      const old = await advance({ step: "reservation", language: "en", reservation: booked }, "1", one, noAi);
+      expect(old.state).toEqual({ step: "menu", language: "en" });
+      expect(old.staff).toBeUndefined();
     });
 
-    it("refuses a new booking while one is upcoming, shows it, and points to editing", async () => {
+    it("refuses a new booking while one is upcoming, shows it, and points to cancelling", async () => {
       const turn = await advance(menu, "1", one, noAi);
       expect(turn.state).toEqual({ step: "menu", language: "en" });
-      expect(turn.reply).toMatch(/^⚠️ You already have an upcoming reservation, so a new one cannot be booked\. You can edit it from option 4\.\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n✂️ \*J4Kids Salon\*/);
+      expect(turn.reply).toMatch(/^⚠️ You already have an upcoming reservation, so a new one cannot be booked\. You can cancel it from option 4\.\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n✂️ \*J4Kids Salon\*/);
       expect((await advance({ step: "menu", language: "ar" }, "1", two, noAi)).reply).toContain("(بانتظار التأكيد)");
     });
 
