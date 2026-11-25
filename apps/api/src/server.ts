@@ -10,7 +10,7 @@ export async function startApi(env: ApiEnv) {
     const auth = createAuth(connection, env);
     await auth.initialize();
     // The intake runs only when every WhatsApp and AI setting is present.
-    const whatsapp = env.whatsapp ? createWhatsApp(connection, env.whatsapp) : undefined;
+    const whatsapp = env.whatsapp ? createWhatsApp(connection, env.whatsapp, { uploadsDir: env.UPLOADS_DIR }) : undefined;
     const server = createApp({ auth, connection, env, ...(whatsapp ? { whatsapp } : {}) }).listen(env.PORT, env.HOST);
     await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
     whatsapp?.start();

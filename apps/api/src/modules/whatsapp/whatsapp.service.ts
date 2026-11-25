@@ -1,5 +1,5 @@
 import { TransactionRollbackError } from "drizzle-orm";
-import type { WhatsAppCancelDetails, WhatsAppMedia, WhatsAppReservation } from "@just4kids/db/schema";
+import type { WhatsAppAddressDetails, WhatsAppCancelDetails, WhatsAppMedia, WhatsAppReservation } from "@just4kids/db/schema";
 import type { WhatsAppSettings } from "../../configs/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { Transaction } from "../availability/availability.repository.js";
@@ -7,7 +7,7 @@ import type { BookingRepository } from "../bookings/booking.repository.js";
 import type { createVisitService } from "../bookings/visit.service.js";
 import { AiRefusedError } from "./ai.js";
 import type { Ai, ChatMessage } from "./ai.js";
-import { advance, barberName, bookingDays, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraReservationNote, IDLE_RESET_MS, reminder, savedHomeAddress, stepInstructions } from "./flow.js";
+import { advance, barberName, bookingDays, clientAddressChanged, clientAddressRefused, clientApproved, clientCancelled, clientCancelRefused, clientRejected, extraReservationNote, IDLE_RESET_MS, reminder, savedHomeAddress, stepInstructions, UNFINISHED_BOOKING_MS, UNFINISHED_BOOKING_TEXT } from "./flow.js";
 import type { FlowContext } from "./flow.js";
 import { addressCreateSchema } from "@just4kids/contracts";
 import { addressHelp, aiFailureMessage, hospitalNote, parseStaffAddress, parseStaffCommand, staffHelp, staffMessage } from "./messages.js";
@@ -26,7 +26,7 @@ const TAKEOVER_MS = 15 * 60_000;
 // Kuwait time of the reservation-day reminder.
 const REMINDER_TIME = "08:00";
 
-export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, visits: ReturnType<typeof createVisitService>, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<WhatsAppMedia, Photo>, now: () => Date) {
+export function createWhatsAppService(repository: WhatsAppRepository, bookings: BookingRepository, visits: ReturnType<typeof createVisitService>, openwa: OpenWa, ai: Ai, settings: WhatsAppSettings, prompt: string, priceLists: Record<Exclude<WhatsAppMedia, "barber_photo">, Photo>, now: () => Date, barberPhoto: (id: string) => Promise<Photo | null>) {
   const staffChatId = (phone: string) => `${phone.slice(1)}@c.us`;
   const staffChatIds = settings.staffPhones.map(staffChatId);
   /** The other staff numbers, told about a decision one of them made. */
@@ -39,7 +39,13 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     for (const message of await repository.pending(id, "outbound")) {
       // failTurn already marked the rest of a failed turn in the database.
       if (message.turnId && failedTurns.has(message.turnId)) continue;
-      const result = message.media ? await openwa.sendImage(message.chatId, priceLists[message.media], message.body, message.idempotencyKey) : await openwa.sendText(message.chatId, message.body, message.idempotencyKey);
+      let photo: Photo | null = null;
+      if (message.media === "barber_photo") {
+        photo = message.mediaBarberId ? await barberPhoto(message.mediaBarberId) : null;
+        // The photo was removed since: nothing to send, and the rest of the answer still goes out.
+        if (!photo) { await repository.markSent(message.id, null, now()); continue; }
+      } else if (message.media) photo = priceLists[message.media];
+      const result = photo ? await openwa.sendImage(message.chatId, photo, message.body, message.idempotencyKey) : await openwa.sendText(message.chatId, message.body, message.idempotencyKey);
       if (result.status === "sent") { await repository.markSent(message.id, result.messageId, now()); continue; }
       if (result.status === "failed" || message.attempts + 1 >= MAX_SEND_ATTEMPTS) { await repository.failTurn(message, result.error, now()); failedTurns.add(message.turnId); continue; }
       await repository.markAttempt(message.id, result.error);
@@ -85,6 +91,41 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
     }
   }
 
+  /**
+   * Puts the client's new address on the reservation they chose: the booked reservation (as a dashboard edit, with a revision),
+   * or the request staff have not decided yet. Nothing changes when the reservation has started, ended, or was decided otherwise.
+   */
+  async function approveAddress(number: number, details: WhatsAppAddressDetails, client: { id: string; chatId: string }, staff: { id: string; phone: string; chatId: string }, staffInboundId: number) {
+    const { reservation, areaId, area, address } = details;
+    let bookingId = reservation.kind === "booking" ? reservation.id : null, waiting: number | null = null;
+    if (reservation.kind === "request") {
+      const target = await repository.requestForDecision(reservation.number);
+      if (target?.request.status === "pending") waiting = reservation.number;
+      else if (target?.request.status === "approved" && target.request.bookingId) bookingId = target.request.bookingId;
+    }
+    const notDone = (why: string) => repository.answerPlainly(staff, staffInboundId, `Address change #${number} was not done: ${why}. Change it in the dashboard, or refuse with: no ${number}`, now());
+    if (bookingId === null && waiting === null) { await notDone("the reservation no longer exists"); return; }
+    const administrator = bookingId ? await repository.administrator() : null;
+    if (bookingId && !administrator) { await repository.answerPlainly(staff, staffInboundId, "No enabled administrator account exists. Change the address in the dashboard.", now()); return; }
+    let started = false;
+    const done = await repository.inTransaction(async transaction => {
+      let outcome: string;
+      if (waiting !== null) {
+        if (!await repository.moveWaitingRequest(transaction, waiting, areaId, area, address)) transaction.rollback();
+        outcome = `Request #${waiting} now has the new address.`;
+      } else {
+        const reference = await repository.moveReservation(transaction, bookingId!, area, address, administrator!, `Address changed by the client on WhatsApp (#${number})`, now());
+        if (!reference) { started = true; transaction.rollback(); }
+        outcome = `Reservation ${reference} now has the new address.`;
+      }
+      const others = { chatIds: otherStaff(staff.phone), text: `Address change #${number} was approved by ${staff.phone}. ${outcome}\nIt can no longer be changed here.` };
+      await repository.settleCancel(transaction, number, null, null, client, clientAddressChanged(details.language, reservation, area, address), staff, staffInboundId, `Address change #${number} approved. ${outcome} The client was told.`, others, now());
+    });
+    if (done) return;
+    if (started) await notDone("the reservation has started or is no longer booked");
+    else await repository.answerPlainly(staff, staffInboundId, `Request #${number} was already decided.`, now());
+  }
+
   /** Runs one command from the staff number; approving creates the reservation and tells the client. */
   async function staffTurn(staff: { id: string; phone: string; chatId: string }, message: { id: number; body: string }) {
     const command = parseStaffCommand(message.body);
@@ -103,6 +144,15 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
       if (command.type === "reject") {
         await repository.reject(command.number, client, clientCancelRefused(language, command.reason), staff, message.id, `Cancellation #${command.number} refused. The client was told a staff member will contact them.`, { chatIds: otherStaff(staff.phone), text: `Cancellation #${command.number} was refused by ${staff.phone}${command.reason ? `: ${command.reason}` : "."}\nIt can no longer be changed here.` }, now());
       } else await approveCancel(command.number, { ...request.details, language }, client, staff, message.id);
+      await sendPending(staff.id);
+      await process(client.id, false);
+      return;
+    }
+    if (request.details.type === "address") {
+      if (command.type === "address") { await repository.answerPlainly(staff, message.id, `Request #${command.number} is an address change. Approve it with yes ${command.number} or refuse it with no ${command.number} <reason>.`, now()); return; }
+      if (command.type === "reject") {
+        await repository.reject(command.number, client, clientAddressRefused(language, command.reason), staff, message.id, `Address change #${command.number} refused. The client was told a staff member will contact them.`, { chatIds: otherStaff(staff.phone), text: `Address change #${command.number} was refused by ${staff.phone}${command.reason ? `: ${command.reason}` : "."}\nIt can no longer be changed here.` }, now());
+      } else await approveAddress(command.number, { ...request.details, language }, client, staff, message.id);
       await sendPending(staff.id);
       await process(client.id, false);
       return;
@@ -243,6 +293,14 @@ export function createWhatsAppService(repository: WhatsAppRepository, bookings: 
   return {
     process,
     async due() { return repository.due(now()); },
+    /** Queues the Arabic salon message, once, for each new booking left unfinished for 10 minutes; the sweep sends it. */
+    async nudge() {
+      const current = now();
+      for (const chat of await repository.unfinishedBookings(current, UNFINISHED_BOOKING_MS)) {
+        if (settings.staffPhones.includes(chat.phone)) continue;
+        await repository.queueNudge(chat, UNFINISHED_BOOKING_TEXT, current);
+      }
+    },
     /**
      * From 8am Kuwait time, queues the reminder of each reservation booked for today, once. A reservation made after 8am on its day,
      * or one that has started, gets none. The sweep sends what was queued.

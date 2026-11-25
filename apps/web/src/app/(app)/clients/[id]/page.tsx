@@ -8,6 +8,7 @@ import { AdminOnly } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { AddressDialog, EditClientDialog } from "@/components/client-dialogs";
 import { ClientStatusDialog } from "@/components/client-status-dialog";
+import { FavoriteBarber } from "@/components/favorite-barber";
 import { ErrorState, LoadingRows, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,7 @@ function ClientScreen({ id }: { id: string }) {
           </>
         )}
       />
+      <FavoriteBarber client={client.data} />
       <Card className="mb-6">
         <CardHeader><CardTitle>Client status</CardTitle><span className="text-sm text-muted-foreground">Current status: {clientStatusLabel(client.data.enabled)}</span></CardHeader>
         <CardContent>

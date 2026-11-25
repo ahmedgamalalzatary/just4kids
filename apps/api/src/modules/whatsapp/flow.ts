@@ -20,14 +20,24 @@ const branchLocation = (name: string) => BRANCH_LOCATIONS.find(branch => branch.
 // savedAddress: the home address of the client's last reservation, offered instead of asking again.
 export type SavedAddress = { area: { id: string; name: string }; address: WhatsAppAddress };
 // reservations: the client's upcoming reservations and undecided requests; while there is one, no new booking can be made.
-export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null; gender?: BarberGender | null }[]; areas: { id: string; name: string }[]; branches: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>>; savedAddress?: SavedAddress | null; reservations?: WhatsAppReservation[] };
+// photo: true when the barber has a dashboard photo, sent to the client who chooses them.
+export type FlowContext = { barbers: { id: string; name: string; nameAr?: string | null; gender?: BarberGender | null; photo?: boolean }[]; areas: { id: string; name: string }[]; branches: { id: string; name: string }[]; now: Date; free: Record<string, Record<string, string[]>>; savedAddress?: SavedAddress | null; reservations?: WhatsAppReservation[] };
 export type StaffNotice =
   | { type: "new_request"; details: WhatsAppRequestDetails }
   | { type: "cancel"; reservation: WhatsAppReservation; language: "en" | "ar" | null }
   | { type: "change"; text: string; reservation?: WhatsAppReservation }
-  | { type: "forward"; summary: string };
-// image: the price list photo and its caption, sent before the reply.
-export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: { media: WhatsAppMedia; caption: string } };
+  | { type: "forward"; summary: string }
+  // previous: the reservation's address now, filled in when the request is stored.
+  | { type: "address_change"; reservation: WhatsAppReservation; area: { id: string; name: string }; address: WhatsAppAddress; language: "en" | "ar" | null; previous?: { area: string; address: WhatsAppAddress } | null };
+// image: a photo and its caption, sent before the reply: a price list, or the chosen barber's photo (barberId).
+export type Turn = { state: WhatsAppFlow; reply: string; staff?: StaffNotice; image?: { media: WhatsAppMedia; caption: string; barberId?: string } };
+
+// The one message (Arabic only) to a client who started a new booking and stopped answering for UNFINISHED_BOOKING_MS.
+export const UNFINISHED_BOOKING_TEXT = "يمكنكم زيارتنا ف الصالون و يوجد خدمه نسائيه بالصالون";
+export const UNFINISHED_BOOKING_MS = 10 * 60_000;
+const BOOKING_STEPS: WhatsAppFlowStep[] = ["who", "adults", "children", "date", "barber", "time", "extra", "visitType", "savedAddress", "area", "address", "confirm"];
+/** True while a new booking is started and unfinished, and its one message was not sent yet; an address change is not a booking. */
+export const unfinishedBooking = (flow: WhatsAppFlow | null) => Boolean(flow && BOOKING_STEPS.includes(flow.step) && !flow.addressChange && !flow.nudged);
 type Language = "en" | "ar";
 
 const copy = {
@@ -56,6 +66,11 @@ const copy = {
     sent: "✅ Your request was sent to our team. They will contact you to confirm.",
     changeAsk: "✏️ What would you like to change? Send it in one message.", changeSent: "✅ We sent this to our team. They will contact you.",
     noReservation: "We found no upcoming reservation on this number.",
+    changeAddress: "Change address", confirmThanks: "✅ Thank you for confirming. See you then!",
+    addressConfirmHead: "Please confirm the new address for this reservation:", newAddressLine: "📍 New address:",
+    addressSent: "✅ Your address change was sent to our team. We will tell you once it is approved.",
+    addressChanged: (line: string, address: string) => `✅ Your reservation's address was changed.\n📅 ${line}\n📍 ${address}`,
+    addressRefused: (reason: string | null) => `❌ We could not change your reservation's address.${reason ? `\n${reason}` : ""}\nA staff member will contact you.`,
     whichReservation: "📋 Which reservation?", yourReservation: "📋 Your reservation:", yourReservations: "📋 Your upcoming reservations:", waiting: "(waiting for confirmation)",
     noUpcoming: "You have no upcoming reservation. Would you like to book one?",
     reminder: "⏰ Reminder: you have a reservation today.", reminderCancel: "Cancel the reservation ❌", reminderThanks: "✅ Thank you for confirming. See you today!",
@@ -93,6 +108,11 @@ const copy = {
     sent: "✅ تم إرسال طلبك إلى فريقنا. سيتواصلون معك للتأكيد.",
     changeAsk: "✏️ ما الذي تريد تعديله؟ أرسله في رسالة واحدة.", changeSent: "✅ أرسلنا هذا إلى فريقنا. سيتواصلون معك.",
     noReservation: "لم نجد حجزاً قادماً على هذا الرقم.",
+    changeAddress: "تغيير العنوان", confirmThanks: "✅ شكراً لتأكيدك. نراك في الموعد!",
+    addressConfirmHead: "يرجى تأكيد العنوان الجديد لهذا الحجز:", newAddressLine: "📍 العنوان الجديد:",
+    addressSent: "✅ تم إرسال طلب تغيير العنوان إلى فريقنا. سنخبرك عند الموافقة عليه.",
+    addressChanged: (line: string, address: string) => `✅ تم تغيير عنوان حجزك.\n📅 ${line}\n📍 ${address}`,
+    addressRefused: (reason: string | null) => `❌ لم نتمكن من تغيير عنوان حجزك.${reason ? `\n${reason}` : ""}\nسيتواصل معك أحد الموظفين.`,
     whichReservation: "📋 أي حجز؟", yourReservation: "📋 حجزك:", yourReservations: "📋 حجوزاتك القادمة:", waiting: "(بانتظار التأكيد)",
     noUpcoming: "ليس لديك حجز قادم. هل تريد حجز موعد جديد؟",
     reminder: "⏰ تذكير: لديك حجز اليوم.", reminderCancel: "إلغاء الحجز ❌", reminderThanks: "✅ شكراً لتأكيدك. نراك اليوم!",
@@ -181,12 +201,19 @@ export function clientCancelled(language: Language | null, reservation: WhatsApp
   return copy[chosen].cancelled(`${dateLabel(reservation.date, chosen)} · ${reservation.startTime} - ${reservation.endTime}`);
 }
 export function clientCancelRefused(language: Language | null, reason: string | null) { return copy[language ?? "ar"].cancelRefused(reason); }
+export function clientAddressChanged(language: Language | null, reservation: WhatsAppReservation, area: string, address: WhatsAppAddress) {
+  const chosen = language ?? "ar";
+  return copy[chosen].addressChanged(reservationLine(reservation, chosen), [area, addressText(address, chosen)].filter(Boolean).join(chosen === "ar" ? "، " : ", "));
+}
+export function clientAddressRefused(language: Language | null, reason: string | null) { return copy[language ?? "ar"].addressRefused(reason); }
 
 /** The options of a numbered step, in the order the client sees them. */
 function options(state: WhatsAppFlow, context: FlowContext, language: Language): readonly string[] {
   const text = copy[language];
   if (state.step === "language") return state.language ? ["English", "العربية", text.back] : ["English", "العربية"];
   if (state.step === "menu") return [text.book, text.homePrices, text.salonService, text.change, text.verify, text.back];
+  if (state.step === "verify") return [text.confirm, text.changeAddress, text.reminderCancel, text.back];
+  if (state.step === "addressConfirm") return [text.confirm, text.back];
   if (state.step === "noUpcoming") return [text.book, text.back];
   if (state.step === "reminder") return [text.confirm, text.reminderCancel];
   if (state.step === "cancelConfirm") return [text.cancelYes, text.cancelNo];
@@ -255,6 +282,12 @@ function stepText(state: WhatsAppFlow, context: FlowContext, language: Language)
     case "noUpcoming": return `${text.noUpcoming}\n\n${numbered(options(state, context, language))}`;
     case "reminder": return `${text.reminder}\n📅 ${reservationLine(state.reservation!, language)}\n\n${numbered(options(state, context, language))}`;
     case "cancelConfirm": return `${text.cancelSure}\n📅 ${reservationLine(state.reservation!, language)}\n\n${numbered(options(state, context, language))}`;
+    case "verify": return `${text.yourReservation}\n📅 ${reservationLine(state.reservation!, language)}\n\n${numbered(options(state, context, language))}`;
+    case "addressConfirm": {
+      const address = state.address!, link = address.mapsUrl;
+      const typed = [state.area!.name, addressText(address, language)].filter(Boolean).join(language === "ar" ? "، " : ", ");
+      return [text.addressConfirmHead, "", `📅 ${reservationLine(state.reservation!, language)}`, `${text.newAddressLine} ${typed}`, ...(link ? [`${text.locationLine} ${link}`] : []), "", numbered(options(state, context, language))].join("\n");
+    }
     // A removed step: advance sends a client still on it to the menu first.
     case "reservation": return "";
   }
@@ -264,12 +297,16 @@ function stepText(state: WhatsAppFlow, context: FlowContext, language: Language)
 const reservationLines = (reservations: WhatsAppReservation[], language: Language) => reservations.map(item => `📅 ${reservationLine(item, language)}`).join("\n");
 /** Asks the client to be sure before one reservation's cancellation goes to staff. */
 const toCancel = (state: WhatsAppFlow, reservation: WhatsAppReservation, context: FlowContext) => move({ ...freshBooking(state), reservation }, "cancelConfirm", context);
-/** Option 4: the only reservation is asked about at once, several are listed first. Null when there is none. */
-function toReservations(state: WhatsAppFlow, context: FlowContext): Turn | null {
+/** Option 5: one reservation with what the client can do with it: confirm, change its address, or cancel it. */
+const toVerify = (state: WhatsAppFlow, reservation: WhatsAppReservation, context: FlowContext) => move({ ...freshBooking(state), reservation }, "verify", context);
+/** Options 4 and 5: the only reservation is asked about at once, several are listed first. Null when there is none. */
+function toReservations(state: WhatsAppFlow, context: FlowContext, pick: "cancel" | "verify"): Turn | null {
   const reservations = context.reservations ?? [];
-  if (reservations.length === 1) return toCancel(state, reservations[0]!, context);
-  return reservations.length ? move(freshBooking(state), "reservations", context) : null;
+  if (reservations.length === 1) return pick === "verify" ? toVerify(state, reservations[0]!, context) : toCancel(state, reservations[0]!, context);
+  return reservations.length ? move({ ...freshBooking(state), ...(pick === "verify" ? { pick } : {}) }, "reservations", context) : null;
 }
+/** A reservation-address change: the new area and written address (Google Maps link optional), confirmed, then sent to staff. */
+const toNewAddress = (state: WhatsAppFlow, context: FlowContext) => move({ ...freshBooking(state), reservation: state.reservation!, addressChange: true, visitType: "home" }, "area", context);
 
 /** The reservation-day reminder; the client confirms it or asks staff to cancel it. */
 export function reminder(reservation: WhatsAppReservation, language: Language): { state: WhatsAppFlow; reply: string } {
@@ -313,6 +350,8 @@ function previousStep(state: WhatsAppFlow, hasSavedAddress: boolean): WhatsAppFl
     case "visitType": return hasSavedAddress ? "savedAddress" : "extra";
     case "savedAddress": return "extra";
     case "confirm": return state.savedAddressUsed ? "savedAddress" : "address";
+    case "verify": return "menu";
+    case "addressConfirm": return "address";
     default: return state.step;
   }
 }
@@ -338,7 +377,7 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
   if (!Number.isInteger(choice) || choice < 1 || choice > list.length) return null;
   if (list[choice - 1] === copy[language].back) {
     const { resume, ...rest } = state;
-    if (state.step === "reservations") return move(freshBooking(rest), "menu", context);
+    if (state.step === "reservations" || state.step === "verify") return move(freshBooking(rest), "menu", context);
     return move(rest, resume ?? previousStep(state, Boolean(context.savedAddress)), context);
   }
   const value = state.offered?.[choice - 1] ?? freshChoices(state, context)?.[choice - 1];
@@ -360,18 +399,24 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
         // With no branch in the dashboard there is nothing to choose: the price list is sent alone.
         case 3: return context.branches.length ? move(state, "branch", context) : salonService(state, context, null);
         // A cancellation goes to staff, like the reminder's; with no upcoming reservation there is nothing to cancel.
-        case 4: return toReservations(state, context) ?? move(freshBooking(state), "menu", context, copy[language].noReservation);
-        case 5: {
-          const reservations = context.reservations ?? [];
-          if (!reservations.length) return move(freshBooking(state), "noUpcoming", context);
-          return move(freshBooking(state), "menu", context, `${reservations.length === 1 ? copy[language].yourReservation : copy[language].yourReservations}\n${reservationLines(reservations, language)}`);
-        }
+        case 4: return toReservations(state, context, "cancel") ?? move(freshBooking(state), "menu", context, copy[language].noReservation);
+        // The reservation is shown with confirm, change address, and cancel; with none, a booking is offered.
+        case 5: return toReservations(state, context, "verify") ?? move(freshBooking(state), "noUpcoming", context);
         default: return null;
       }
     case "noUpcoming":
       return move(freshBooking(state), "who", context);
-    case "reservations":
-      return toCancel(state, offeredReservations(state, context)[choice - 1]!, context);
+    case "reservations": {
+      const reservation = offeredReservations(state, context)[choice - 1]!;
+      return state.pick === "verify" ? toVerify(state, reservation, context) : toCancel(state, reservation, context);
+    }
+    // Confirming only thanks the client; a cancellation is asked to be sure first, as from option 4.
+    case "verify":
+      if (choice === 1) return { state: finished, reply: copy[language].confirmThanks };
+      if (choice === 2) return toNewAddress(state, context);
+      return toCancel(state, state.reservation!, context);
+    case "addressConfirm":
+      return { state: finished, reply: copy[language].addressSent, staff: { type: "address_change", reservation: state.reservation!, area: state.area!, address: state.address!, language } };
     case "cancelConfirm":
       if (choice === 2) return move(freshBooking(state), "menu", context);
       return { state: finished, reply: copy[language].cancelSent, staff: { type: "cancel", reservation: state.reservation!, language } };
@@ -386,8 +431,12 @@ function applyChoice(state: WhatsAppFlow, choice: number, context: FlowContext):
       return move({ ...state, who }, who === "adults" || who === "family" ? "adults" : "children", context);
     }
     case "barber": {
-      const next = { ...state, barber: offeredBarbers(state, context)[choice - 1]! };
-      return freeStarts(next, context, state.date!).length ? move(next, "time", context) : stay(state, context, copy[language].taken);
+      const chosenBarber = offeredBarbers(state, context)[choice - 1]!;
+      const next = { ...state, barber: chosenBarber };
+      if (!freeStarts(next, context, state.date!).length) return stay(state, context, copy[language].taken);
+      // The barber's photo goes first, then the start times.
+      const times = move(next, "time", context);
+      return chosenBarber.photo ? { ...times, image: { media: "barber_photo", barberId: chosenBarber.id, caption: `💈 ${barberName(chosenBarber, language)}` } } : times;
     }
     case "date":
       return pickDate(state, value!, context);
@@ -490,7 +539,7 @@ function applyAddress(state: WhatsAppFlow, input: WrittenInput | HospitalInput |
   }
   const next: WhatsAppFlow = { ...state, address: { ...unusedHomeAddress(mapsUrl), ...written } };
   delete next.draft;
-  return move(next, "confirm", context);
+  return move(next, state.addressChange ? "addressConfirm" : "confirm", context);
 }
 /** A new address step starts empty. */
 function toAddress(state: WhatsAppFlow, area: { id: string; name: string }, context: FlowContext) {
@@ -630,7 +679,7 @@ export async function advance(state: WhatsAppFlow | null, text: string, context:
   if (step === "savedAddress" && !context.savedAddress) return move(state, "visitType", context);
   // The single-reservation step was removed; a reminder or cancellation whose reservation was cancelled or has started has nothing to answer.
   const stale = step === "reservation"
-    || ((step === "reminder" || step === "cancelConfirm") && !(context.reservations ?? []).some(item => state.reservation && reservationKey(item) === reservationKey(state.reservation)));
+    || ((step === "reminder" || step === "cancelConfirm" || step === "verify" || state.addressChange) && !(context.reservations ?? []).some(item => state.reservation && reservationKey(item) === reservationKey(state.reservation)));
   if (stale) return move(freshBooking(state), "menu", context);
   const handled = direct(state, text, context);
   if (handled) return handled;

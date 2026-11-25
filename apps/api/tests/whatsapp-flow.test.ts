@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WhatsAppFlow, WhatsAppReservation } from "@just4kids/db/schema";
-import { advance, NOT_PROVIDED, reminder, render, savedHomeAddress, stepInstructions } from "../src/modules/whatsapp/flow.js";
+import { advance, NOT_PROVIDED, reminder, render, savedHomeAddress, stepInstructions, UNFINISHED_BOOKING_TEXT, unfinishedBooking } from "../src/modules/whatsapp/flow.js";
 import type { FlowContext } from "../src/modules/whatsapp/flow.js";
 
 const barber = { id: "b1", name: "Lenny" };
@@ -483,6 +483,41 @@ describe("WhatsApp flow", () => {
     });
   });
 
+  describe("unfinished booking", () => {
+    it("counts only a new booking the client started and has not been told about yet", () => {
+      for (const step of ["who", "adults", "children", "date", "barber", "time", "extra", "visitType", "savedAddress", "area", "address", "confirm"] as const) {
+        expect(unfinishedBooking({ ...atConfirm, step })).toBe(true);
+      }
+      for (const step of ["language", "menu", "branch", "reservations", "cancelConfirm", "noUpcoming", "reminder", "change"] as const) {
+        expect(unfinishedBooking({ ...atConfirm, step })).toBe(false);
+      }
+      expect(unfinishedBooking({ step: "area", language: "en", addressChange: true })).toBe(false);
+      expect(unfinishedBooking({ ...atConfirm, nudged: true })).toBe(false);
+      expect(unfinishedBooking(null)).toBe(false);
+    });
+    it("is Arabic only", () => {
+      expect(UNFINISHED_BOOKING_TEXT).toBe("يمكنكم زيارتنا ف الصالون و يوجد خدمه نسائيه بالصالون");
+    });
+    it("starts a new booking without the earlier booking's reminder mark", async () => {
+      const turn = await advance({ step: "menu", language: "en", nudged: true }, "1", context, noAi);
+      expect(turn.state).toEqual({ step: "who", language: "en" });
+    });
+  });
+
+  describe("barber photo", () => {
+    const atBarber: WhatsAppFlow = { step: "barber", language: "en", who: "boy", children: 1, date: "2026-10-30" };
+    it("sends the chosen barber's photo before the start times", async () => {
+      const withPhoto: FlowContext = { ...context, barbers: [{ ...barber, nameAr: "ليني", photo: true }, { id: "b2", name: "Heneer" }] };
+      const turn = await advance(atBarber, "1", withPhoto, noAi);
+      expect(turn.state.step).toBe("time");
+      expect(turn.image).toEqual({ media: "barber_photo", barberId: "b1", caption: "💈 Lenny" });
+      expect((await advance({ ...atBarber, language: "ar" }, "1", withPhoto, noAi)).image).toEqual({ media: "barber_photo", barberId: "b1", caption: "💈 ليني" });
+    });
+    it("sends only the start times when the barber has no photo", async () => {
+      expect((await advance(atBarber, "1", context, noAi)).image).toBeUndefined();
+    });
+  });
+
   it("lists the salon service as one option, without a talk-to-an-employee option", () => {
     expect(render({ step: "menu", language: "en" }, context)).toContain("1. Book an appointment\n2. Home service price list\n3. Salon service\n4. Cancel a reservation\n5. Check my reservation\n6. Back to the previous step");
     expect(render({ step: "menu", language: "ar" }, context)).not.toContain("التحدث مع موظف");
@@ -619,11 +654,63 @@ describe("WhatsApp flow", () => {
       expect((await advance({ step: "menu", language: "ar" }, "1", two, noAi)).reply).toContain("(بانتظار التأكيد)");
     });
 
-    it("shows the upcoming reservations for option 5, then the menu", async () => {
-      const turn = await advance(menu, "5", two, noAi);
-      expect(turn.state).toEqual({ step: "menu", language: "en" });
-      expect(turn.reply).toMatch(/^📋 Your upcoming reservations:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n📅 Thu 5 Nov · 11:00 - 12:00 · 💈 Lenny \(waiting for confirmation\)\n\n✂️ \*J4Kids Salon\*/);
-      expect((await advance(menu, "5", one, noAi)).reply).toMatch(/^📋 Your reservation:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n/);
+    it("shows the reservation for option 5 with confirm, change address, cancel, and back", async () => {
+      const turn = await advance(menu, "5", one, noAi);
+      expect(turn.state).toMatchObject({ step: "verify", reservation: booked });
+      expect(turn.reply).toBe("📋 Your reservation:\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n\n1. Confirm ✅\n2. Change address\n3. Cancel the reservation ❌\n4. Back to the previous step\n\nPlease choose the right number.");
+      expect((await advance({ step: "menu", language: "ar" }, "5", one, noAi)).reply).toBe("📋 حجزك:\n📅 الأحد، ١ نوفمبر · 09:00 - 10:00 · 💈 ليني\n\n1. تأكيد ✅\n2. تغيير العنوان\n3. إلغاء الحجز ❌\n4. الرجوع للخطوة السابقة\n\nبرجاء اختيار الرقم المناسب");
+      expect((await advance(turn.state, "4", one, noAi)).state).toEqual({ step: "menu", language: "en" });
+    });
+
+    it("lists several reservations for option 5 and shows the chosen one", async () => {
+      const list = await advance(menu, "5", two, noAi);
+      expect(list.reply).toContain("📋 Which reservation?\n\n1. Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n2. Thu 5 Nov · 11:00 - 12:00 · 💈 Lenny (waiting for confirmation)\n3. Back to the previous step");
+      expect((await advance(list.state, "2", two, noAi)).state).toMatchObject({ step: "verify", reservation: waiting });
+      expect((await advance(list.state, "3", two, noAi)).state).toEqual({ step: "menu", language: "en" });
+    });
+
+    it("thanks the client who confirms, and sends nothing to staff", async () => {
+      const turn = await advance({ step: "verify", language: "en", reservation: booked }, "1", one, noAi);
+      expect(turn).toEqual({ state: { step: "menu", language: null }, reply: "✅ Thank you for confirming. See you then!" });
+      expect((await advance({ step: "verify", language: "ar", reservation: booked }, "1", one, noAi)).reply).toBe("✅ شكراً لتأكيدك. نراك في الموعد!");
+    });
+
+    it("cancels from option 5 as from option 4: asks to be sure first", async () => {
+      const turn = await advance({ step: "verify", language: "en", reservation: booked }, "3", one, noAi);
+      expect(turn.state).toMatchObject({ step: "cancelConfirm", reservation: booked });
+      expect((await advance(turn.state, "1", one, noAi)).staff).toEqual({ type: "cancel", reservation: booked, language: "en" });
+    });
+
+    it("asks the new area and address, shows it to confirm, then sends the change to staff", async () => {
+      const area = await advance({ step: "verify", language: "en", reservation: booked }, "2", one, noAi);
+      expect(area.state).toMatchObject({ step: "area", reservation: booked, addressChange: true, visitType: "home" });
+      expect(area.reply).toBe("📍 Which area in Kuwait?");
+      const written = await advance(area.state, "hawally", one, noAi);
+      const shown = await advance(written.state, "block 7 street 9 house 1 https://maps.app.goo.gl/new", one, noAi);
+      expect(shown.state.step).toBe("addressConfirm");
+      expect(shown.staff).toBeUndefined();
+      expect(shown.reply).toBe("Please confirm the new address for this reservation:\n\n📅 Sun 1 Nov · 09:00 - 10:00 · 💈 Lenny\n📍 New address: Hawally, Block 7, Street 9, House 1\n📍 Location: https://maps.app.goo.gl/new\n\n1. Confirm ✅\n2. Back to the previous step\n\nPlease choose the right number.");
+      expect((await advance(shown.state, "2", one, noAi)).state.step).toBe("address");
+      const sent = await advance(shown.state, "1", one, noAi);
+      expect(sent.staff).toEqual({ type: "address_change", reservation: booked, area: { id: "a1", name: "Hawally" }, address: { block: "7", street: "9", houseNumber: "1", buildingName: null, avenue: null, floor: null, apartment: null, mapsUrl: "https://maps.app.goo.gl/new" }, language: "en" });
+      expect(sent.reply).toBe("✅ Your address change was sent to our team. We will tell you once it is approved.");
+      expect(sent.state).toEqual({ step: "menu", language: null });
+    });
+
+    it("answers the address change in Arabic", async () => {
+      const area = await advance({ step: "verify", language: "ar", reservation: booked }, "2", one, noAi);
+      const written = await advance(area.state, "Hawally", one, noAi);
+      const shown = await advance(written.state, "قطعة 7، شارع 9، منزل 1", one, noAi);
+      expect(shown.reply).toContain("يرجى تأكيد العنوان الجديد لهذا الحجز:\n\n📅 الأحد، ١ نوفمبر · 09:00 - 10:00 · 💈 ليني\n📍 العنوان الجديد: Hawally، قطعة 7، شارع 9، منزل 1\n\n1. تأكيد ✅\n2. الرجوع للخطوة السابقة");
+      expect((await advance(shown.state, "1", one, noAi)).reply).toBe("✅ تم إرسال طلب تغيير العنوان إلى فريقنا. سنخبرك عند الموافقة عليه.");
+    });
+
+    it("sends the client back to the menu when the reservation is gone mid-change", async () => {
+      for (const state of [{ step: "verify", language: "en", reservation: waiting }, { step: "address", language: "en", reservation: waiting, addressChange: true, visitType: "home", area: context.areas[0]! }] as WhatsAppFlow[]) {
+        const turn = await advance(state, "1", one, noAi);
+        expect(turn.state).toEqual({ step: "menu", language: "en" });
+        expect(turn.staff).toBeUndefined();
+      }
     });
 
     it("offers to book when option 5 finds no upcoming reservation", async () => {

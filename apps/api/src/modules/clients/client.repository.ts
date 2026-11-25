@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { bookings, clientAddresses, clients, clientStatusEvents } from "@just4kids/db/schema";
+import { bookings, clientAddresses, clients, clientStatusEvents, employees } from "@just4kids/db/schema";
 import { addressCreateSchema } from "@just4kids/contracts";
 import type { AddressCreate, AddressUpdate, ClientCreate, ClientSearch, ClientUpdate } from "@just4kids/contracts";
 import { HttpError } from "../../lib/http-error.js";
@@ -25,9 +25,14 @@ export function addressValues(address: AddressCreate) {
 
 export function createClientRepository(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
+  // Each client with its favorite barber's name, or null.
+  const withFavorite = () => db.select({ client: clients, favoriteName: employees.displayName }).from(clients).leftJoin(employees, eq(employees.accountId, clients.favoriteBarberId));
+  const favorite = ({ client: { favoriteBarberId, ...client }, favoriteName }: { client: typeof clients.$inferSelect; favoriteName: string | null }) =>
+    ({ ...client, favoriteBarber: favoriteBarberId && favoriteName !== null ? { id: favoriteBarberId, name: favoriteName } : null });
   async function get(id: string) {
-    const [client] = await db.select().from(clients).where(eq(clients.id, id));
-    if (!client) return undefined;
+    const [row] = await withFavorite().where(eq(clients.id, id));
+    if (!row) return undefined;
+    const client = favorite(row);
     const addresses = await db.select().from(clientAddresses).where(eq(clientAddresses.clientId, id))
       .orderBy(asc(clientAddresses.createdAt), asc(clientAddresses.id));
     return { client, addresses };
@@ -55,7 +60,7 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
         search.q ? sql`${clients.phone} LIKE ${pattern} ESCAPE '!'` : undefined,
         search.status === "all" ? undefined : eq(clients.enabled, search.status === "active"),
       );
-      const rows = await db.select().from(clients).where(filter).orderBy(asc(clients.phone), asc(clients.id)).limit(search.limit).offset(search.offset);
+      const rows = (await withFavorite().where(filter).orderBy(asc(clients.phone), asc(clients.id)).limit(search.limit).offset(search.offset)).map(favorite);
       const [total] = await db.select({ count: count() }).from(clients).where(filter);
       return { rows, total: total?.count ?? 0 };
     },
@@ -88,6 +93,10 @@ export function createClientRepository(connection: ReturnType<typeof createDatab
       const found = await db.transaction(async transaction => {
         const [client] = await transaction.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).for("update");
         if (!client) return false;
+        if (input.favoriteBarberId) {
+          const [barber] = await transaction.select({ id: employees.accountId }).from(employees).where(eq(employees.accountId, input.favoriteBarberId)).for("share");
+          if (!barber) throw new HttpError(404, "EMPLOYEE_NOT_FOUND", "Barber not found");
+        }
         await transaction.update(clients).set({ ...input, updatedAt: new Date() }).where(eq(clients.id, id));
         return true;
       });

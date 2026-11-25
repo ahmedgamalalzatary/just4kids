@@ -54,8 +54,11 @@ export const addressResponseSchema = z.strictObject({
 });
 
 export const clientCreateSchema = z.strictObject({ phone: phoneSchema, address: addressCreateSchema });
-export const clientUpdateSchema = z.strictObject({ phone: phoneSchema.optional() }).refine(value => Object.keys(value).length > 0);
-export const clientSummarySchema = z.strictObject({ id: z.uuid(), phone: phoneSchema, enabled: z.boolean(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
+// favoriteBarberId: the client's favorite barber, set by hand in the dashboard; null clears it.
+export const clientUpdateSchema = z.strictObject({ phone: phoneSchema.optional(), favoriteBarberId: z.uuid().nullable().optional() }).refine(value => Object.keys(value).length > 0);
+export const clientSummarySchema = z.strictObject({
+  id: z.uuid(), phone: phoneSchema, enabled: z.boolean(), favoriteBarber: z.strictObject({ id: z.uuid(), name: z.string() }).nullable(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
+});
 export const clientResponseSchema = clientSummarySchema.extend({ addresses: z.array(addressResponseSchema) });
 export const clientLookupResponseSchema = clientResponseSchema.extend({ lastUsedAddressId: z.uuid().nullable() });
 export const clientSearchSchema = z.strictObject({

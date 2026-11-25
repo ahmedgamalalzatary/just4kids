@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import express, { Router } from "express";
 import type { createDatabase } from "@just4kids/db";
 import type { WhatsAppSettings } from "../../configs/env.js";
@@ -20,14 +22,19 @@ export function readOwnerPrompt() {
 
 // The price list photos sent to clients who ask for them from the main menu.
 const readPhoto = (filename: string, mimetype: string): Photo => ({ data: readFileSync(new URL(`../../../assets/${filename}`, import.meta.url)), mimetype, filename });
-export function readPriceLists(): Record<WhatsAppMedia, Photo> {
+export function readPriceLists(): Record<Exclude<WhatsAppMedia, "barber_photo">, Photo> {
   return { price_list: readPhoto("home-price-list.jpg", "image/jpeg"), salon_price_list: readPhoto("salon-price-list.png", "image/png") };
 }
+/** A barber's dashboard photo (always stored as JPEG), or null when there is none. */
+const barberPhotoReader = (uploadsDir: string) => async (id: string): Promise<Photo | null> => {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  try { return { data: await readFile(resolve(uploadsDir, "employee-photos", `${id}.jpg`)), mimetype: "image/jpeg", filename: "barber.jpg" }; } catch { return null; }
+};
 
-export function createWhatsApp(connection: ReturnType<typeof createDatabase>, settings: WhatsAppSettings, options: { fetch?: typeof fetch; prompt?: string; now?: () => Date } = {}) {
+export function createWhatsApp(connection: ReturnType<typeof createDatabase>, settings: WhatsAppSettings, options: { fetch?: typeof fetch; prompt?: string; now?: () => Date; uploadsDir?: string } = {}) {
   const now = options.now ?? (() => new Date());
   const repository = createWhatsAppRepository(connection);
-  const service = createWhatsAppService(repository, createBookingRepository(connection), createVisitService(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceLists(), now);
+  const service = createWhatsAppService(repository, createBookingRepository(connection), createVisitService(connection), createOpenWa(settings.openwa, options.fetch), createAi(settings.ai, options.fetch), settings, options.prompt ?? readOwnerPrompt(), readPriceLists(), now, barberPhotoReader(options.uploadsDir ?? "uploads"));
   const running = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     const tracked = work.catch((error: unknown) => { console.error("WhatsApp processing failed", error instanceof Error ? error.message : error); }).finally(() => running.delete(tracked));
@@ -35,8 +42,8 @@ export function createWhatsApp(connection: ReturnType<typeof createDatabase>, se
     return tracked;
   };
   const drain = async () => { await Promise.all((await service.due()).map(id => track(service.process(id, true)))); };
-  // Each sweep first queues any reservation-day reminders that are due, then sends and answers.
-  const sweep = async () => { await service.remind(); await drain(); };
+  // Each sweep first queues any reservation-day reminders and unfinished-booking messages that are due, then sends and answers.
+  const sweep = async () => { await service.remind(); await service.nudge(); await drain(); };
   let timer: NodeJS.Timeout | undefined;
 
   const router = Router();
@@ -72,6 +79,8 @@ export function createWhatsApp(connection: ReturnType<typeof createDatabase>, se
     drain,
     /** Queues the reservation-day reminders that are due. */
     remind: () => service.remind(),
+    /** Queues the unfinished-booking messages that are due. */
+    nudge: () => service.nudge(),
     /** Resolves once all work started so far has finished. */
     async idle() { while (running.size) await Promise.all(running); },
   };

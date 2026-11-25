@@ -55,7 +55,7 @@ function ClientsScreen() {
                         <Ltr>{client.phone}</Ltr>
                         {client.enabled ? null : <Badge variant="muted">Stopped</Badge>}
                       </p>
-
+                      {client.favoriteBarber ? <p className="text-sm text-muted-foreground">Favorite barber: {client.favoriteBarber.name}</p> : null}
                     </div>
                     <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                   </Link>

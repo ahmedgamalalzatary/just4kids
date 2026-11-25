@@ -1,14 +1,20 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, datetime, foreignKey, index, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { accounts } from "./auth.js";
+import { employees } from "./organization.js";
 
 export const clients = mysqlTable("clients", {
   id: varchar("id", { length: 36 }).primaryKey(),
   phone: varchar("phone", { length: 16 }).notNull(),
   enabled: boolean("enabled").notNull().default(true),
+  // Set by hand in the dashboard only; cleared if the barber is removed.
+  favoriteBarberId: varchar("favorite_barber_id", { length: 36 }),
   createdAt: datetime("created_at", { mode: "date", fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { mode: "date", fsp: 3 }).notNull(),
-}, table => [uniqueIndex("clients_phone_unique").on(table.phone)]);
+}, table => [
+  uniqueIndex("clients_phone_unique").on(table.phone),
+  foreignKey({ name: "client_favorite_barber_fk", columns: [table.favoriteBarberId], foreignColumns: [employees.accountId] }).onDelete("set null"),
+]);
 
 export const clientStatusEvents = mysqlTable("client_status_events", {
   id: varchar("id", { length: 36 }).primaryKey(),

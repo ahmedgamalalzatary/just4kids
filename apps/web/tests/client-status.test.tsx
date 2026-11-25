@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClientStatusDialog } from "@/components/client-status-dialog";
 import type { Client } from "@/lib/api/types";
 
-const client: Client = { id: "11111111-1111-4111-8111-111111111111", phone: "+96555550101", enabled: true, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", addresses: [] };
+const client: Client = { id: "11111111-1111-4111-8111-111111111111", phone: "+96555550101", enabled: true, favoriteBarber: null, createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", addresses: [] };
 
 function renderDialog() {
   render(<QueryClientProvider client={new QueryClient()}><ClientStatusDialog client={client} open onOpenChange={() => {}} /></QueryClientProvider>);

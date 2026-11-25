@@ -1,12 +1,14 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
-import { statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "@just4kids/db";
 import { ADDRESS_NOT_PROVIDED } from "@just4kids/contracts";
 import type { WhatsAppRequestDetails } from "@just4kids/db/schema";
-import { accounts, areas, bookingVisitEvents, branches, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
+import { accounts, areas, bookingRevisions, bookingVisitEvents, branches, bookings, clientAddresses, clients, employeeWorkDays, employeeWorkIntervals, employees, whatsappConversations, whatsappMessages, whatsappRequests } from "@just4kids/db/schema";
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/modules/auth/index.js";
 import { apiEnvSchema } from "../src/configs/env.js";
@@ -29,6 +31,8 @@ type Sent = { chatId: string; text: string; key: string; image?: { mimetype: str
 type Decision = { reply: string; value: Record<string, unknown> | null; forward: string | null };
 const barberName = `Barber${randomInt(100000, 999999)}`, areaName = `Area${randomInt(100000, 999999)}`, barberId = randomUUID();
 // Its name holds "Farwaniya", so the flow sends the Farwaniya location.
+// Barber photos are read from this folder, as the dashboard stores them.
+const uploadsDir = mkdtempSync(join(tmpdir(), "j4k-uploads-"));
 const branchName = `Farwaniya salon ${randomInt(100000, 999999)}`, branchId = randomUUID();
 function harness(whatsappSettings = settings) {
   const sent: Sent[] = [], aiCalls: { role: string; content: string }[][] = [];
@@ -57,7 +61,7 @@ function harness(whatsappSettings = settings) {
     }
     throw new Error(`unexpected request to ${url}`);
   };
-  const whatsapp = createWhatsApp(connection, whatsappSettings, { fetch: fetcher, prompt: "OWNER RULES", now: () => clock });
+  const whatsapp = createWhatsApp(connection, whatsappSettings, { fetch: fetcher, prompt: "OWNER RULES", now: () => clock, uploadsDir });
   const app = createApp({ auth, connection, env, whatsapp });
   return {
     app, whatsapp, sent, aiCalls,
@@ -114,6 +118,7 @@ afterAll(async () => {
     const booked = await connection.db.select({ id: bookings.id, clientId: bookings.clientId }).from(bookings).where(inArray(bookings.employeeId, barbers));
     if (booked.length) {
       await connection.db.delete(bookingVisitEvents).where(inArray(bookingVisitEvents.bookingId, booked.map(row => row.id)));
+      await connection.db.delete(bookingRevisions).where(inArray(bookingRevisions.bookingId, booked.map(row => row.id)));
       await connection.db.delete(bookings).where(inArray(bookings.id, booked.map(row => row.id)));
       const clientIds = [...new Set(booked.map(row => row.clientId))];
       await connection.db.delete(clientAddresses).where(inArray(clientAddresses.clientId, clientIds));
@@ -621,7 +626,9 @@ describe("one upcoming reservation, the reservation-day reminder, and cancelling
   it("checks the reservation with option 5, and offers to book when there is none", async () => {
     const { phone } = await approved();
     await send(phone, "hi", "1", "5");
-    expect(h.sent.at(-1)!.text).toMatch(/^📋 Your reservation:\n📅 .+ · 12:00 - 13:00 · 💈 .+\n\n✂️ \*J4Kids Salon\*/);
+    expect(h.sent.at(-1)!.text).toMatch(/^📋 Your reservation:\n📅 .+ · 12:00 - 13:00 · 💈 .+\n\n1\. Confirm ✅\n2\. Change address\n3\. Cancel the reservation ❌\n4\. Back to the previous step\n\nPlease choose the right number\.$/);
+    await send(phone, "1");
+    expect(h.sent.at(-1)!.text).toBe("✅ Thank you for confirming. See you then!");
     const other = client();
     await send(other.phone, "hi", "1", "5");
     expect(h.sent.at(-1)!.text).toContain("You have no upcoming reservation. Would you like to book one?");
@@ -688,6 +695,155 @@ describe("one upcoming reservation, the reservation-day reminder, and cancelling
     const cancel = (await stored(phone)).requests.at(-1)!;
     await fromStaff(`address ${cancel.number} street 9`);
     expect(h.sent.at(-1)!.text).toBe(`Request #${cancel.number} is a cancellation. It has no address to change.`);
+  });
+
+  /** A client who asked, from option 5, to move their only reservation to block 7, street 9, house 1; returns the request number. */
+  async function askNewAddress(phone: string) {
+    await send(phone, "hi", "1", "5", "2", areaName, "block 7, street 9, house 1", "1");
+    return (await stored(phone)).requests.at(-1)!.number;
+  }
+
+  it("changes the reservation's address from option 5 once staff approve it", async () => {
+    const { phone, chatId, booking } = await approved();
+    h.sent.length = 0;
+    const number = await askNewAddress(phone);
+    expect((await stored(phone)).requests.at(-1)!.details).toMatchObject({ type: "address", reservation: { kind: "booking", id: booking.id }, area: areaName, address: { block: "7", street: "9", houseNumber: "1" } });
+    const toStaff = h.sent.find(message => message.chatId === staffChat)!;
+    expect(toStaff.text).toContain(`طلب تغيير عنوان حجز من واتساب #${number}`);
+    expect(toStaff.text).toContain(`الحجز: ${booking.reference}`);
+    expect(toStaff.text).toContain(`العنوان الحالي: ${areaName}، قطعة 3، شارع 5، منزل 12`);
+    expect(toStaff.text).toContain(`العنوان الجديد: ${areaName}، قطعة 7، شارع 9، منزل 1`);
+    expect(h.sent.at(-1)).toMatchObject({ chatId, text: "✅ Your address change was sent to our team. We will tell you once it is approved." });
+    expect(h.aiCalls).toHaveLength(0);
+    // Nothing changes before staff approve.
+    expect((await connection.db.select().from(bookings).where(eq(bookings.id, booking.id)))[0]!.addressSnapshot).toEqual(booking.addressSnapshot);
+    h.sent.length = 0;
+    await fromStaff(`yes ${number}`);
+    const [moved] = await connection.db.select().from(bookings).where(eq(bookings.id, booking.id));
+    expect(moved!.addressSnapshot).toMatchObject({ area: areaName, block: "7", street: "9", houseNumber: "1", mapsUrl: null });
+    expect(moved!.addressId).not.toBe(booking.addressId);
+    expect(moved!.visitVersion).toBe(booking.visitVersion + 1);
+    const [revision] = await connection.db.select().from(bookingRevisions).where(eq(bookingRevisions.bookingId, booking.id));
+    expect(revision).toMatchObject({ version: booking.visitVersion + 1, reason: `Address changed by the client on WhatsApp (#${number})` });
+    expect((await stored(phone)).requests.at(-1)!.status).toBe("approved");
+    expect(h.sent.map(message => message.chatId)).toEqual([staffChat, chatId]);
+    expect(h.sent[0]!.text).toBe(`Address change #${number} approved. Reservation ${booking.reference} now has the new address. The client was told.`);
+    expect(h.sent[1]!.text).toMatch(/^✅ Your reservation's address was changed\.\n📅 .+ · 12:00 - 13:00 · 💈 .+\n📍 .+$/);
+    expect(h.sent[1]!.text.endsWith(`📍 ${areaName}, Block 7, Street 9, House 1`)).toBe(true);
+    // The next booking offers the reservation's new address.
+    await connection.db.update(bookings).set({ visitStatus: "completed" }).where(eq(bookings.id, booking.id));
+    const time = nextWindow();
+    await toTimes(phone, time);
+    await send(phone, timeOption(time)!, "7");
+    expect(h.sent.at(-1)!.text).toContain(`📍 Is this location correct?\n${areaName}, Block 7, Street 9, House 1\n`);
+  });
+
+  it("keeps the address when staff refuse, and tells the client", async () => {
+    const { phone, chatId, booking } = await approved();
+    const number = await askNewAddress(phone);
+    h.sent.length = 0;
+    await fromStaff(`no ${number} We cannot reach that area`);
+    expect((await connection.db.select().from(bookings).where(eq(bookings.id, booking.id)))[0]!.addressSnapshot).toEqual(booking.addressSnapshot);
+    expect((await stored(phone)).requests.at(-1)!.status).toBe("rejected");
+    expect(h.sent.at(-1)).toMatchObject({ chatId, text: "❌ We could not change your reservation's address.\nWe cannot reach that area\nA staff member will contact you." });
+  });
+
+  it("puts the new address on a request staff have not approved yet, which the reservation then uses", async () => {
+    const { phone } = client();
+    const first = await confirmed(phone);
+    const number = await askNewAddress(phone);
+    await fromStaff(`yes ${number}`);
+    expect((await stored(phone)).requests.find(item => item.number === first)!.details).toMatchObject({ area: areaName, address: { block: "7", street: "9", houseNumber: "1" } });
+    await fromStaff(`yes ${first}`);
+    const bookingId = (await stored(phone)).requests.find(item => item.number === first)!.bookingId!;
+    expect((await connection.db.select().from(bookings).where(eq(bookings.id, bookingId)))[0]!.addressSnapshot).toMatchObject({ block: "7", street: "9", houseNumber: "1" });
+  });
+
+  it("does not change a reservation that started before staff approved, and refuses an address command on the request", async () => {
+    const { phone, booking } = await approved();
+    const number = await askNewAddress(phone);
+    await fromStaff(`address ${number} street 9`);
+    expect(h.sent.at(-1)!.text).toBe(`Request #${number} is an address change. Approve it with yes ${number} or refuse it with no ${number} <reason>.`);
+    h.at(new Date(`${booking.date}T12:30:00+03:00`));
+    await fromStaff(`yes ${number}`);
+    expect(h.sent.at(-1)!.text).toBe(`Address change #${number} was not done: the reservation has started or is no longer booked. Change it in the dashboard, or refuse with: no ${number}`);
+    expect((await connection.db.select().from(bookings).where(eq(bookings.id, booking.id)))[0]!.addressSnapshot).toEqual(booking.addressSnapshot);
+    expect((await stored(phone)).requests.at(-1)!.status).toBe("pending");
+  });
+
+  it("sends the chosen barber's photo, then the start times", async () => {
+    const { phone, chatId } = client();
+    mkdirSync(join(uploadsDir, "employee-photos"), { recursive: true });
+    writeFileSync(join(uploadsDir, "employee-photos", `${barberId}.jpg`), Buffer.from("photo-bytes"));
+    await connection.db.update(employees).set({ photoUpdatedAt: new Date() }).where(eq(employees.accountId, barberId));
+    try {
+      await toTimes(phone);
+      const photo = h.sent.findIndex(message => message.image);
+      expect(h.sent[photo]).toMatchObject({ chatId, text: `💈 ${barberName}`, image: { mimetype: "image/jpeg", size: 11 } });
+      expect(h.sent[photo + 1]!.text).toMatch(/^⏰ Available start times on /);
+      // A photo removed from the folder is skipped, and the start times still go out.
+      h.sent.length = 0;
+      rmSync(join(uploadsDir, "employee-photos", `${barberId}.jpg`));
+      const other = client();
+      await toTimes(other.phone);
+      expect(h.sent.some(message => message.image && message.chatId === other.chatId)).toBe(false);
+      expect(h.sent.at(-1)!.text).toMatch(/^⏰ Available start times on /);
+    } finally {
+      await connection.db.update(employees).set({ photoUpdatedAt: null }).where(eq(employees.accountId, barberId));
+    }
+  });
+});
+
+describe("unfinished booking message", () => {
+  const send = async (phone: string, ...texts: string[]) => { for (const text of texts) { await deliver(h.app, payload(phone, text)); await h.whatsapp.idle(); } };
+  const sweep = async () => { await h.whatsapp.nudge(); await h.whatsapp.drain(); await h.whatsapp.idle(); };
+  const text = "يمكنكم زيارتنا ف الصالون و يوجد خدمه نسائيه بالصالون";
+  // Chats left unfinished by earlier tests may get the message in the same sweep, so each test looks at its own chats.
+  const to = (chatId: string) => h.sent.filter(message => message.chatId === chatId);
+
+  it("sends the Arabic salon message once, 10 minutes after a new booking stops", async () => {
+    const { phone, chatId } = client();
+    await send(phone, "hi", "1", "1", "1");
+    h.sent.length = 0;
+    h.advance(10 * 60_000 - 1000);
+    await sweep();
+    expect(to(chatId)).toEqual([]);
+    h.advance(1000);
+    await sweep();
+    expect(to(chatId)).toEqual([expect.objectContaining({ chatId, text })]);
+    // The booking goes on where it stopped, and is not reminded again.
+    await send(phone, "1");
+    expect((await stored(phone)).conversation!.flow).toMatchObject({ step: "date", children: 1, nudged: true });
+    h.sent.length = 0;
+    h.advance(10 * 60_000);
+    await sweep();
+    expect(to(chatId)).toEqual([]);
+  });
+
+  it("sends it again for a new booking started later", async () => {
+    const { phone, chatId } = client();
+    await send(phone, "hi", "1", "1");
+    h.advance(10 * 60_000);
+    await sweep();
+    await send(phone, "menu", "1");
+    h.sent.length = 0;
+    h.advance(10 * 60_000);
+    await sweep();
+    expect(to(chatId).map(message => message.text)).toEqual([text]);
+  });
+
+  it("sends nothing for the menu, an address change, a chat staff took over, or a finished booking", async () => {
+    const atMenu = client(), changing = client(), paused = client(), done = client();
+    await send(atMenu.phone, "hi", "1");
+    await send(paused.phone, "hi", "1", "1");
+    await connection.db.update(whatsappConversations).set({ aiPaused: true }).where(eq(whatsappConversations.phone, paused.phone));
+    await send(changing.phone, "hi", "1");
+    await connection.db.update(whatsappConversations).set({ flow: { step: "area", language: "en", addressChange: true, visitType: "home" } }).where(eq(whatsappConversations.phone, changing.phone));
+    await confirmed(done.phone);
+    h.sent.length = 0;
+    h.advance(10 * 60_000);
+    await sweep();
+    for (const { chatId } of [atMenu, changing, paused, done]) expect(to(chatId)).toEqual([]);
   });
 });
 

@@ -124,4 +124,21 @@ describe("clients and reusable visit addresses", () => {
     const duplicate = await request(app).patch(`/clients/${client.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send({ phone: otherPhone });
     expect(duplicate.status).toBe(409);
   });
+
+  it("sets and clears the favorite barber by hand, shown on the client and in the list", async () => {
+    const admin = await signIn(env.ADMIN_PHONE, env.ADMIN_PASSWORD);
+    const phone = `+965${randomInt(80000000, 89999999)}`;
+    const client = await createClient(admin, phone);
+    const patch = (body: object) => request(app).patch(`/clients/${client.id}`).set("Origin", origin).set("Cookie", admin.cookie).set("X-CSRF-Token", admin.csrf).send(body);
+    expect((await request(app).get(`/clients/${client.id}`).set("Cookie", admin.cookie)).body.favoriteBarber).toBeNull();
+    const set = await patch({ favoriteBarberId: employeeId });
+    expect(set.status).toBe(200);
+    expect(set.body.favoriteBarber).toEqual({ id: employeeId, name: "سالم" });
+    const listed = await request(app).get("/clients").query({ q: phone }).set("Cookie", admin.cookie);
+    expect(listed.body.clients[0].favoriteBarber).toEqual({ id: employeeId, name: "سالم" });
+    expect((await patch({ favoriteBarberId: randomUUID() })).status).toBe(404);
+    const cleared = await patch({ favoriteBarberId: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.favoriteBarber).toBeNull();
+  });
 });

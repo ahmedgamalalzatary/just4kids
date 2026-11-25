@@ -3,7 +3,7 @@ import { extraNote, type StaffNotice } from "./flow.js";
 import { addressText, homeLabels, parseLabeledParts } from "./address-input.js";
 
 const ADDRESS_FORMAT = "address 12 block 3, street 5, house 10, https://maps.app.goo.gl/...";
-const STAFF_HELP = `Commands:\nyes 12 — approve request 12 (for a cancellation: cancel the reservation)\nyes 12 Lenny — approve and choose the barber\nno 12 reason — reject request 12\n${ADDRESS_FORMAT} — change the address of request 12 before approving it\nai on +96550000000 — the AI answers that client again`;
+const STAFF_HELP = `Commands:\nyes 12 — approve request 12 (for a cancellation: cancel the reservation; for an address change: change it)\nyes 12 Lenny — approve and choose the barber\nno 12 reason — reject request 12\n${ADDRESS_FORMAT} — change the address of request 12 before approving it\nai on +96550000000 — the AI answers that client again`;
 export const addressHelp = () => `Write the parts to change, separated by commas, for example:\n${ADDRESS_FORMAT}\nParts: area, block, street, house, building, avenue, floor, apartment, gate, blue number, and a Google Maps link. Arabic names work too (منطقة، قطعة، شارع، منزل، بناية، جادة، دور، شقة). Parts you leave out stay as they are.`;
 
 const WHO_LABELS: Record<WhatsAppWho, string> = { boy: "ولد", girl: "بنت", baby: "رضيع", special: "ذوو احتياجات خاصة", both: "ولد وبنت", medical: "خدمة حالة مرضية", adults: "كبار", family: "كبار وأطفال" };
@@ -36,6 +36,17 @@ export function staffMessage(notice: StaffNotice, phone: string, requestNumber: 
     const { reservation } = notice;
     const which = reservation.kind === "booking" ? reservation.reference : `Request #${reservation.number} (not approved yet)`;
     return ["Client wants to change a reservation", `Client: ${phone}`, `Reservation: ${which} · ${reservation.date} · ${reservation.startTime} - ${reservation.endTime} · ${reservation.barber?.name ?? "any barber"}`, `Message: ${notice.text}`].join("\n");
+  }
+  if (notice.type === "address_change") {
+    const { reservation, previous } = notice;
+    const which = reservation.kind === "booking" ? reservation.reference : `طلب واتساب #${reservation.number} (لم تتم الموافقة عليه بعد)`;
+    const line = (area: string, address: WhatsAppAddress) => [area, addressText(address, "ar")].filter(Boolean).join("، ");
+    return [
+      `طلب تغيير عنوان حجز من واتساب #${requestNumber}`, `العميل: ${phone}`, `الحجز: ${which}`, `الحلاق: ${reservation.barber?.name ?? "أي حلاق"}`, `التاريخ: ${reservation.date}`, `الوقت: ${reservation.startTime} - ${reservation.endTime}`,
+      ...(previous ? [`العنوان الحالي: ${line(previous.area, previous.address)}`] : []),
+      `العنوان الجديد: ${line(notice.area.name, notice.address)}`, ...(notice.address.mapsUrl ? [`الموقع: ${notice.address.mapsUrl}`] : []),
+      "", `للموافقة وتغيير العنوان: yes ${requestNumber}`, `للرفض والتواصل مع العميل: no ${requestNumber} <السبب>`,
+    ].join("\n");
   }
   if (notice.type === "change") return ["Client wants to change or cancel", `Client: ${phone}`, ...(earlierRequests.length ? [`Requests: ${earlierRequests.map(number => `#${number}`).join(", ")}`] : []), `Message: ${notice.text}`].join("\n");
   return ["WhatsApp message for staff", `Client: ${phone}`, notice.summary].join("\n");

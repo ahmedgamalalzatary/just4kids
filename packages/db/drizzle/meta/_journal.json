@@ -295,6 +295,13 @@
       "when": 1795359742264,
       "tag": "0041_employee_locations",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1795614677557,
+      "tag": "0042_barber_photo_favorite_barber",
+      "breakpoints": true
     }
   ]
 }

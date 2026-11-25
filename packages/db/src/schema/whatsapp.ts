@@ -3,7 +3,8 @@ import { bookings } from "./bookings.js";
 
 // WhatsApp conversations are kept indefinitely; an approved request becomes a normal reservation.
 // price_list is the home list; the salon list has its own photo.
-export type WhatsAppMedia = "price_list" | "salon_price_list";
+// barber_photo is the chosen barber's dashboard photo, named by the message's mediaBarberId.
+export type WhatsAppMedia = "price_list" | "salon_price_list" | "barber_photo";
 export type WhatsAppAddress = { block: string; street: string; houseNumber: string | null; buildingName: string | null; avenue: string | null; floor: string | null; apartment: string | null; mapsUrl: string | null; gate?: string | null; blueNumber?: string | null };
 export type WhatsAppWho = "boy" | "girl" | "baby" | "special" | "both" | "medical" | "adults" | "family";
 export type WhatsAppVisitType = "home" | "hospital";
@@ -34,17 +35,21 @@ export type WhatsAppReservation = { date: string; startTime: string; endTime: st
   & ({ kind: "booking"; id: string; reference: string } | { kind: "request"; number: number });
 // A client's cancellation of a reservation, waiting for staff to approve or refuse it.
 export type WhatsAppCancelDetails = { type: "cancel"; reservation: WhatsAppReservation; language: "en" | "ar" | null };
+// A client's new address for one upcoming reservation, waiting for staff to approve or refuse it.
+export type WhatsAppAddressDetails = { type: "address"; reservation: WhatsAppReservation; areaId: string; area: string; address: WhatsAppAddress; language: "en" | "ar" | null };
 export type WhatsAppStaffAction =
   | ({ type: "new_request"; requestNumber: number } & Omit<WhatsAppRequestDetails, "type">)
   | { type: "cancel"; requestNumber: number; reservation: WhatsAppReservation }
   | { type: "change"; text: string; reservation?: WhatsAppReservation }
   | { type: "talk" }
-  | { type: "forward"; summary: string };
+  | { type: "forward"; summary: string }
+  | { type: "address_change"; requestNumber: number; reservation: WhatsAppReservation; area: string; address: WhatsAppAddress };
 // Where one client is in the numbered menus.
 // savedAddress asks whether the barber comes to the address of the client's last reservation.
 // noUpcoming offers a booking when the client checks a reservation and has none; reminder is the reservation-day message (confirm or cancel).
-// reservation and cancelConfirm are no longer used; older saved chats may still be on them and go back to the menu.
-export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch" | "reservations" | "reservation" | "cancelConfirm" | "noUpcoming" | "reminder";
+// verify shows one reservation (option 5) to confirm, change its address (addressConfirm sends the new one to staff), or cancel.
+// reservation is no longer used; older saved chats may still be on it and go back to the menu.
+export type WhatsAppFlowStep = "language" | "menu" | "who" | "adults" | "children" | "barber" | "date" | "time" | "extra" | "visitType" | "savedAddress" | "area" | "address" | "confirm" | "change" | "branch" | "reservations" | "reservation" | "cancelConfirm" | "noUpcoming" | "reminder" | "verify" | "addressConfirm";
 export type WhatsAppFlow = {
   step: WhatsAppFlowStep; language: "en" | "ar" | null;
   // The step to return to after the client changes language in the middle of a booking.
@@ -66,6 +71,12 @@ export type WhatsAppFlow = {
   draft?: { written?: Partial<Omit<WhatsAppAddress, "mapsUrl">>; mapsUrl?: string };
   // The upcoming reservation the client chose to change, or the one today's reminder is about.
   reservation?: WhatsAppReservation;
+  // True while the client writes a new address for the reservation (option 5, change address) instead of booking.
+  addressChange?: boolean;
+  // "verify" when the reservations list was opened from option 5; otherwise the list is for a cancellation (option 4).
+  pick?: "verify";
+  // True once the unfinished-booking message was sent for this booking, so it is sent once.
+  nudged?: boolean;
 };
 
 export const whatsappConversations = mysqlTable("whatsapp_conversations", {
@@ -89,7 +100,7 @@ export const whatsappRequests = mysqlTable("whatsapp_requests", {
   number: int("number").autoincrement().primaryKey(),
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
   // A reservation request, or a cancellation (type "cancel") of an upcoming reservation.
-  details: json("details").$type<WhatsAppRequestDetails | WhatsAppCancelDetails>().notNull(),
+  details: json("details").$type<WhatsAppRequestDetails | WhatsAppCancelDetails | WhatsAppAddressDetails>().notNull(),
   // cancelled: the client's cancellation of this request was approved before staff decided it.
   status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   bookingId: varchar("booking_id", { length: 36 }),
@@ -119,7 +130,9 @@ export const whatsappMessages = mysqlTable("whatsapp_messages", {
   // The text, or the caption when media is set.
   body: text("body").notNull(),
   // Set when the message is a photo from the API's assets instead of text.
-  media: mysqlEnum("media", ["price_list", "salon_price_list"]),
+  media: mysqlEnum("media", ["price_list", "salon_price_list", "barber_photo"]),
+  // The barber whose photo a barber_photo message sends.
+  mediaBarberId: varchar("media_barber_id", { length: 36 }),
   // inbound: pending until it has been answered; outbound: pending until OpenWA accepted it.
   status: mysqlEnum("status", ["pending", "done", "failed"]).notNull(),
   // inbound: OpenWA's X-OpenWA-Idempotency-Key; outbound: the Idempotency-Key sent with every attempt.

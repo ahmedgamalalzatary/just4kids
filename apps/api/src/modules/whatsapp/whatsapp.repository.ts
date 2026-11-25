@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { TransactionRollbackError, and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { createDatabase } from "@just4kids/db";
-import { accounts, areas, bookings, branches, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappReminders, whatsappRequests } from "@just4kids/db/schema";
-import type { WhatsAppFlow, WhatsAppRequestDetails, WhatsAppReservation, WhatsAppStaffAction } from "@just4kids/db/schema";
+import { accounts, areas, bookingRevisions, bookings, branches, clientAddresses, clients, employeeExceptionIntervals, employeeScheduleExceptions, employeeTimeBlocks, employees, employeeWorkDays, employeeWorkIntervals, whatsappConversations, whatsappMessages, whatsappReminders, whatsappRequests } from "@just4kids/db/schema";
+import type { WhatsAppAddress, WhatsAppFlow, WhatsAppRequestDetails, WhatsAppReservation, WhatsAppStaffAction } from "@just4kids/db/schema";
 import type { WorkInterval } from "@just4kids/contracts";
 import type { Transaction } from "../availability/availability.repository.js";
 import { freeWholeHours } from "../availability/availability.service.js";
 import type { Inbound, OwnMessage } from "./openwa.js";
 import type { Turn } from "./flow.js";
+import { serializeBooking } from "../bookings/booking.service.js";
+import { unfinishedBooking } from "./flow.js";
 import { staffMessage } from "./messages.js";
 
 // Messages the system queues carry this key prefix; a message typed on the phone keeps OpenWA's key.
@@ -20,6 +22,11 @@ function isDuplicate(error: unknown) {
 }
 const affected = (result: unknown) => (Array.isArray(result) ? result[0] : result as { affectedRows?: number })?.affectedRows ?? 0;
 const free = (now: Date) => or(isNull(whatsappConversations.leaseUntil), lt(whatsappConversations.leaseUntil, now));
+
+/** A reservation's current address as the WhatsApp flow holds it. */
+const asFlowAddress = ({ area, ...address }: typeof bookings.$inferSelect["addressSnapshot"]) => ({
+  area, address: { block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue ?? null, gate: address.gate ?? null, blueNumber: address.blueNumber ?? null, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl },
+});
 
 export function createWhatsAppRepository(connection: ReturnType<typeof createDatabase>) {
   const { db } = connection;
@@ -94,7 +101,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         .where(and(eq(whatsappRequests.conversationId, conversationId), eq(whatsappRequests.status, "pending")));
       const reservations: WhatsAppReservation[] = [
         ...booked.map(row => ({ kind: "booking" as const, id: row.id, reference: row.reference, date: row.date, startTime: row.startTime, endTime: row.endTime, barber: { name: row.name, nameAr: row.nameAr } })),
-        ...waiting.flatMap(({ number, details }) => details.type === "cancel" ? [] : [{ kind: "request" as const, number, date: details.date, startTime: details.startTime, endTime: details.endTime, barber: details.barberName ? { name: details.barberName } : null }]),
+        ...waiting.flatMap(({ number, details }) => details.type ? [] : [{ kind: "request" as const, number, date: details.date, startTime: details.startTime, endTime: details.endTime, barber: details.barberName ? { name: details.barberName } : null }]),
       ];
       return reservations.filter(item => future(item.date, item.startTime)).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
     },
@@ -127,7 +134,8 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
     },
     /** The barbers, areas and salon branches the menus offer, always read from the dashboard's data. */
     async options() {
-      const barbers = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr, gender: employees.gender }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
+      const rows = await db.select({ id: employees.accountId, name: employees.displayName, nameAr: employees.displayNameAr, gender: employees.gender, photoUpdatedAt: employees.photoUpdatedAt }).from(employees).innerJoin(accounts, eq(accounts.id, employees.accountId)).where(eq(accounts.enabled, true)).orderBy(asc(employees.displayName));
+      const barbers = rows.map(({ photoUpdatedAt, ...barber }) => ({ ...barber, photo: photoUpdatedAt !== null }));
       const enabledAreas = await db.select({ id: areas.id, name: areas.name }).from(areas).where(eq(areas.enabled, true)).orderBy(asc(areas.name));
       const salonBranches = await db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(asc(branches.name));
       return { barbers, areas: enabledAreas, branches: salonBranches };
@@ -137,6 +145,44 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
       const rows = await db.select({ address: bookings.addressSnapshot }).from(bookings).innerJoin(clients, eq(clients.id, bookings.clientId))
         .where(eq(clients.phone, phone)).orderBy(desc(bookings.createdAt)).limit(20);
       return rows.map(row => row.address);
+    },
+    /**
+     * Inside the approval's transaction: puts the client's new address on an upcoming booked reservation, as a dashboard edit would
+     * (a new client address, the reservation's snapshot, its version, and a revision). Null when it has started or is no longer booked.
+     */
+    async moveReservation(transaction: Transaction, bookingId: string, area: string, address: WhatsAppAddress, actorAccountId: string, reason: string, now: Date) {
+      const [booking] = await transaction.select().from(bookings).where(eq(bookings.id, bookingId)).for("update");
+      if (!booking || booking.visitStatus !== "booked" || new Date(`${booking.date}T${booking.startTime}:00+03:00`).getTime() <= now.getTime()) return null;
+      const addressId = randomUUID();
+      const snapshot = { area, block: address.block, street: address.street, houseNumber: address.houseNumber, buildingName: address.buildingName, avenue: address.avenue, gate: address.gate ?? null, blueNumber: address.blueNumber ?? null, floor: address.floor, apartment: address.apartment, mapsUrl: address.mapsUrl };
+      await transaction.insert(clientAddresses).values({ id: addressId, clientId: booking.clientId, ...snapshot, createdAt: now, updatedAt: now });
+      const moved = { ...booking, addressId, addressSnapshot: snapshot, visitVersion: booking.visitVersion + 1 };
+      await transaction.update(bookings).set({ addressId, addressSnapshot: snapshot, visitVersion: moved.visitVersion }).where(eq(bookings.id, bookingId));
+      await transaction.insert(bookingRevisions).values({ id: randomUUID(), bookingId, version: moved.visitVersion, actorAccountId, reason, occurredAt: now, before: serializeBooking(booking), after: serializeBooking(moved) });
+      return booking.reference;
+    },
+    /** Inside the approval's transaction: the new address of a reservation request staff have not decided yet; false when it was decided first. */
+    async moveWaitingRequest(transaction: Transaction, number: number, areaId: string, area: string, address: WhatsAppAddress) {
+      const [request] = await transaction.select().from(whatsappRequests).where(and(eq(whatsappRequests.number, number), eq(whatsappRequests.status, "pending"))).for("update");
+      if (!request || request.details.type) return false;
+      await transaction.update(whatsappRequests).set({ details: { ...request.details, areaId, area, address } }).where(eq(whatsappRequests.number, number));
+      return true;
+    },
+    /** Chats with a new booking started and left for idleMs (up to an hour ago), whose one message was not sent yet; staff-handled chats are left alone. */
+    async unfinishedBookings(now: Date, idleMs: number) {
+      const rows = await db.select({ id: whatsappConversations.id, phone: whatsappConversations.phone, chatId: whatsappConversations.chatId, flow: whatsappConversations.flow, updatedAt: whatsappConversations.updatedAt })
+        .from(whatsappConversations)
+        .where(and(eq(whatsappConversations.aiPaused, false), lte(whatsappConversations.updatedAt, new Date(now.getTime() - idleMs)), gt(whatsappConversations.updatedAt, new Date(now.getTime() - 60 * 60_000))));
+      return rows.filter(row => unfinishedBooking(row.flow));
+    },
+    /** Queues the unfinished-booking message once and marks the booking, unless the chat moved on since it was read. */
+    async queueNudge(conversation: { id: string; chatId: string; updatedAt: Date }, text: string, now: Date) {
+      await db.transaction(async transaction => {
+        const marked = await transaction.update(whatsappConversations).set({ flow: sql`JSON_SET(${whatsappConversations.flow}, '$.nudged', true)`, updatedAt: now })
+          .where(and(eq(whatsappConversations.id, conversation.id), eq(whatsappConversations.updatedAt, conversation.updatedAt)));
+        if (affected(marked) !== 1) return;
+        await transaction.insert(whatsappMessages).values({ conversationId: conversation.id, direction: "outbound", audience: "client", status: "pending", turnId: randomUUID(), body: text, idempotencyKey: `${OUR_KEY}${randomUUID()}`, chatId: conversation.chatId, createdAt: now });
+      });
     },
     /** Each barber's free whole hours on each date, for the lists the client chooses from. */
     async freeHours(barberIds: string[], dates: string[]) {
@@ -179,7 +225,7 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
         const turnId = randomUUID();
         const outbound = { conversationId: conversation.id, direction: "outbound" as const, status: "pending" as const, turnId, createdAt: now };
         if (turn.staff) {
-          let action: WhatsAppStaffAction, requestNumber: number | null = null;
+          let action: WhatsAppStaffAction, requestNumber: number | null = null, notice = turn.staff;
           if (turn.staff.type === "new_request") {
             const [created] = await transaction.insert(whatsappRequests).values({ conversationId: conversation.id, details: turn.staff.details, createdAt: now }).$returningId();
             requestNumber = created!.number;
@@ -189,10 +235,23 @@ export function createWhatsAppRepository(connection: ReturnType<typeof createDat
             const [created] = await transaction.insert(whatsappRequests).values({ conversationId: conversation.id, details: { type: "cancel", reservation, language }, createdAt: now }).$returningId();
             requestNumber = created!.number;
             action = { type: "cancel", requestNumber, reservation };
+          } else if (turn.staff.type === "address_change") {
+            const { reservation, area, address, language } = turn.staff;
+            const [created] = await transaction.insert(whatsappRequests).values({ conversationId: conversation.id, details: { type: "address", reservation, areaId: area.id, area: area.name, address, language }, createdAt: now }).$returningId();
+            requestNumber = created!.number;
+            action = { type: "address_change", requestNumber, reservation, area: area.name, address };
+            // Staff see the address the reservation has now beside the new one.
+            if (reservation.kind === "booking") {
+              const [booking] = await transaction.select({ address: bookings.addressSnapshot }).from(bookings).where(eq(bookings.id, reservation.id));
+              notice = { ...turn.staff, previous: booking ? asFlowAddress(booking.address) : null };
+            } else {
+              const [request] = await transaction.select({ details: whatsappRequests.details }).from(whatsappRequests).where(eq(whatsappRequests.number, reservation.number));
+              notice = { ...turn.staff, previous: request && !request.details.type ? { area: request.details.area, address: request.details.address } : null };
+            }
           } else action = turn.staff;
-          await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ ...outbound, audience: "staff" as const, body: staffMessage(turn.staff!, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId, action, requestNumber })));
+          await transaction.insert(whatsappMessages).values(staffChatIds.map(chatId => ({ ...outbound, audience: "staff" as const, body: staffMessage(notice, conversation.phone, requestNumber, earlierRequests), idempotencyKey: `j4k-${randomUUID()}`, chatId, action, requestNumber })));
         }
-        if (turn.image) await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.image.caption, media: turn.image.media, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
+        if (turn.image) await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.image.caption, media: turn.image.media, mediaBarberId: turn.image.barberId ?? null, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
         await transaction.insert(whatsappMessages).values({ ...outbound, audience: "client", body: turn.reply, idempotencyKey: `j4k-${randomUUID()}`, chatId: conversation.chatId });
       }).then(() => true, (error: unknown) => { if (error instanceof TransactionRollbackError) return false; throw error; });
     },
